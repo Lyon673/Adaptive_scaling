@@ -1,0 +1,14 @@
+A_d=1.5
+A_p=4
+A_v=8
+W_d=1
+W_dp=0.5
+W_dpv=0.5
+W_dv=0.5
+W_p=1
+W_pv=0.5
+W_v=1
+Y_base=0.05
+tau_d=0.7
+tau_p=0.8
+tau_v=0.6

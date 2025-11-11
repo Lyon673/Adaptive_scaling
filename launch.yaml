@@ -1,0 +1,26 @@
+# This is the base file for Coordination Application
+world config: /home/lambda/surgical_robotics_challenge/ADF/world/world_stereo_test.yaml
+# world config: ./ADF/world/world_stereo.yaml
+color config: /home/lambda/surgical_robotics_challenge/ADF/color/colors.yaml
+input devices config: /home/lambda/surgical_robotics_challenge/ADF/input_devices/input_devices.yaml
+
+multibody configs:
+  #3D MED PHANTOM
+  - "/home/lambda/surgical_robotics_challenge/ADF/Phantoms/3D_MED/phantom.yaml" #0
+  - "/home/lambda/surgical_robotics_challenge/ADF/Phantoms/3D_MED/ghosts.yaml" #1
+  #PSM LND 420006
+  - "/home/lambda/surgical_robotics_challenge/ADF/PSMs/LND_420006/psm1.yaml" #2
+  - "/home/lambda/surgical_robotics_challenge/ADF/PSMs/LND_420006/ghosts_actuators_psm1.yaml" #3
+  - "/home/lambda/surgical_robotics_challenge/ADF/PSMs/LND_420006/psm2.yaml" #4
+  - "/home/lambda/surgical_robotics_challenge/ADF/PSMs/LND_420006/ghosts_actuators_psm2.yaml" #5
+  #PSM LND 400006 SIMPLE
+  - "/home/lambda/surgical_robotics_challenge/ADF/PSMs/LND_400006_SIMPLE/psm1.yaml" #6
+  - "/home/lambda/surgical_robotics_challenge/ADF/PSMs/LND_400006_SIMPLE/ghosts_actuators_psm1.yaml" #7
+  - "/home/lambda/surgical_robotics_challenge/ADF/PSMs/LND_400006_SIMPLE/psm2.yaml" #8
+  - "/home/lambda/surgical_robotics_challenge/ADF/PSMs/LND_400006_SIMPLE/ghosts_actuators_psm2.yaml" #9
+  #SIMPLE PHANTOM
+  - "/home/lambda/surgical_robotics_challenge/ADF/Phantoms/Simple/phantom.yaml" #10
+  - "/home/lambda/surgical_robotics_challenge/ADF/Phantoms/Simple/ghosts.yaml" #11
+  #3D MED STRAIGHT PHANTOM
+  - "/home/lambda/surgical_robotics_challenge/ADF/Phantoms/3D_MED_STRAIGHT/phantom.yaml" #12
+  - "/home/lambda/surgical_robotics_challenge/ADF/Phantoms/3D_MED_STRAIGHT/ghosts.yaml" #13
