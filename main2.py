@@ -432,57 +432,49 @@ class AttentionHeatmapGenerator:
 		
 		return not is_outlier, attention_value
 	
-	# def calculate_weighted_distance(self, hand_pos):
-	# 	"""
-	# 	Calculate weighted distance between attention heatmap and hand position
-	# 	"""
-	# 	if np.sum(self.realtime_heatmap) < 1e-6:
-	# 		return (self.scale_params['d_max'] + self.scale_params['d_min']) / 2
-		
-	# 	y_indices, x_indices = np.indices(self.heatmap_size)
-	# 	screen_x = x_indices * self.screen_width / self.heatmap_size[1]
-	# 	screen_y = y_indices * self.screen_height / self.heatmap_size[0]
-		
-	# 	hand_screen_x = hand_pos[0] * self.screen_width
-	# 	hand_screen_y = hand_pos[1] * self.screen_height
-		
-		
-	# 	distances = np.sqrt((screen_x - hand_screen_x)**2 + (screen_y - hand_screen_y)**2)
-	# 	normalized_heatmap = self.realtime_heatmap / (np.sum(self.realtime_heatmap) + 1e-10)
-	# 	weighted_distance = np.sum(normalized_heatmap * distances)
-		
-	# 	return weighted_distance
-	def calculate_weighted_distance(self, gaze_position_3d, hand_position_3d):
+	def calculate_weighted_distance(self, gaze_positions_3d, hand_position_3d):
 		"""
-		计算单个注视点与单个手部位置的三维距离
-		gaze_position_3d: 单个注视点的三维坐标 [x, y, z]
-		hand_position_3d: 单个手部的三维坐标 [x, y, z]
+		计算加权距离（基于时间窗口内的多个注视点）
+		gaze_positions_3d: 时间窗口内的三维注视点坐标列表 [(x1,y1,z1), (x2,y2,z2), ...]
+		hand_position_3d: 单个手的三维坐标 [x, y, z]
 		"""
 		try:
 			# 安全检查
-			if gaze_position_3d is None or hand_position_3d is None:
+			if not gaze_positions_3d or hand_position_3d is None:
 				return (self.scale_params['d_max'] + self.scale_params['d_min']) / 2
 			
-			# 调试输出
-			# print(f"gaze_position_3d: {gaze_position_3d}, type: {type(gaze_position_3d)}")
-			# print(f"hand_position_3d: {hand_position_3d}, type: {type(hand_position_3d)}")
-			
-			# 确保输入是有效的三维坐标
-			if (not hasattr(gaze_position_3d, '__len__') or len(gaze_position_3d) < 3 or
-				not hasattr(hand_position_3d, '__len__') or len(hand_position_3d) < 3):
+			# 确保手部坐标有效
+			if (not hasattr(hand_position_3d, '__len__') or len(hand_position_3d) < 3):
 				return (self.scale_params['d_max'] + self.scale_params['d_min']) / 2
 			
-			# 直接计算三维欧几里得距离
-			distance = np.sqrt(
-				(float(gaze_position_3d[0]) - float(hand_position_3d[0]))**2 +
-				(float(gaze_position_3d[1]) - float(hand_position_3d[1]))**2 +
-				(float(gaze_position_3d[2]) - float(hand_position_3d[2]))**2
-			)
+			# 过滤无效的注视点并计算距离
+			valid_distances = []
+			for gaze_pos in gaze_positions_3d:
+				if (gaze_pos is not None and 
+					hasattr(gaze_pos, '__len__') and 
+					len(gaze_pos) >= 3 and
+					not any(np.isnan(gaze_pos))):
+					
+					# 3D欧几里得距离
+					direct_distance = np.sqrt(
+						(float(gaze_pos[0]) - float(hand_position_3d[0]))**2 +
+						(float(gaze_pos[1]) - float(hand_position_3d[1]))**2 +
+						(float(gaze_pos[2]) - float(hand_position_3d[2]))**2
+					)
+					valid_distances.append(direct_distance)
 			
-			return distance
+			if not valid_distances:
+				return (self.scale_params['d_max'] + self.scale_params['d_min']) / 2
+			
+			# 使用时间衰减权重（最近的注视点权重更高）
+			weights = self.calculate_temporal_weights(len(valid_distances))
+			
+			# 计算加权平均距离
+			weighted_dist = np.average(valid_distances, weights=weights)
+			return weighted_dist
 			
 		except (TypeError, IndexError, ValueError) as e:
-			print(f"Error calculating 3D distance: {e}")
+			print(f"Error calculating weighted 3D distance: {e}")
 			return (self.scale_params['d_max'] + self.scale_params['d_min']) / 2
 
 	def calculate_temporal_weights(self, n_points):
@@ -1235,9 +1227,23 @@ class DataCollector:
 		scaleArray = Float32MultiArray()
 		
 		if not is_valid:
-			# 被过滤的点：使用上一帧的缩放因子
-			scaleArray.data = self.attention_heatmap_generator.prev_scale_factor
-			return scaleArray
+			if (hasattr(self.attention_heatmap_generator, 'prev_valid_gaze') and 
+				self.attention_heatmap_generator.prev_valid_gaze is not None):
+				
+				# 使用上一时刻的有效注视点，但使用当前的IPA、手部位置等实时数据
+				prev_gaze = self.attention_heatmap_generator.prev_valid_gaze
+				weighted_dist_L = self.attention_heatmap_generator.calculate_weighted_distance(prev_gaze,normalized_Lpsm)
+				weighted_dist_R = self.attention_heatmap_generator.calculate_weighted_distance(prev_gaze,normalized_Rpsm)
+			else:
+				# 如果没有上一时刻的有效注视点数据，则使用上一时刻的缩放因子
+				scaleArray.data = self.attention_heatmap_generator.prev_scale_factor
+				return scaleArray
+		else:
+			if gaze_position_3d is not None:
+				self.attention_heatmap_generator.prev_valid_gaze = gaze_position_3d.copy()		
+			# 计算热图加权距离
+			weighted_dist_L = self.attention_heatmap_generator.calculate_weighted_distance(gaze_position_3d,normalized_Lpsm)
+			weighted_dist_R = self.attention_heatmap_generator.calculate_weighted_distance(gaze_position_3d,normalized_Rpsm)
 
 		# 使用热图加权距离替换原有的距离特征
 		# 将3D坐标归一化用于热图计算
