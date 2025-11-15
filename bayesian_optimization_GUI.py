@@ -258,11 +258,7 @@ class BayesianOptimizationGUI:
 	
 	def _initialize_optimizer(self):
 		global mode
-		if mode ==1:
-		# Set parameter bounds
-			self.pbounds = config.oneHanded_range
-		else:
-			self.pbounds = config.twoHanded_range
+		self.pbounds = config.optimization_range
 
 			
 		bounds_transformer = SequentialDomainReductionTransformer(minimum_window=0.1)

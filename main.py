@@ -122,42 +122,7 @@ tau_d tau_p tau_v  **A_d A_p A_v**  Y_base W_d W_p W_v W_dp W_dv W_pv W_dpv
 two-handed mode params:
 tau_d tau_p tau_v tau_s  **A_d A_p A_v A_s**  Y_base W_d W_p W_v W_dps W_dvs W_pvs W_dpv W_dpvs
 """
-init_params = {
 
-	'd_min': config.feature_bound['d_min'] , 'd_max': config.feature_bound['d_max'],
-	'p_min': config.feature_bound['p_min'] , 'p_max': config.feature_bound['p_max'], 
-	'v_min': config.feature_bound['v_min'] , 'v_max': config.feature_bound['v_max'],
-	's_min': config.feature_bound['s_min'] , 's_max': config.feature_bound['s_max'],
-
-	'tau_d': 0.7,  
-	'tau_p': 0.8,  
-	'tau_v': 0.6,  
-	'tau_s': 0.5,  
-
-	'A_d': 1.5,
-	'A_p': 4.0,
-	'A_v': 8.0,
-	'A_s': 2.0,
-
-	'Y_base': 0.1,  
-	'W_d': 1.0,	 
-	'W_p': 1.0,	  
-	'W_v': 1.0,	 
-	'W_s': 1.0,
-	'W_dp': 0.5,	
-	'W_dv': 0.5,	 
-	'W_pv': 0.5,	
-	'W_dpv': 0.5,	
-	'W_dps': 0.5,	
-	'W_dvs': 0.5,	
-	'W_pvs': 0.5,	
-	'W_dpvs': 0.5, 
-
-	'C_offset': config.feature_bound['C_offset'],
-
-	'fixed_scale': 1.0,  
-	'AFflag': 0 # 0-adaptive, 1-fixed
-}
 
 class AttentionHeatmapGenerator:
 	def __init__(self, screen_width=640, screen_height=360, heatmap_size=(64, 36)):
@@ -1362,7 +1327,7 @@ class DataCollector:
 		"""
 		Load the parameters.
 		"""
-		params = init_params.copy()
+		params = config.init_params.copy()
 
 		current_file_path = os.path.abspath(__file__)
 		current_dir = os.path.dirname(current_file_path)
