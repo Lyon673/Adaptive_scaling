@@ -370,21 +370,30 @@ class BayesianOptimizationGUI:
 		self.tab_control.select(2)  # Select the 3rd tab (Results Display)
 		
 		# Calculate other metrics
-		self.calculate_and_display_metrics(sub_score)
+		self.save_and_display_metrics(sub_score)
 	
-	def calculate_and_display_metrics(self, sub_score):
+	@staticmethod
+	def calculate_metrics():
+		"""
+		计算性能指标（静态方法，可以不实例化类直接调用）
+		Call the original performance calculation function
+		"""
+		gracefulness, smoothness = cal_GS()
+		current_file_path = os.path.abspath(__file__)
+		current_dir = os.path.dirname(current_file_path)
+		data_base_dir = os.path.join(current_dir, 'data')
+		latest_dir = get_latest_data_dir(data_base_dir)
+		clutch_times = np.load(os.path.join(latest_dir, 'clutch_times.npy'), allow_pickle=True)
+		total_distance = np.load(os.path.join(latest_dir, 'total_distance.npy'), allow_pickle=True)
+		total_time = np.load(os.path.join(latest_dir, 'total_time.npy'), allow_pickle=True)[0]
+		
+		return gracefulness, smoothness, clutch_times, total_distance, total_time
+
+
+	def save_and_display_metrics(self, sub_score):
 		"""Calculates and displays performance metrics and scores."""
 		try:
-			# Call the original performance calculation function
-			gracefulness, smoothness = cal_GS()
-			current_file_path = os.path.abspath(__file__)
-			current_dir = os.path.dirname(current_file_path)
-			data_base_dir = os.path.join(current_dir, 'data')
-			latest_dir = get_latest_data_dir(data_base_dir)
-			clutch_times = np.load(os.path.join(latest_dir, 'clutch_times.npy'), allow_pickle=True)[0]
-			total_distance = np.load(os.path.join(latest_dir, 'total_distance.npy'), allow_pickle=True)[0]
-			total_time = np.load(os.path.join(latest_dir, 'total_time.npy'), allow_pickle=True)[0]
-			
+			gracefulness, smoothness, clutch_times, total_distance, total_time = self.calculate_metrics()
 			# Calculate individual scores
 			gracefulness_score =  5 * np.clip((self.gracefulness_max - gracefulness) / (self.gracefulness_max - self.gracefulness_min), 0, 1)
 			smoothness_score = 5 * np.clip((self.smoothness_max - smoothness) / (self.smoothness_max - self.smoothness_min), 0, 1)
@@ -395,6 +404,8 @@ class BayesianOptimizationGUI:
 			# Calculate the total score
 			total_score = 0.5 * sub_score + gracefulness_score + smoothness_score + clutch_times_score + total_distance_score + total_time_score
 
+			current_file_path = os.path.abspath(__file__)
+			current_dir = os.path.dirname(current_file_path)
 			output_json_path = os.path.join(current_dir, 'BayesianLog',config.scorefilename)
 
 			new_entry = {

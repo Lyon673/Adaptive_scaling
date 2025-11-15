@@ -138,7 +138,7 @@ def cal_GS(data_dir=None, use_left=True, use_right=True):
             
             G_left, S_left = calculate_metrics(left_data)
             results['left'] = {'G': G_left, 'S': S_left}
-            print(f"Left PSM - Gracefulness: {G_left:.6f}, Smoothness: {S_left:.6f}")
+            #print(f"Left PSM - Gracefulness: {G_left:.6f}, Smoothness: {S_left:.6f}")
         else:
             print(f"警告: 左PSM数据格式不正确，期望4列，实际{left_positions.shape[1]}列")
     

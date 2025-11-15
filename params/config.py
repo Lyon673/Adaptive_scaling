@@ -1,6 +1,6 @@
 # resolution of windows
-resolution_x = 640
-resolution_y = 360
+resolution_x = 1920
+resolution_y = 1080
 
 # the parameters in the scaling calculation formula
 feature_bound = {
@@ -53,7 +53,7 @@ scoreParams_bound = {
 logname ='logs.log.json'
 
 # the score log of the optimazation tests
-scorefilename = 'zhai_score.json'
+scorefilename = 'scores.json'
 
 # for the command params (not used)
 exflag = 1
@@ -103,8 +103,8 @@ init_params = {
 
 # the params for the gaze filter
 gaze_filter_params = {
-    'heatmap_size_x': 64,
-    'heatmap_size_y': 36,
+    'heatmap_size_x': 192,
+    'heatmap_size_y': 108,
     'scale_params': {
         'd_min': 0,      # Minimum distance
         'd_max': 500,    # Maximum distance

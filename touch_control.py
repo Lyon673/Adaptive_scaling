@@ -148,13 +148,14 @@ class ControllerInterface:
         else:
             self.Lleader_prev_rpy = self.Lleader.measured_cp().M
             self.Lcmd_rpy = self._LT_c_b.M * self.LM_p_c * Rotation.RPY(3.14, 0, 3.14 / 2)
-        self.LT_IK = Frame(self.Lcmd_rpy, self.Lcmd_xyz)
-        self.Lpsm.servo_cp(self.LT_IK)
-        self.Lpsm.set_jaw_angle(self.Lleader.get_jaw_angle())
 
         if self.Lleader.double_press_clutch:
             self.LM_p_c = self.Lleader.measured_cp().M
             self.Lleader.double_press_clutch = False
+
+        self.LT_IK = Frame(self.Lcmd_rpy, self.Lcmd_xyz)
+        self.Lpsm.servo_cp(self.LT_IK)
+        self.Lpsm.set_jaw_angle(self.Lleader.get_jaw_angle())
 
         # Right Arm
         Rtwist = self.Rleader.measured_cv()
