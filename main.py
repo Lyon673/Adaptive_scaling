@@ -50,9 +50,8 @@ import params.config as config
 
 
 # set resolution
-sidesize = 22
-resolution_x = 640
-resolution_y = 360
+resolution_x = config.resolution_x
+resolution_y = config.resolution_y
 
 stereo_l_img = []
 stereo_r_img = []
@@ -160,32 +159,17 @@ class AttentionHeatmapGenerator:
 		self.weighted_distances_right = []  # 右手加权距离历史		
 
 		# Scaling factor parameters
-		self.scale_params = {
-			'd_min': 0,      # Minimum distance
-			'd_max': 500,    # Maximum distance
-			'min_scale': 0.1,  # Minimum scaling factor
-			'max_scale': 4.0,  # Maximum scaling factor
-			'tau_d': 0.7,    # Distance weight parameter
-			'Y_base': 1.0    # Base scaling factor
-		}
+		self.scale_params = config.gaze_filter_params['scale_params']
+
 
 		# Outlier filtering parameters - more focused on significant outliers
-		self.filter_params = {
-			'attention_threshold': 0.4,     # 注意力值
-			'window_seconds': 3.0,          # 时间窗口
-			'jump_threshold': 0.1,          # 跳跃检测阈值 (屏幕比例)
-			'min_neighbors': 3,             # 有效点周围需要的最小有效邻居数
-			'velocity_threshold': 0.06,      # 速度阈值，用于检测异常移动
-		}
+		self.filter_params = config.gaze_filter_params['filter_params']	
 
 		# Fixed window configuration 
-		self.fixed_window_config = {
-			'enabled': True,           # 是否启用固定窗口
-			'activation_offset': 2.5   # 在结束前多少秒启用固定窗口
-		}
+		self.fixed_window_config = config.gaze_filter_params['fixed_window_config']
 
 		# 初始化上一帧的缩放因子
-		self.prev_scale_factor = [1.0, 1.0]
+		self.prev_scale_factor = config.gaze_filter_params['prev_scale_factor']
 
 		# Create save directory
 		
@@ -273,7 +257,7 @@ class AttentionHeatmapGenerator:
 			return
 		
 		# to do 
-		sigma = 2.5
+		sigma = config.gaze_filter_params['gaussian_kernel_sigma']
 		for x, y in window_points:
 			# Create Gaussian kernel
 			size = int(3 * sigma) + 1
@@ -450,7 +434,7 @@ class AttentionHeatmapGenerator:
 			return []
 		
 		# 指数衰减：最近的注视点权重最高
-		decay_rate = 0.8
+		decay_rate = config.gaze_filter_params['temporal_exponent_decay']
 		weights = [decay_rate ** i for i in range(n_points-1, -1, -1)]
 		
 		# 归一化
@@ -509,8 +493,8 @@ class AttentionHeatmapGenerator:
 			full_time_heatmap = full_time_heatmap / max_val
 		
 		# 设置640x360的显示比例
-		target_width = 640
-		target_height = 360
+		target_width = resolution_x
+		target_height = resolution_y
 		aspect_ratio = target_width / target_height
 		
 		# 显示全时间热图
@@ -721,7 +705,7 @@ class DataCollector:
 
 		# Initialize attention heatmap generator
 		
-		self.attention_heatmap_generator = AttentionHeatmapGenerator(screen_width=resolution_x, screen_height=resolution_y)
+		self.attention_heatmap_generator = AttentionHeatmapGenerator(screen_width=resolution_x, screen_height=resolution_y, heatmap_size=(config.gaze_filter_params['heatmap_size_x'], config.gaze_filter_params['heatmap_size_y']))
 		# --- KEYBOARD LISTENER INTEGRATION START ---
 		# In the class's __init__ function, start the keyboard listener
 		self.start_keyboard_listener()
@@ -1177,8 +1161,8 @@ class DataCollector:
 		"""
 		# 假设工作空间范围（需要根据实际情况调整）
 		# to do 
-		workspace_min = [-0.5, -0.5, 0.0]   # 最小坐标
-		workspace_max = [0.5, 0.5, 0.5]     # 最大坐标
+		workspace_min = config.gaze_filter_params['position3_normalization_bound']['min']   # 最小坐标
+		workspace_max = config.gaze_filter_params['position3_normalization_bound']['max']     # 最大坐标
 
 		normalized = []
 		for i in range(3):

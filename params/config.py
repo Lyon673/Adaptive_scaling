@@ -1,3 +1,7 @@
+# resolution of windows
+resolution_x = 640
+resolution_y = 360
+
 # the parameters in the scaling calculation formula
 feature_bound = {
     'd_min': 10, 'd_max': 70,
@@ -98,5 +102,43 @@ init_params = {
 }
 
 # the params for the gaze filter
-gaze_filter_params = {}
+gaze_filter_params = {
+    'heatmap_size_x': 64,
+    'heatmap_size_y': 36,
+    'scale_params': {
+        'd_min': 0,      # Minimum distance
+        'd_max': 500,    # Maximum distance
+        'min_scale': 0.1,
+        'max_scale': 4.0,
+        'tau_d': 0.7,
+        'Y_base': 1.0
+    },
+
+    # Outlier filtering parameters - more focused on significant outliers
+    'filter_params': {
+        'attention_threshold': 0.4, # heatmap value
+        'window_seconds': 3.0, # time window
+        'jump_threshold': 0.1, # 2d distance
+        'min_neighbors': 3, # number of neighbors
+        'velocity_threshold': 0.06, # 2d velocity
+    },
+
+    # Fixed window configuration 
+    'fixed_window_config': {
+        'enabled': True,           # whether to enable the fixed window
+        'activation_offset': 2.5   # how many seconds before the end to activate the fixed window
+    },
+
+    # the previous scale factor
+    'prev_scale_factor': [1.0, 1.0],
+
+    'gaussian_kernel_sigma': 2.5,
+
+    'temporal_exponent_decay': 0.8,
+
+    'position3_normalization_bound': {
+        'min': [-0.5, -0.5, 0.0],
+        'max': [0.5, 0.5, 0.5]
+    }   
+}
 
