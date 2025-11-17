@@ -40,6 +40,8 @@ import time
 from pynput import keyboard
 import sys
 import platform
+import matplotlib
+matplotlib.use('Agg')  
 import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter
 from gracefulness import get_latest_data_dir
@@ -202,6 +204,7 @@ class AttentionHeatmapGenerator:
 			total_duration: 总采集时间（如果已知）
 			use_filtered_points: 是否使用过滤后的点
 		"""
+		filtered_gaze_points = self.filtered_gaze_points.copy()
 		# 清空热图
 		self.realtime_heatmap = np.zeros(self.heatmap_size)
 		
@@ -210,6 +213,7 @@ class AttentionHeatmapGenerator:
 		# 计算窗口开始时间：max(0, current_time - window_seconds)
 		window_start = max(0, current_time - self.filter_params['window_seconds'])
 		window_end = current_time
+		#print(f"window_start: {window_start}, window_end: {window_end}")
 		
 		# 如果提供了总采集时间且启用了固定窗口，检查是否进入固定窗口阶段
 		if (total_duration is not None and 
@@ -229,7 +233,7 @@ class AttentionHeatmapGenerator:
 		
 		if use_filtered_points:
 			# 使用过滤后的点
-			for timestamp, gx, gy in self.filtered_gaze_points:
+			for timestamp, gx, gy in filtered_gaze_points:
 				if window_start <= timestamp <= window_end:
 					# Convert to heatmap coordinates
 					x_heatmap = int(gx * (self.heatmap_size[1] - 1))
@@ -253,7 +257,7 @@ class AttentionHeatmapGenerator:
 					y_heatmap = max(0, min(y_heatmap, self.heatmap_size[0] - 1))
 					
 					window_points.append((x_heatmap, y_heatmap))
-		
+		print(f"window_points: {window_points}")
 		if not window_points:
 			return
 		
@@ -336,7 +340,7 @@ class AttentionHeatmapGenerator:
 		
 		return high_attention_count >= self.filter_params['min_neighbors']
 	
-	def filter_outliers_focused(self, current_idx, gaze_points, timestamps):
+	def filter_outliers_focused(self, gaze_points, timestamps):
 		"""
 		专注于过滤明显异常点的函数 - 适配实时模式
 		"""
@@ -355,10 +359,8 @@ class AttentionHeatmapGenerator:
 			else:
 				gaze_points_xy.append([0.5, 0.5])  # 默认值
 		
-		if current_idx < 0 or current_idx >= len(gaze_points_xy):
-			return False, 0.0
-			
-		current_point = gaze_points_xy[current_idx]
+
+		current_point = gaze_points_xy[-1]
 		
 		# 1. 基于热图的过滤 - 只过滤非常低注意力值的点
 		x_heatmap = int(current_point[0] * (self.heatmap_size[1] - 1))
@@ -368,30 +370,30 @@ class AttentionHeatmapGenerator:
 		
 		attention_value = self.realtime_heatmap[y_heatmap, x_heatmap]
 		heatmap_valid = attention_value >= self.filter_params['attention_threshold']
-		
+		print(f"attention_value: {attention_value}")
 		# 2. 检测明显的跳跃
 		jump_detected = False
-		if current_idx > 0:
-			prev_point = gaze_points_xy[current_idx - 1]
+		if len(gaze_points_xy) > 1:
+			prev_point = gaze_points_xy[-2]
 			jump_detected = self.detect_jump(current_point, prev_point)
-		
+		print(f"jump_detected: {jump_detected}")
 		# 3. 检查是否有足够的邻居支持
 		has_neighbors = True
-		if current_idx > 10:  # 只有在有足够历史数据时才检查
-			recent_points = gaze_points_xy[max(0, current_idx-10):current_idx]
+		if len(gaze_points_xy) > 10:  # 只有在有足够历史数据时才检查
+			recent_points = gaze_points_xy[max(0, len(gaze_points_xy)-10):len(gaze_points_xy)]
 			has_neighbors = self.has_sufficient_neighbors(current_point, recent_points)
-
+		print(f"has_neighbors: {has_neighbors}")
 		# 4. 基于速度的异常检测
 		velocity_outlier = False
-		if current_idx > 0:
+		if len(gaze_points_xy) > 1:
 			try:
-				prev_point = gaze_points_xy[current_idx - 1]
-				prev_time = timestamps[current_idx - 1]
-				time_diff = timestamps[current_idx] - prev_time
+				prev_point = gaze_points_xy[-2]
+				prev_time = timestamps[-2]
+				time_diff = timestamps[-1] - prev_time
 				velocity_outlier = self.detect_velocity_outlier(current_point, prev_point, time_diff)
 			except (IndexError, TypeError):
 				velocity_outlier = False            
-		
+		print(f"velocity_outlier: {velocity_outlier}")
 		# 综合条件：当点在低注意力区域，或缺乏邻居支持，或速度异常，或是明显的跳跃时，被过滤
 		is_outlier = not heatmap_valid or not has_neighbors or velocity_outlier or jump_detected
 		
@@ -572,7 +574,7 @@ class AttentionHeatmapGenerator:
 		if filtered_x and filtered_y:
 			axes[0, 0].scatter(filtered_x, filtered_y, c='green', marker='o', s=20, label='Filtered Gaze')
 		if outlier_x and outlier_y:
-			axes[0, 0].scatter(outlier_x, outlier_y, c='red', marker='x', s=60, label='Outliers')
+			axes[0, 0].scatter(outlier_x, outlier_y, c='red', marker='x', s=20, label='Outliers')
 		#axes[0, 0].scatter(hand_x, hand_y, c='purple', marker='s', s=80, label='Hand Position')
 		axes[0, 0].set_title(f'Full Time Heatmap (All Filtered Gaze Points) - {resolution_x}x{resolution_y}')
 		axes[0, 0].set_xlim(0, target_width)
@@ -599,8 +601,8 @@ class AttentionHeatmapGenerator:
 				right_distances = GP_distance_array[:min_length, 1]
 				
 				# 绘制左右手的三维距离
-				axes[0, 1].plot(times_trimmed, left_distances, 'b-', linewidth=2, label='Left Hand 3D Distance')
-				axes[0, 1].plot(times_trimmed, right_distances, 'r-', linewidth=2, label='Right Hand 3D Distance')
+				axes[0, 1].plot(times_trimmed, left_distances, '#3498db', linewidth=2, label='Left Hand 3D Distance')
+				axes[0, 1].plot(times_trimmed, right_distances, '#e74c3c', linewidth=2, label='Right Hand 3D Distance')
 				
 				axes[0, 1].set_title('3D Weighted Distance Between Hands and Gaze Point')
 				axes[0, 1].set_xlabel('Time (s)')
@@ -932,7 +934,7 @@ class DataCollector:
 
 		gazepoint_position3 = get_gazepoint_position3(camera_depthdata, cameraR.pose, cameraFrame.pose, gazePoint[0], gazePoint[1])
 
-		#self.attention_heatmap_generator.all_gaze_points_3d.append(gazepoint_position3)
+		self.attention_heatmap_generator.all_gaze_points_3d.append(gazepoint_position3)
 		self.attention_heatmap_generator.all_hand_positions_3d.append([Lpsm_position3, Rpsm_position3])
 	
 		global latest_gaze_timestamp ,latest_gaze_point_ratio
@@ -972,9 +974,8 @@ class DataCollector:
 
 		current_idx = len(self.attention_heatmap_generator.all_gaze_points) - 1
 
-	
+		self.attention_heatmap_generator.update_realtime_heatmap(current_time)
 		is_valid, attention_value = self.attention_heatmap_generator.filter_outliers_focused(
-			current_idx,
 			self.attention_heatmap_generator.filtered_gaze_points,
 			self.attention_heatmap_generator.filtered_timestamps
 		)
@@ -998,7 +999,7 @@ class DataCollector:
 		else:
 			# 有效点：添加到过滤历史并更新过滤后热图
 			self.attention_heatmap_generator.filtered_indices.append(current_idx)
-			self.attention_heatmap_generator.update_realtime_heatmap(current_time)
+			#self.attention_heatmap_generator.update_realtime_heatmap(current_time)
 			self.attention_heatmap_generator.prev_valid_gaze = [current_time, current_gaze_point[0]*resolution_x, current_gaze_point[1]*resolution_y]
 
 		
@@ -1544,6 +1545,7 @@ def gaze_data_cb(gaze):
 	gazedata[5] = np.clip(gazedata[5],0,1)
 
 	gaze_timestamp = gazedata[8] * 1e-6
+
 
 	if (len(pupilL)>0 and gazedata[8]*1e-6 == pupilL[-1].get_timestamp()):
 		return

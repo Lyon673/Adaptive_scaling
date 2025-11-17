@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib
+matplotlib.use('Agg')  # 设置非交互式后端，避免线程冲突
 import matplotlib.pyplot as plt
 import os
 import sys
@@ -44,7 +45,7 @@ def find_experiment_start(ipa_left, ipa_right, threshold=1, window=1):
 	
 	return 0
 
-def visualize_data(data_dir=None, save_statistics=True, show_plot=False):
+def visualize_data(data_dir=None, save_statistics=True):
 	"""
 	生成数据可视化图表并保存
 	
@@ -247,10 +248,7 @@ def visualize_data(data_dir=None, save_statistics=True, show_plot=False):
 		plt.tight_layout()
 		output_path = os.path.join(data_dir, 'visualization_results.png')
 		plt.savefig(output_path, dpi=300, bbox_inches='tight')
-		if show_plot:
-			plt.show()
-		else:
-			plt.close()
+		plt.close()  # 使用 Agg 后端时总是关闭图表以释放资源
 		
 		# 打印统计信息
 		# if save_statistics:
@@ -294,7 +292,7 @@ def visualize_data(data_dir=None, save_statistics=True, show_plot=False):
 # 如果直接运行此脚本，使用最新数据生成可视化
 if __name__ == '__main__':
 	print("Generating visualization...")
-	result = visualize_data(save_statistics=True, show_plot=True)
+	result = visualize_data(save_statistics=True)
 	if result:
 		print(f"\nSuccess! Visualization saved to: {result}")
 	else:

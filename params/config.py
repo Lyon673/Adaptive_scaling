@@ -107,8 +107,8 @@ gaze_filter_params = {
 
     # Outlier filtering parameters - more focused on significant outliers
     'filter_params': {
-        'attention_threshold': 0.01, # heatmap value
-        'window_seconds': 1.0, # time window
+        'attention_threshold': 0.09, # heatmap value
+        'window_seconds': 2.0, # time window
         'jump_threshold': 0.2, # 2d distance
         'min_neighbors': 3, # number of neighbors
         'velocity_threshold': 0.4, # 2d velocity
@@ -123,7 +123,7 @@ gaze_filter_params = {
     # the previous scale factor
     'prev_scale_factor': [1.0, 1.0],
 
-    'gaussian_kernel_sigma': 10,
+    'gaussian_kernel_sigma': 6,
 
     'temporal_exponent_decay': 0.8,
 
