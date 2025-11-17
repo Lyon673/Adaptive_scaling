@@ -109,9 +109,9 @@ gaze_filter_params = {
     'filter_params': {
         'attention_threshold': 0.09, # heatmap value
         'window_seconds': 2.0, # time window
-        'jump_threshold': 0.2, # 2d distance
+        'jump_threshold': 0.5, # 2d distance
         'min_neighbors': 3, # number of neighbors
-        'velocity_threshold': 0.4, # 2d velocity
+        'velocity_threshold': 100, # 2d velocity
     },
 
     # Fixed window configuration 

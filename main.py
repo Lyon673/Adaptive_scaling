@@ -234,7 +234,7 @@ class AttentionHeatmapGenerator:
 		if use_filtered_points:
 			# 使用过滤后的点
 			for timestamp, gx, gy in filtered_gaze_points:
-				if window_start <= timestamp <= window_end:
+				if window_start <= timestamp < window_end:
 					# Convert to heatmap coordinates
 					x_heatmap = int(gx * (self.heatmap_size[1] - 1))
 					y_heatmap = int(gy * (self.heatmap_size[0] - 1))
@@ -258,6 +258,7 @@ class AttentionHeatmapGenerator:
 					
 					window_points.append((x_heatmap, y_heatmap))
 		print(f"window_points: {window_points}")
+		#print(f"filtered_gaze_points: {filtered_gaze_points}")
 		if not window_points:
 			return
 		
@@ -709,14 +710,14 @@ class AttentionHeatmapGenerator:
 			return []
 		
 		# 使用传入的gaze时间戳计算时间窗口
-		window_seconds = self.filter_params.get('window_seconds', 3.0)
+		window_seconds = self.filter_params['window_seconds']
 		window_start = current_timestamp - window_seconds
 		
 		# 清理过期数据（保留窗口内的数据）
-		self.gaze_points_3d_with_time = [
-			(ts, pos) for ts, pos in self.gaze_points_3d_with_time 
-			if ts >= window_start
-		]
+		# self.gaze_points_3d_with_time = [
+		# 	(ts, pos) for ts, pos in self.gaze_points_3d_with_time 
+		# 	if ts >= window_start
+		# ]
 		
 		# 获取当前窗口内的数据
 		recent_points = []
