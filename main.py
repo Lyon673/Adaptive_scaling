@@ -339,7 +339,7 @@ class AttentionHeatmapGenerator:
 		"""
 		专注于过滤明显异常点的函数 - 适配实时模式
 		"""
-		# gaze_points 格式是 [[timestamp, x, y], ...] 或 [(timestamp, x, y), ...]
+		# gaze_points 格式是 [[timestamp, x, y], ...] 或 [(timestamp, x, y), ...] x,y ratio
 		# 提取 [x, y] 部分用于后续处理
 		if len(gaze_points) == 0:
 			return False, 0.0
@@ -936,12 +936,12 @@ class DataCollector:
 		current_idx = len(self.attention_heatmap_generator.all_gaze_points) - 1
 
 	
-		# is_valid, attention_value = self.attention_heatmap_generator.filter_outliers_focused(
-		# 	current_idx,
-		# 	self.attention_heatmap_generator.filtered_gaze_points,
-		# 	self.attention_heatmap_generator.filtered_timestamps
-		# )
-		is_valid = True
+		is_valid, attention_value = self.attention_heatmap_generator.filter_outliers_focused(
+			current_idx,
+			self.attention_heatmap_generator.filtered_gaze_points,
+			self.attention_heatmap_generator.filtered_timestamps
+		)
+		#is_valid = True
 		
 		# if the current point is an outlier
 		if not is_valid and len(self.attention_heatmap_generator.all_gaze_points) > 1:
@@ -1605,8 +1605,11 @@ def save_data_cb():
 	np.save(join(latest_dir, 'total_time.npy'), total_time_list)
 
 
-	np.save(join(latest_dir, 'pupilL_data.npy'), pupilL_list)
-	np.save(join(latest_dir, 'pupilR_data.npy'), pupilR_list)
+	# Convert Pupil objects to arrays before saving
+	pupilL_array = np.array([[p.get_data(), p.get_timestamp()] for p in pupilL_list])
+	pupilR_array = np.array([[p.get_data(), p.get_timestamp()] for p in pupilR_list])
+	np.save(join(latest_dir, 'pupilL_data.npy'), pupilL_array)
+	np.save(join(latest_dir, 'pupilR_data.npy'), pupilR_array)
 	np.save(join(latest_dir, 'scale_data.npy'), scale_list)
 	print("done saving...")
 
