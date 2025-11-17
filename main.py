@@ -44,6 +44,7 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter
 from gracefulness import get_latest_data_dir
 from bayesian_optimization_GUI import BayesianOptimizationGUI
+from visualization import visualize_data
 
 import params.config as config
 
@@ -1211,6 +1212,14 @@ class DataCollector:
 			# Save data
 			save_data_cb()
 			self.print_statistics()
+			
+			# Generate visualization
+			print("\nGenerating data visualization...")
+			viz_result = visualize_data(save_statistics=False)
+			if viz_result:
+				print(f"Visualization saved to: {viz_result}")
+			else:
+				print("Warning: Failed to generate visualization")
 			
 			
 			

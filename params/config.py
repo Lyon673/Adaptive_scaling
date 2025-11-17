@@ -4,10 +4,10 @@ resolution_y = 540
 
 # the parameters in the scaling calculation formula
 feature_bound = {
-    'd_min': 10, 'd_max': 70,
+    'd_min': 0.05, 'd_max': 0.12,
 	'p_min': 0.95, 'p_max': 1,
-	'v_min': 0, 'v_max': 1.2,
-    's_min': 0, 's_max': 50,
+	'v_min': 0, 'v_max': 0.1,
+    's_min': 0.01, 's_max': 0.1,
     'C_offset': 0.05
 }
 
