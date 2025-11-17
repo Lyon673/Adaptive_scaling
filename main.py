@@ -528,7 +528,7 @@ class AttentionHeatmapGenerator:
 		if max_val > 0:
 			full_time_heatmap = full_time_heatmap / max_val
 		
-		# 设置640x360的显示比例
+		
 		target_width = resolution_x
 		target_height = resolution_y
 		aspect_ratio = target_width / target_height
@@ -570,7 +570,7 @@ class AttentionHeatmapGenerator:
 		if outlier_x and outlier_y:
 			axes[0, 0].scatter(outlier_x, outlier_y, c='red', marker='x', s=60, label='Outliers')
 		#axes[0, 0].scatter(hand_x, hand_y, c='purple', marker='s', s=80, label='Hand Position')
-		axes[0, 0].set_title('Full Time Heatmap (All Filtered Gaze Points) - 640x360')
+		axes[0, 0].set_title(f'Full Time Heatmap (All Filtered Gaze Points) - {resolution_x}x{resolution_y}')
 		axes[0, 0].set_xlim(0, target_width)
 		axes[0, 0].set_ylim(target_height, 0)  # 保持原点在左上角
 		axes[0, 0].legend()
@@ -915,9 +915,8 @@ class DataCollector:
 
 		global latest_gaze_timestamp, latest_gaze_point_ratio
 		
-		# debug<LYON>
-		#current_time = latest_gaze_timestamp
-		current_time = time.time() - start_time
+
+		current_time = latest_gaze_timestamp
 		current_gaze_point = latest_gaze_point_ratio
 		
 		# 检查时间戳是否有效
@@ -1302,7 +1301,7 @@ def read_points(cloud, field_names=None, skip_nans=False, uvs=[]):
 	else:
 		if uvs:
 			for u, v in uvs:
-				yield unpack_from(data, np.clip((720 * point_step * v) + (point_step * u),0,720*480*point_step-12))
+				yield unpack_from(data, np.clip((resolution_x * point_step * v) + (point_step * u),0,resolution_x*resolution_y*point_step-12))
 		else:
 			for v in range(height):
 				offset = row_step * v
