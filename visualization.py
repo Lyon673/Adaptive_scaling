@@ -291,7 +291,6 @@ def visualize_data(data_dir=None, save_statistics=True, show_plot=False):
 		traceback.print_exc()
 		return None
 
-
 # 如果直接运行此脚本，使用最新数据生成可视化
 if __name__ == '__main__':
 	print("Generating visualization...")

@@ -40,12 +40,12 @@ optimization_range = {
 
 # parameters in the score calculation formula
 scoreParams_bound = {
-    'gracefulness_max': 2.5,
+    'gracefulness_max': 5,
     'gracefulness_min': 1.5,
-	'smoothness_max': 8.5,
-    'smoothness_min': 5.5,
+	'smoothness_max': 8,
+    'smoothness_min': 4,
     'clutch_times_max': 10,
-    'total_distance_max': 12,
+    'total_distance_max': 0.6,
     'total_time_max': 120
 }
 
@@ -76,16 +76,11 @@ init_params = {
 	'tau_v': 0.6,  
 	'tau_s': 0.5,  
 
-	'A_d': 1.5,
-	'A_p': 4.0,
-	'A_v': 8.0,
-	'A_s': 2.0,
-
-	'Y_base': 0.1,  
+	'Y_base': 0.05,  
 	'W_d': 1.0,	 
 	'W_p': 1.0,	  
-	'W_v': 1.0,	 
-	'W_s': 1.0,
+	'W_v': 0.5,	 
+	'W_s': 0.5,
 	'W_dp': 0.5,	
 	'W_dv': 0.5,	 
 	'W_pv': 0.5,	
@@ -107,20 +102,16 @@ gaze_filter_params = {
     'heatmap_size_y': 108,
     'scale_params': {
         'd_min': 0,      # Minimum distance
-        'd_max': 500,    # Maximum distance
-        'min_scale': 0.1,
-        'max_scale': 4.0,
-        'tau_d': 0.7,
-        'Y_base': 1.0
+        'd_max': 0.12,    # Maximum distance
     },
 
     # Outlier filtering parameters - more focused on significant outliers
     'filter_params': {
-        'attention_threshold': 0.4, # heatmap value
-        'window_seconds': 3.0, # time window
-        'jump_threshold': 0.1, # 2d distance
+        'attention_threshold': 0.01, # heatmap value
+        'window_seconds': 1.0, # time window
+        'jump_threshold': 0.2, # 2d distance
         'min_neighbors': 3, # number of neighbors
-        'velocity_threshold': 0.06, # 2d velocity
+        'velocity_threshold': 0.4, # 2d velocity
     },
 
     # Fixed window configuration 
@@ -132,13 +123,9 @@ gaze_filter_params = {
     # the previous scale factor
     'prev_scale_factor': [1.0, 1.0],
 
-    'gaussian_kernel_sigma': 2.5,
+    'gaussian_kernel_sigma': 10,
 
     'temporal_exponent_decay': 0.8,
 
-    'position3_normalization_bound': {
-        'min': [-0.5, -0.5, 0.0],
-        'max': [0.5, 0.5, 0.5]
-    }   
 }
 

@@ -111,8 +111,8 @@ class ControllerInterface:
 
         self.received_msg = None
 
-        self.scale = 10
-        #self.subscriber = rospy.Subscriber('/scale', Float32, self.scale_cb)
+        self.scale = [10,10]
+        self.subscriber = rospy.Subscriber('/scale', Float32, self.scale_cb)
 
 
     def update_T_c_b(self):
@@ -133,7 +133,7 @@ class ControllerInterface:
         if not self.Lleader.clutch_button_pressed:
             self.Lcmd_xyz = self.Lpsm.T_t_b_home.p
             #delta_t = self._T_c_b.M * twist.vel * 0.000002 * self.scale
-            delta_t = self._LT_c_b.M * Ltwist.vel * 0.0000002 * self.scale # 0.00004
+            delta_t = self._LT_c_b.M * Ltwist.vel * 0.0000002 * self.scale[0] # 0.00004
             self.Lcmd_xyz = self.Lcmd_xyz + delta_t
             self.Lpsm.T_t_b_home.p = self.Lcmd_xyz
 
@@ -149,9 +149,9 @@ class ControllerInterface:
             self.Lleader_prev_rpy = self.Lleader.measured_cp().M
             self.Lcmd_rpy = self._LT_c_b.M * self.LM_p_c * Rotation.RPY(3.14, 0, 3.14 / 2)
 
-        if self.Lleader.double_press_clutch:
+        if self.Lleader.double_press_gripper:
             self.LM_p_c = self.Lleader.measured_cp().M
-            self.Lleader.double_press_clutch = False
+            self.Lleader.double_press_gripper = False
 
         self.LT_IK = Frame(self.Lcmd_rpy, self.Lcmd_xyz)
         self.Lpsm.servo_cp(self.LT_IK)
@@ -162,7 +162,7 @@ class ControllerInterface:
         
         if not self.Rleader.clutch_button_pressed:
             self.Rcmd_xyz = self.Rpsm.T_t_b_home.p
-            delta_t = self._RT_c_b.M * Rtwist.vel * 0.0000002 * self.scale # 0.00004
+            delta_t = self._RT_c_b.M * Rtwist.vel * 0.0000002 * self.scale[1] # 0.00004
             self.Rcmd_xyz = self.Rcmd_xyz + delta_t
             self.Rpsm.T_t_b_home.p = self.Rcmd_xyz
 
@@ -178,9 +178,9 @@ class ControllerInterface:
             self.Rleader_prev_rpy = self.Rleader.measured_cp().M
             self.Rcmd_rpy = self._RT_c_b.M * self.RM_p_c * Rotation.RPY(3.14, 0, 3.14 / 2)
 
-        if self.Rleader.double_press_clutch:
+        if self.Rleader.double_press_gripper:
             self.RM_p_c = self.Rleader.measured_cp().M
-            self.Rleader.double_press_clutch = False
+            self.Rleader.double_press_gripper = False
 
         # if self.Rleader.double_press_gripper or self.Lleader.double_press_gripper:
         #     self.Lcmd_xyz = self.initial_Lcmd_xyz
@@ -218,7 +218,7 @@ class ControllerInterface:
         #print("<LYON> Visual Markers Updated")
 
     def scale_cb(self, scale):
-        self.scale = scale.data
+        self.scale = [scale.data[0]*10, scale.data[1]*10]
 
 if __name__ == "__main__":
     parser = ArgumentParser()
@@ -298,13 +298,12 @@ if __name__ == "__main__":
         print("<LYON> Controller Created")
         rate = rospy.Rate(200)
 
-        try:
-            while not rospy.is_shutdown():
-                for cont in controllers:
-                        cont.Lleader.set_scale(cont.scale)
-                        cont.Rleader.set_scale(cont.scale)
-                        cont.run()
-                rate.sleep()
-        except:
-            print('Exception! Goodbye')
+        
+        while not rospy.is_shutdown():
+            for cont in controllers:
+                    cont.Lleader.set_scale(cont.scale[0])
+                    cont.Rleader.set_scale(cont.scale[1])
+                    cont.run()
+            rate.sleep()
+
 
