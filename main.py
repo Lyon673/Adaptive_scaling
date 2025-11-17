@@ -126,7 +126,7 @@ tau_d tau_p tau_v tau_s  **A_d A_p A_v A_s**  Y_base W_d W_p W_v W_dps W_dvs W_p
 
 
 class AttentionHeatmapGenerator:
-	def __init__(self, screen_width=640, screen_height=360, heatmap_size=(64, 36)):
+	def __init__(self, screen_width=config.resolution_x, screen_height=config.resolution_y, heatmap_size=(config.resolution_x/10, config.resolution_y/10)):
 		"""
 		Initialize Attention Heatmap Generator
 
@@ -152,6 +152,7 @@ class AttentionHeatmapGenerator:
         # 添加三维坐标存储
 		self.all_gaze_points_3d = []  # 存储三维注视点坐标 [(x, y, z), ...]
 		self.all_hand_positions_3d = []  # 存储三维手部坐标 [[left_x, left_y, left_z], [right_x, right_y, right_z]]
+		self.gaze_points_3d_with_time = []
 
 		# 添加加权距离历史
 		self.weighted_distances_left = []  # 左手加权距离历史
@@ -443,13 +444,15 @@ class AttentionHeatmapGenerator:
 			if  len(valid_distances) == 0:
 				raise ValueError("valid_distances is empty")
 			
+			if not valid_distances:
+				return (self.scale_params['d_max'] + self.scale_params['d_min']) / 2
+			
 			# 使用时间衰减权重（最近的注视点权重更高）
-			#weights = self.calculate_temporal_weights(len(valid_distances))
+			weights = self.calculate_temporal_weights(len(valid_distances))
 			
 			# 计算加权平均距离
-			#weighted_dist = np.average(valid_distances, weights=weights)
-			#return weighted_dist
-			return valid_distances[0]
+			weighted_dist = np.average(valid_distances, weights=weights)
+			return weighted_dist
 			
 		except (TypeError, IndexError, ValueError) as e:
 			print(f"Error calculating weighted 3D distance: {e}")
@@ -567,7 +570,7 @@ class AttentionHeatmapGenerator:
 		
 		axes[0, 0].scatter(gaze_x, gaze_y, c='blue', marker='o', s=20, alpha=0.3, label='All Gaze')
 		if filtered_x and filtered_y:
-			axes[0, 0].scatter(filtered_x, filtered_y, c='green', marker='o', s=40, label='Filtered Gaze')
+			axes[0, 0].scatter(filtered_x, filtered_y, c='green', marker='o', s=20, label='Filtered Gaze')
 		if outlier_x and outlier_y:
 			axes[0, 0].scatter(outlier_x, outlier_y, c='red', marker='x', s=60, label='Outliers')
 		#axes[0, 0].scatter(hand_x, hand_y, c='purple', marker='s', s=80, label='Hand Position')
@@ -608,9 +611,9 @@ class AttentionHeatmapGenerator:
 				# 添加统计信息
 				avg_left = np.mean(left_distances)
 				avg_right = np.mean(right_distances)
-				axes[0, 1].axhline(y=avg_left, color='b', linestyle='--', alpha=0.7, 
+				axes[0, 1].axhline(y=avg_left, color='#3498db', linestyle='--', alpha=0.7, 
 									label=f'Left Avg: {avg_left:.3f}m')
-				axes[0, 1].axhline(y=avg_right, color='r', linestyle='--', alpha=0.7,
+				axes[0, 1].axhline(y=avg_right, color= '#e74c3c', linestyle='--', alpha=0.7,
 									label=f'Right Avg: {avg_right:.3f}m')
 				
 			else:
@@ -631,8 +634,8 @@ class AttentionHeatmapGenerator:
 		gaze_y_trimmed = gaze_y[:min_length]
 		
 
-		axes[1, 0].plot(times_trimmed, gaze_x_trimmed, 'b-', label='X Coordinate', alpha=0.7)
-		axes[1, 0].plot(times_trimmed, gaze_y_trimmed, 'g-', label='Y Coordinate', alpha=0.7)
+		axes[1, 0].plot(times_trimmed, gaze_x_trimmed, '#3498db', label='X Coordinate', alpha=0.7)
+		axes[1, 0].plot(times_trimmed, gaze_y_trimmed, '#e74c3c', label='Y Coordinate', alpha=0.7)
 		axes[1, 0].set_title('Original Gaze Coordinates Over Time')
 		axes[1, 0].set_xlabel('Time (s)')
 		axes[1, 0].set_ylabel('Screen Coordinates (pixels)')
@@ -664,8 +667,8 @@ class AttentionHeatmapGenerator:
 		
 		min_length = min(len(filtered_times), len(filtered_x_coords), len(filtered_y_coords))
 			
-		axes[1, 1].plot(filtered_times, filtered_x_coords, 'b-', label='X Coordinate', alpha=0.7)
-		axes[1, 1].plot(filtered_times, filtered_y_coords, 'g-', label='Y Coordinate', alpha=0.7)
+		axes[1, 1].plot(filtered_times, filtered_x_coords,'#3498db', label='X Coordinate', alpha=0.7)
+		axes[1, 1].plot(filtered_times, filtered_y_coords,'#e74c3c', label='Y Coordinate', alpha=0.7)
 		axes[1, 1].set_title('Filtered Gaze Coordinates Over Time')
 		axes[1, 1].set_xlabel('Time (s)')
 		axes[1, 1].set_ylabel('Screen Coordinates (pixels)')
@@ -696,6 +699,36 @@ class AttentionHeatmapGenerator:
 		}
 		np.save(os.path.join(self.save_dir, f'gaze_filter_data.npy'), data)
 
+	def get_recent_gaze_points(self, current_timestamp):
+		"""
+		获取时间窗口内的注视点坐标，并自动清理过期数据
+		"""
+		if not hasattr(self, 'gaze_points_3d_with_time') or not self.gaze_points_3d_with_time:
+			return []
+		
+		# 使用传入的gaze时间戳计算时间窗口
+		window_seconds = self.filter_params.get('window_seconds', 3.0)
+		window_start = current_timestamp - window_seconds
+		
+		# 清理过期数据（保留窗口内的数据）
+		self.gaze_points_3d_with_time = [
+			(ts, pos) for ts, pos in self.gaze_points_3d_with_time 
+			if ts >= window_start
+		]
+		
+		# 获取当前窗口内的数据
+		recent_points = []
+		for timestamp, gaze_pos in self.gaze_points_3d_with_time:
+			if timestamp >= window_start:
+				recent_points.append(gaze_pos)
+		
+		# # 可选：调试信息
+		# if hasattr(self, 'debug') and self.debug:
+		# 	print(f"时间窗口: [{window_start:.3f}, {current_timestamp:.3f}]")
+		# 	print(f"有效数据点: {len(recent_points)}/{len(self.gaze_points_with_3d_time)}")
+		
+		return recent_points
+	
 class DataCollector:
 	def __init__(self):
 		# Your original initialization code
@@ -899,31 +932,35 @@ class DataCollector:
 
 		gazepoint_position3 = get_gazepoint_position3(camera_depthdata, cameraR.pose, cameraFrame.pose, gazePoint[0], gazePoint[1])
 
-		self.attention_heatmap_generator.all_gaze_points_3d.append(gazepoint_position3)
+		#self.attention_heatmap_generator.all_gaze_points_3d.append(gazepoint_position3)
 		self.attention_heatmap_generator.all_hand_positions_3d.append([Lpsm_position3, Rpsm_position3])
+	
+		global latest_gaze_timestamp ,latest_gaze_point_ratio
 		
+		current_time = latest_gaze_timestamp 
+		current_gaze_point = latest_gaze_point_ratio	
+
+		if current_time <= 0:
+			current_time = time.time()	
+
+		# 直接存储数据到时间窗口列表
+		if gazepoint_position3 is not None:
+			self.attention_heatmap_generator.gaze_points_3d_with_time.append((current_time, gazepoint_position3))		
+
+		# 获取时间窗口内的注视点和最新的手部位置
+		recent_gaze_points = self.attention_heatmap_generator.get_recent_gaze_points(current_time)
 
 		# 计算三维加权距离
 		weighted_dist_left_3d = self.attention_heatmap_generator.calculate_weighted_distance(
-			gazepoint_position3, Lpsm_position3
+			recent_gaze_points, Lpsm_position3
 		)
 		weighted_dist_right_3d = self.attention_heatmap_generator.calculate_weighted_distance(
-			gazepoint_position3, Rpsm_position3
+			recent_gaze_points, Rpsm_position3
 		)
 		
 		self.attention_heatmap_generator.weighted_distances_left.append(weighted_dist_left_3d)
 		self.attention_heatmap_generator.weighted_distances_right.append(weighted_dist_right_3d)		
 
-		global latest_gaze_timestamp, latest_gaze_point_ratio
-		
-
-		current_time = latest_gaze_timestamp
-		current_gaze_point = latest_gaze_point_ratio
-		
-		# 检查时间戳是否有效
-		if current_time <= 0:
-			current_time = time.time()
-		
 		# append all
 		self.attention_heatmap_generator.all_gaze_points.append([current_time, current_gaze_point[0], current_gaze_point[1]])
 		self.attention_heatmap_generator.all_timestamps.append(current_time)
@@ -951,9 +988,11 @@ class DataCollector:
 			self.attention_heatmap_generator.outlier_indices.append(current_idx)
 
 			# 使用上一时刻的有效注视点，但使用当前的IPA、手部位置等实时数据
+			prev_time = self.attention_heatmap_generator.all_timestamps[-2]  # 上一帧的时间戳
+			prev_recent_gaze_points = self.attention_heatmap_generator.get_recent_gaze_points(prev_time)			
 			prev_gaze = self.attention_heatmap_generator.prev_valid_gaze
-			weighted_dist_left_3d = self.attention_heatmap_generator.calculate_weighted_distance(prev_gaze, Lpsm_position3)
-			weighted_dist_right_3d = self.attention_heatmap_generator.calculate_weighted_distance(prev_gaze, Rpsm_position3)
+			weighted_dist_left_3d = self.attention_heatmap_generator.calculate_weighted_distance(prev_recent_gaze_points, Lpsm_position3)
+			weighted_dist_right_3d = self.attention_heatmap_generator.calculate_weighted_distance(prev_recent_gaze_points, Rpsm_position3)
 
 		
 		else:
