@@ -141,7 +141,7 @@ class AttentionHeatmapGenerator:
 		# Initialize heatmap and historical data
 		self.realtime_heatmap = np.zeros(heatmap_size)  # 实时更新的热图
 		self.all_gaze_points = []  # 存储所有历史注视点 (timestamp, x, y)
-		self.filtered_gaze_history = []  # 存储过滤后的注视点
+		self.all_timestamps = []
 
 		# For visualization
 		self.filtered_indices = []
@@ -168,6 +168,7 @@ class AttentionHeatmapGenerator:
 
 		# 初始化上一帧的缩放因子
 		self.prev_scale_factor = config.gaze_filter_params['prev_scale_factor']
+		self.prev_valid_gaze = None
 
 		# Create save directory
 		
@@ -190,7 +191,7 @@ class AttentionHeatmapGenerator:
 			self.save_dir = dir_name
 		#print(f"gaze heatmap results will be saved to: {os.path.abspath(self.save_dir)}")
 
-	def update_realtime_heatmap(self, current_time, total_duration=None, use_filtered_points=False):
+	def update_realtime_heatmap(self, current_time, total_duration=None, use_filtered_points=True):
 		"""
 		更新实时热图
 		
@@ -226,7 +227,7 @@ class AttentionHeatmapGenerator:
 		
 		if use_filtered_points:
 			# 使用过滤后的点
-			for timestamp, gx, gy in self.filtered_gaze_history:
+			for timestamp, gx, gy in self.filtered_gaze_points:
 				if window_start <= timestamp <= window_end:
 					# Convert to heatmap coordinates
 					x_heatmap = int(gx * (self.heatmap_size[1] - 1))
@@ -337,10 +338,25 @@ class AttentionHeatmapGenerator:
 		"""
 		专注于过滤明显异常点的函数 - 适配实时模式
 		"""
-		if current_idx < 0 or current_idx >= len(gaze_points):
+		# gaze_points 格式是 [[timestamp, x, y], ...] 或 [(timestamp, x, y), ...]
+		# 提取 [x, y] 部分用于后续处理
+		if len(gaze_points) == 0:
+			return False, 0.0
+		
+		# 将 gaze_points 转换为只包含 [x, y] 的列表
+		gaze_points_xy = []
+		for p in gaze_points:
+			if len(p) >= 3:  # 确保是 [timestamp, x, y] 或 (timestamp, x, y) 格式
+				gaze_points_xy.append([p[1], p[2]])  # 提取 x, y
+			elif len(p) >= 2:  # 如果已经是 [x, y] 格式
+				gaze_points_xy.append([p[0], p[1]])
+			else:
+				gaze_points_xy.append([0.5, 0.5])  # 默认值
+		
+		if current_idx < 0 or current_idx >= len(gaze_points_xy):
 			return False, 0.0
 			
-		current_point = gaze_points[current_idx]
+		current_point = gaze_points_xy[current_idx]
 		
 		# 1. 基于热图的过滤 - 只过滤非常低注意力值的点
 		x_heatmap = int(current_point[0] * (self.heatmap_size[1] - 1))
@@ -354,20 +370,20 @@ class AttentionHeatmapGenerator:
 		# 2. 检测明显的跳跃
 		jump_detected = False
 		if current_idx > 0:
-			prev_point = gaze_points[current_idx - 1]
+			prev_point = gaze_points_xy[current_idx - 1]
 			jump_detected = self.detect_jump(current_point, prev_point)
 		
 		# 3. 检查是否有足够的邻居支持
 		has_neighbors = True
 		if current_idx > 10:  # 只有在有足够历史数据时才检查
-			recent_points = gaze_points[max(0, current_idx-10):current_idx]
+			recent_points = gaze_points_xy[max(0, current_idx-10):current_idx]
 			has_neighbors = self.has_sufficient_neighbors(current_point, recent_points)
 
 		# 4. 基于速度的异常检测
 		velocity_outlier = False
 		if current_idx > 0:
 			try:
-				prev_point = gaze_points[current_idx - 1]
+				prev_point = gaze_points_xy[current_idx - 1]
 				prev_time = timestamps[current_idx - 1]
 				time_diff = timestamps[current_idx] - prev_time
 				velocity_outlier = self.detect_velocity_outlier(current_point, prev_point, time_diff)
@@ -392,14 +408,17 @@ class AttentionHeatmapGenerator:
 				if not hasattr(gaze_positions_3d[0], '__len__'):
 					gaze_positions_3d = [gaze_positions_3d]
 			else:
+				raise ValueError("gaze_positions_3d is not a list")
 				return (self.scale_params['d_max'] + self.scale_params['d_min']) / 2
 			
 			# 安全检查
 			if hand_position_3d is None:
+				raise ValueError("hand_position_3d is None")
 				return (self.scale_params['d_max'] + self.scale_params['d_min']) / 2
 			
 			# 确保手部坐标有效
 			if (not hasattr(hand_position_3d, '__len__') or len(hand_position_3d) < 3):
+				raise ValueError("hand_position_3d is not a list")
 				return (self.scale_params['d_max'] + self.scale_params['d_min']) / 2
 			
 			# 过滤无效的注视点并计算距离
@@ -417,16 +436,19 @@ class AttentionHeatmapGenerator:
 						(float(gaze_pos[2]) - float(hand_position_3d[2]))**2
 					)
 					valid_distances.append(direct_distance)
+				else:
+					raise ValueError("gaze_pos is not a list")
 			
-			if not valid_distances:
-				return (self.scale_params['d_max'] + self.scale_params['d_min']) / 2
+			if  len(valid_distances) == 0:
+				raise ValueError("valid_distances is empty")
 			
 			# 使用时间衰减权重（最近的注视点权重更高）
-			weights = self.calculate_temporal_weights(len(valid_distances))
+			#weights = self.calculate_temporal_weights(len(valid_distances))
 			
 			# 计算加权平均距离
-			weighted_dist = np.average(valid_distances, weights=weights)
-			return weighted_dist
+			#weighted_dist = np.average(valid_distances, weights=weights)
+			#return weighted_dist
+			return valid_distances[0]
 			
 		except (TypeError, IndexError, ValueError) as e:
 			print(f"Error calculating weighted 3D distance: {e}")
@@ -455,7 +477,15 @@ class AttentionHeatmapGenerator:
 		"""
 		Visualize results with filtering comparison
 		"""
-		timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+		# 在函数开始时立即复制数据，确保数据在函数执行过程中不会被修改
+		# 这样可以避免回调函数在可视化过程中继续添加数据
+		timestamps = list(timestamps) if hasattr(timestamps, '__iter__') else timestamps
+		gaze_points = list(gaze_points) if hasattr(gaze_points, '__iter__') else gaze_points
+		filtered_indices = list(filtered_indices) if hasattr(filtered_indices, '__iter__') else filtered_indices
+		outlier_indices = list(outlier_indices) if hasattr(outlier_indices, '__iter__') else outlier_indices
+		
+		# 记录初始长度用于调试
+		initial_gaze_points_len = len(gaze_points)
 		
 		# 创建2x2的子图布局
 		fig, axes = plt.subplots(2, 2, figsize=(15, 12))
@@ -468,13 +498,14 @@ class AttentionHeatmapGenerator:
 		for i in filtered_indices:
 			if i < len(gaze_points):
 				gaze_point = gaze_points[i]
-				x_heatmap = int(gaze_point[0] * (self.heatmap_size[1] - 1))
-				y_heatmap = int(gaze_point[1] * (self.heatmap_size[0] - 1))
+				# gaze_point 是 (timestamp, x, y) 元组
+				x_heatmap = int(gaze_point[1] * (self.heatmap_size[1] - 1))
+				y_heatmap = int(gaze_point[2] * (self.heatmap_size[0] - 1))
 				x_heatmap = max(0, min(x_heatmap, self.heatmap_size[1] - 1))
 				y_heatmap = max(0, min(y_heatmap, self.heatmap_size[0] - 1))
 				
 				# 为每个点添加高斯分布
-				sigma = config.gaze_filter_params['sigma']
+				sigma = config.gaze_filter_params['gaussian_kernel_sigma']
 				size = int(3 * sigma) + 1
 				x_grid, y_grid = np.meshgrid(np.arange(-size, size+1), np.arange(-size, size+1))
 				gaussian = np.exp(-(x_grid**2 + y_grid**2) / (2 * sigma**2))
@@ -508,8 +539,15 @@ class AttentionHeatmapGenerator:
 							aspect=aspect_ratio, origin='upper')
 		
 		# Plot all gaze points (转换为目标分辨率)
-		gaze_x = [p[0] * target_width for p in gaze_points]
-		gaze_y = [p[1] * target_height for p in gaze_points]
+		# gaze_points 是 [(timestamp, x, y), ...] 格式
+		# 再次检查长度，确保数据没有被修改
+		current_gaze_points_len = len(gaze_points)
+		if current_gaze_points_len != initial_gaze_points_len:
+			print(f"<WARNING> gaze_points length changed from {initial_gaze_points_len} to {current_gaze_points_len}!")
+		
+		gaze_x = np.array([p[1] * target_width for p in gaze_points])
+		gaze_y = np.array([p[2] * target_height for p in gaze_points])
+
 		
 		# Plot filtered points (green) and outliers (red)
 		filtered_x = [gaze_x[i] for i in filtered_indices if i < len(gaze_x)]
@@ -548,15 +586,13 @@ class AttentionHeatmapGenerator:
 			times = np.array(timestamps) - timestamps[0]
 			
 			# 确保数据长度一致
-			min_length = min(len(times), len(self.all_gaze_points_3d), 
-							len(self.all_hand_positions_3d),
-							len(self.weighted_distances_left),
-							len(self.weighted_distances_right))
+			min_length = min(len(times), len(GP_distance_list))
 			
 			if min_length > 0:
 				times_trimmed = times[:min_length]
-				left_distances = GP_distance_list
-				right_distances = self.weighted_distances_right[:min_length]
+				GP_distance_array = np.array(GP_distance_list)
+				left_distances = GP_distance_array[:min_length, 0]
+				right_distances = GP_distance_array[:min_length, 1]
 				
 				# 绘制左右手的三维距离
 				axes[0, 1].plot(times_trimmed, left_distances, 'b-', linewidth=2, label='Left Hand 3D Distance')
@@ -587,53 +623,54 @@ class AttentionHeatmapGenerator:
 
 	
 		# 3. Original gaze coordinates over time 
-		if timestamps and gaze_x and gaze_y:
-			times = np.array(timestamps) - timestamps[0]
-			min_length = min(len(times), len(gaze_x), len(gaze_y))
-			times_trimmed = times[:min_length]
-			gaze_x_trimmed = gaze_x[:min_length]
-			gaze_y_trimmed = gaze_y[:min_length]
-			
-			axes[1, 0].plot(times_trimmed, gaze_x_trimmed, 'b-', label='X Coordinate', alpha=0.7)
-			axes[1, 0].plot(times_trimmed, gaze_y_trimmed, 'g-', label='Y Coordinate', alpha=0.7)
-			axes[1, 0].set_title('Original Gaze Coordinates Over Time')
-			axes[1, 0].set_xlabel('Time (s)')
-			axes[1, 0].set_ylabel('Screen Coordinates (pixels)')
-			axes[1, 0].legend()
-			axes[1, 0].grid(True)
-		else:
-			axes[1, 0].text(0.5, 0.5, 'No gaze coordinate data', 
-						ha='center', va='center', transform=axes[1, 0].transAxes)
-			axes[1, 0].set_title('Original Gaze Coordinates Over Time')
+	
+		min_length = min(len(timestamps), len(gaze_x), len(gaze_y))
+		times_trimmed = (np.array(timestamps) - timestamps[0])[:min_length]
+		gaze_x_trimmed = gaze_x[:min_length]
+		gaze_y_trimmed = gaze_y[:min_length]
 		
+
+		axes[1, 0].plot(times_trimmed, gaze_x_trimmed, 'b-', label='X Coordinate', alpha=0.7)
+		axes[1, 0].plot(times_trimmed, gaze_y_trimmed, 'g-', label='Y Coordinate', alpha=0.7)
+		axes[1, 0].set_title('Original Gaze Coordinates Over Time')
+		axes[1, 0].set_xlabel('Time (s)')
+		axes[1, 0].set_ylabel('Screen Coordinates (pixels)')
+		axes[1, 0].legend()
+		axes[1, 0].grid(True)
+
+		
+		# to do : check
 		# 4. Filtered gaze coordinates over time 
-		if filtered_indices and timestamps and gaze_x and gaze_y:
-			times = np.array(timestamps) - timestamps[0]
-			filtered_times = [times[i] for i in filtered_indices if i < len(times)]
-			filtered_x_coords = [gaze_x[i] for i in filtered_indices if i < len(gaze_x)]
-			filtered_y_coords = [gaze_y[i] for i in filtered_indices if i < len(gaze_y)]
-			
-			min_length = min(len(filtered_times), len(filtered_x_coords), len(filtered_y_coords))
-			if min_length > 0:
-				filtered_times = filtered_times[:min_length]
-				filtered_x_coords = filtered_x_coords[:min_length]
-				filtered_y_coords = filtered_y_coords[:min_length]
-				
-				axes[1, 1].plot(filtered_times, filtered_x_coords, 'b-', label='X Coordinate', alpha=0.7)
-				axes[1, 1].plot(filtered_times, filtered_y_coords, 'g-', label='Y Coordinate', alpha=0.7)
-				axes[1, 1].set_title('Filtered Gaze Coordinates Over Time')
-				axes[1, 1].set_xlabel('Time (s)')
-				axes[1, 1].set_ylabel('Screen Coordinates (pixels)')
-				axes[1, 1].legend()
-				axes[1, 1].grid(True)
+
+		times = np.array(timestamps) - timestamps[0]
+		filtered_times = times[:]
+		filtered_x_coords = []
+		filtered_y_coords = []
+
+		# 再次检查长度，确保数据没有被修改
+		final_gaze_points_len = len(gaze_points)
+		if final_gaze_points_len != initial_gaze_points_len:
+			print(f"<WARNING> gaze_points length changed from {initial_gaze_points_len} to {final_gaze_points_len}!")
+
+		for i in range(len(gaze_points)):
+			if i in filtered_indices:
+				filtered_x_coords.append(gaze_x[i])
+				filtered_y_coords.append(gaze_y[i])
 			else:
-				axes[1, 1].text(0.5, 0.5, 'No filtered gaze data', 
-							ha='center', va='center', transform=axes[1, 1].transAxes)
-				axes[1, 1].set_title('Filtered Gaze Coordinates Over Time')
-		else:
-			axes[1, 1].text(0.5, 0.5, 'No filtered gaze data', 
-						ha='center', va='center', transform=axes[1, 1].transAxes)
-			axes[1, 1].set_title('Filtered Gaze Coordinates Over Time')
+				# use the last valid point to replace the current invalid point
+				filtered_x_coords.append(gaze_x[i-1])
+				filtered_y_coords.append(gaze_y[i-1])
+		
+		min_length = min(len(filtered_times), len(filtered_x_coords), len(filtered_y_coords))
+			
+		axes[1, 1].plot(filtered_times, filtered_x_coords, 'b-', label='X Coordinate', alpha=0.7)
+		axes[1, 1].plot(filtered_times, filtered_y_coords, 'g-', label='Y Coordinate', alpha=0.7)
+		axes[1, 1].set_title('Filtered Gaze Coordinates Over Time')
+		axes[1, 1].set_xlabel('Time (s)')
+		axes[1, 1].set_ylabel('Screen Coordinates (pixels)')
+		axes[1, 1].legend()
+		axes[1, 1].grid(True)
+
 		
 		plt.tight_layout()
 		plt.savefig(os.path.join(self.save_dir, f'gaze_filter_results.png'), 
@@ -650,12 +687,11 @@ class AttentionHeatmapGenerator:
 	def save_visualization_data(self):
 		"""Save visualization data for later analysis"""
 		data = {
-			'timestamps': self.filtered_timestamps,
-			'gaze_points': self.filtered_gaze_points,
+			'timestamps': self.all_timestamps,
+			'gaze_points': self.all_gaze_points,
 			'filtered_indices': self.filtered_indices,
 			'outlier_indices': self.outlier_indices,
-			'all_gaze_points': self.all_gaze_points,
-			'filtered_gaze_history': self.filtered_gaze_history
+			'filtered_gaze_points': self.filtered_gaze_points,
 		}
 		np.save(os.path.join(self.save_dir, f'gaze_filter_data.npy'), data)
 
@@ -762,7 +798,7 @@ class DataCollector:
 		# Reset attention heatmap
 		
 		self.attention_heatmap_generator.all_gaze_points.clear()
-		self.attention_heatmap_generator.filtered_gaze_history.clear()
+		self.attention_heatmap_generator.all_timestamps.clear()
 		self.attention_heatmap_generator.realtime_heatmap = np.zeros(self.attention_heatmap_generator.heatmap_size)
 		self.attention_heatmap_generator.filtered_indices.clear()
 		self.attention_heatmap_generator.outlier_indices.clear()
@@ -828,10 +864,11 @@ class DataCollector:
 		if self.attention_heatmap_generator.filtered_timestamps:  # 确保有数据可可视化
 			
 			# 准备可视化所需的数据
-			timestamps = self.attention_heatmap_generator.filtered_timestamps
-			gaze_points = self.attention_heatmap_generator.filtered_gaze_points
-			filtered_indices = self.attention_heatmap_generator.filtered_indices
-			outlier_indices = self.attention_heatmap_generator.outlier_indices
+			# 注意：复制数据以避免回调函数在可视化过程中修改数据
+			timestamps = self.attention_heatmap_generator.all_timestamps.copy()
+			gaze_points = self.attention_heatmap_generator.all_gaze_points.copy()
+			filtered_indices = self.attention_heatmap_generator.filtered_indices.copy()
+			outlier_indices = self.attention_heatmap_generator.outlier_indices.copy()
 			
 			
 			self.attention_heatmap_generator.visualize_results(
@@ -861,9 +898,9 @@ class DataCollector:
 
 		gazepoint_position3 = get_gazepoint_position3(camera_depthdata, cameraR.pose, cameraFrame.pose, gazePoint[0], gazePoint[1])
 
-		# 存储三维坐标到注意力热图生成器
 		self.attention_heatmap_generator.all_gaze_points_3d.append(gazepoint_position3)
 		self.attention_heatmap_generator.all_hand_positions_3d.append([Lpsm_position3, Rpsm_position3])
+		
 
 		# 计算三维加权距离
 		weighted_dist_left_3d = self.attention_heatmap_generator.calculate_weighted_distance(
@@ -878,60 +915,53 @@ class DataCollector:
 
 		global latest_gaze_timestamp, latest_gaze_point_ratio
 		
-		current_time = latest_gaze_timestamp
+		# debug<LYON>
+		#current_time = latest_gaze_timestamp
+		current_time = time.time() - start_time
 		current_gaze_point = latest_gaze_point_ratio
 		
 		# 检查时间戳是否有效
 		if current_time <= 0:
 			current_time = time.time()
 		
-		# 添加到历史数据
-		self.attention_heatmap_generator.all_gaze_points.append((current_time, current_gaze_point[0], current_gaze_point[1]))
+		# append all
+		self.attention_heatmap_generator.all_gaze_points.append([current_time, current_gaze_point[0], current_gaze_point[1]])
+		self.attention_heatmap_generator.all_timestamps.append(current_time)
+
 		
-		# 存储到可视化数据
+		# append filtered list for filtering and may pop later
 		self.attention_heatmap_generator.filtered_timestamps.append(current_time)
-		self.attention_heatmap_generator.filtered_gaze_points.append(current_gaze_point)
+		self.attention_heatmap_generator.filtered_gaze_points.append([current_time, current_gaze_point[0], current_gaze_point[1]])
 
-		current_idx = len(self.attention_heatmap_generator.filtered_timestamps) - 1
+		current_idx = len(self.attention_heatmap_generator.all_gaze_points) - 1
 
-		# 调用过滤方法
-		try:
-			is_valid, attention_value = self.attention_heatmap_generator.filter_outliers_focused(
-				current_idx,
-				self.attention_heatmap_generator.filtered_gaze_points,
-				self.attention_heatmap_generator.filtered_timestamps
-			)
-		except Exception as e:
-			is_valid = True
+	
+		# is_valid, attention_value = self.attention_heatmap_generator.filter_outliers_focused(
+		# 	current_idx,
+		# 	self.attention_heatmap_generator.filtered_gaze_points,
+		# 	self.attention_heatmap_generator.filtered_timestamps
+		# )
+		is_valid = True
 		
 		# if the current point is an outlier
-		if not is_valid:
+		if not is_valid and len(self.attention_heatmap_generator.all_gaze_points) > 1:
 			
 			self.attention_heatmap_generator.filtered_timestamps.pop()
 			self.attention_heatmap_generator.filtered_gaze_points.pop()
-			if (hasattr(self.attention_heatmap_generator, 'prev_valid_gaze') and 
-				self.attention_heatmap_generator.prev_valid_gaze is not None):
-				
-				# 使用上一时刻的有效注视点，但使用当前的IPA、手部位置等实时数据
-				prev_gaze = self.attention_heatmap_generator.prev_valid_gaze
-				weighted_dist_left_3d = self.attention_heatmap_generator.calculate_weighted_distance(prev_gaze,normalized_Lpsm)
-				weighted_dist_right_3d = self.attention_heatmap_generator.calculate_weighted_distance(prev_gaze,normalized_Rpsm)
-			else:
-				# consider it as an valid point
-				self.attention_heatmap_generator.filtered_indices.append(current_idx)
-				self.attention_heatmap_generator.filtered_gaze_history.append((current_time, current_gaze_point[0], current_gaze_point[1]))
-				self.attention_heatmap_generator.update_realtime_heatmap(current_time, use_filtered_points=True)
+			self.attention_heatmap_generator.outlier_indices.append(current_idx)
 
+			# 使用上一时刻的有效注视点，但使用当前的IPA、手部位置等实时数据
+			prev_gaze = self.attention_heatmap_generator.prev_valid_gaze
+			weighted_dist_left_3d = self.attention_heatmap_generator.calculate_weighted_distance(prev_gaze, Lpsm_position3)
+			weighted_dist_right_3d = self.attention_heatmap_generator.calculate_weighted_distance(prev_gaze, Rpsm_position3)
+
+		
 		else:
 			# 有效点：添加到过滤历史并更新过滤后热图
 			self.attention_heatmap_generator.filtered_indices.append(current_idx)
-			self.attention_heatmap_generator.filtered_gaze_history.append((current_time, current_gaze_point[0], current_gaze_point[1]))
-			self.attention_heatmap_generator.update_realtime_heatmap(current_time, use_filtered_points=True)
+			self.attention_heatmap_generator.update_realtime_heatmap(current_time)
+			self.attention_heatmap_generator.prev_valid_gaze = [current_time, current_gaze_point[0]*resolution_x, current_gaze_point[1]*resolution_y]
 
-
-		normalized_Lpsm = self.normalize_3d_position(psm_position[0])
-		normalized_Rpsm = self.normalize_3d_position(psm_position[1])
-				
 		
 		Lpsm_linear_velocity = np.sqrt(Lpsm_velocity6[0]**2 + Lpsm_velocity6[1]**2 + Lpsm_velocity6[2]**2)
 		Rpsm_linear_velocity = np.sqrt(Rpsm_velocity6[0]**2 + Rpsm_velocity6[1]**2 + Rpsm_velocity6[2]**2)
@@ -953,7 +983,7 @@ class DataCollector:
 		GP_distance = [weighted_dist_left_3d, weighted_dist_right_3d]
 		psm_velocity = [Lpsm_linear_velocity, Rpsm_linear_velocity]
 
-		scale = self.calculate_scale(gazepoint_position3, psm_position, psm_velocity, ipaL_data, ipaR_data, distance_psms, is_valid)	
+		scale = self.calculate_scale(GP_distance, psm_velocity, ipaL_data, ipaR_data, distance_psms)	
 		
 		try:  
 			self.scale_pub.publish(scale)
@@ -965,22 +995,13 @@ class DataCollector:
 		cal_total_distance(Lpsm_position3, Rpsm_position3)
 		total_time_list[0] = float(time.time() - start_time)
 
-		# # 可选：定期输出调试信息
-		# if self.collecting and current_idx % 30 == 0:
-		# 	valid_count = len(self.attention_heatmap_generator.filtered_indices)
-		# 	total_count = current_idx + 1
-		# 	valid_ratio = valid_count / total_count if total_count > 0 else 0
-		# 	print(f"\n实时过滤统计: {valid_count}/{total_count} 有效点 ({valid_ratio:.1%})")
-		# 	print(f"当前热图模式: {window_mode}")
-		# 	print(f"当前点状态: {'有效' if is_valid else '过滤'}")
-		# 	print(f"左右缩放因子: {scale.data[0]:.3f}, {scale.data[1]:.3f}")
-
 		if self.collecting:
 			print("\n")
 			print("=" * 50)
 			print(f"{'PSM Left 3d Position':<25}: [{psm_position[0][0]:.3f}, {psm_position[0][1]:.3f}, {psm_position[0][2]:.3f}]")
 			print(f"{'PSM Right 3d Position':<25}: [{psm_position[1][0]:.3f}, {psm_position[1][1]:.3f}, {psm_position[1][2]:.3f}]")
 			print(f"{'Gazing Point ':<25}: [{gazePoint[0]:.3f}, {gazePoint[1]:.3f}]")
+			print(f"{'Gazing Point 3d':<25}: [{gazepoint_position3[0]:.3f}, {gazepoint_position3[1]:.3f}, {gazepoint_position3[2]:.3f}]")
 			print(f"{'PSM Left Gazing Point Distance':<25}: {GP_distance[0]:.3f}")
 			print(f"{'PSM Right Gazing Point Distance':<25}: {GP_distance[1]:.3f}")
 			print(f"{'PSM Left Velocity (x, y, z)':<25}: [{psm_velocity[0]:.3f}]")
@@ -1005,25 +1026,25 @@ class DataCollector:
 			ipaR_data_list.append(ipaR_data)		
 
 
-	def normalize_3d_position(self, position_3d):
-		"""
-		将3D坐标归一化到[0,1]范围用于热图计算
-		这里需要根据工作空间范围调整
-		"""
-		# 假设工作空间范围（需要根据实际情况调整）
-		# to do 
-		workspace_min = config.gaze_filter_params['position3_normalization_bound']['min']   # 最小坐标
-		workspace_max = config.gaze_filter_params['position3_normalization_bound']['max']     # 最大坐标
+	# def normalize_3d_position(self, position_3d):
+	# 	"""
+	# 	将3D坐标归一化到[0,1]范围用于热图计算
+	# 	这里需要根据工作空间范围调整
+	# 	"""
+	# 	# 假设工作空间范围（需要根据实际情况调整）
+	# 	# to do 
+	# 	workspace_min = config.gaze_filter_params['position3_normalization_bound']['min']   # 最小坐标
+	# 	workspace_max = config.gaze_filter_params['position3_normalization_bound']['max']     # 最大坐标
 
-		normalized = []
-		for i in range(3):
-			# 将每个维度归一化到[0,1]
-			norm_val = (position_3d[i] - workspace_min[i]) / (workspace_max[i] - workspace_min[i])
-			normalized.append(np.clip(norm_val, 0, 1))
+	# 	normalized = []
+	# 	for i in range(3):
+	# 		# 将每个维度归一化到[0,1]
+	# 		norm_val = (position_3d[i] - workspace_min[i]) / (workspace_max[i] - workspace_min[i])
+	# 		normalized.append(np.clip(norm_val, 0, 1))
 
-		return normalized
+	# 	return normalized
 
-	def calculate_scale(self, weighted_dist, psm_position, psm_velocity, IPAL, IPAR, distance_psms):
+	def calculate_scale(self, weighted_dist, psm_velocity, IPAL, IPAR, distance_psms):
 		scaleArray = Float32MultiArray()
 		# 使用热图加权距离替换原有的距离特征
 		# 将3D坐标归一化用于热图计算
@@ -1122,11 +1143,11 @@ class DataCollector:
 
 		print(f"\n{'='*50}")
 		print(f"Gaze filtering results:")
-		print(f"{'Total gaze points':<25}: {len(self.attention_heatmap_generator.filtered_gaze_points)}")
-		print(f"{'Valid gaze points':<25}: {len(self.attention_heatmap_generator.filtered_indices)}")
+		print(f"{'Total gaze points':<25}: {len(self.attention_heatmap_generator.all_gaze_points)}")
+		print(f"{'Valid gaze points':<25}: {len(self.attention_heatmap_generator.filtered_gaze_points)}")
 		print(f"{'Outlier gaze points':<25}: {len(self.attention_heatmap_generator.outlier_indices)}")
-		print(f"{'Valid ratio':<25}: {len(self.attention_heatmap_generator.filtered_indices)/len(self.attention_heatmap_generator.filtered_gaze_points):.1%}")
-		print(f"{'Outlier ratio':<25}: {len(self.attention_heatmap_generator.outlier_indices)/len(self.attention_heatmap_generator.filtered_gaze_points):.1%}")
+		print(f"{'Valid ratio':<25}: {len(self.attention_heatmap_generator.filtered_gaze_points)/len(self.attention_heatmap_generator.all_gaze_points):.1%}")
+		print(f"{'Outlier ratio':<25}: {len(self.attention_heatmap_generator.outlier_indices)/len(self.attention_heatmap_generator.all_gaze_points):.1%}")
 
 		print(f"\n{'='*50}")
 		print(f"Global factors:")
@@ -1246,7 +1267,7 @@ def get_gazepoint_position3(point_cloud,cameraL_pose, cameraFrame_pose,u,v):
 	T_WL = T_WF.dot(T_FL)
 	point = T_WL.dot(np.array(list(point)+[1]).T)
 	#gazepoint_list.append([u,v])
-	return point
+	return point[:3]
 
 def read_points(cloud, field_names=None, skip_nans=False, uvs=[]):
 	assert isinstance(cloud, roslib.message.Message) and cloud._type == 'sensor_msgs/PointCloud2', 'cloud is not a sensor_msgs.msg.PointCloud2'
@@ -1466,7 +1487,6 @@ def cal_Rpsm_clutch_times(button):
 if left gaze point and right are both available, we set gaze point as their medium point.If only one, set as that.If none, no change.
 """
 def gaze_data_cb(gaze):
-	#print(f"<LYON> Gaze data received: {gaze.data}")
 	w = resolution_x
 	h = resolution_y
 

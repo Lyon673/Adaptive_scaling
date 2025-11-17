@@ -1,6 +1,6 @@
 # resolution of windows
-resolution_x = 1920
-resolution_y = 1080
+resolution_x = 960
+resolution_y = 540
 
 # the parameters in the scaling calculation formula
 feature_bound = {

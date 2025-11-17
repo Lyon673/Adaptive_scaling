@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from collections import deque
 import socket
-import Project.ipa as ipa
+import ipa as ipa
 import pywt
 
 _ipa = np.load('./Project/data/ipaL_data.npy', allow_pickle=True)[90:]

@@ -108,12 +108,12 @@ def str2bool(str):
 if __name__ == '__main__':
     try:
         main()
-        pupilnp = np.array(pupil)
-        if not os.path.exists('gazedata'):
-            os.mkdir('gazedata')
-        print("saving data...")
-        np.save(join('gazedata', 'gaze04.npy'), pupilnp)
-        print("done")
+        # pupilnp = np.array(pupil)
+        # if not os.path.exists('gazedata'):
+        #     os.mkdir('gazedata')
+        # print("saving data...")
+        # np.save(join('gazedata', 'gaze04.npy'), pupilnp)
+        # print("done")
     except rospy.ROSInterruptException:
         pass
 
