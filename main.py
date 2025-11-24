@@ -257,7 +257,7 @@ class AttentionHeatmapGenerator:
 					y_heatmap = max(0, min(y_heatmap, self.heatmap_size[0] - 1))
 					
 					window_points.append((x_heatmap, y_heatmap))
-		print(f"window_points: {window_points}")
+		#print(f"window_points: {window_points}")
 		#print(f"filtered_gaze_points: {filtered_gaze_points}")
 		if not window_points:
 			return
@@ -371,19 +371,19 @@ class AttentionHeatmapGenerator:
 		
 		attention_value = self.realtime_heatmap[y_heatmap, x_heatmap]
 		heatmap_valid = attention_value >= self.filter_params['attention_threshold']
-		print(f"attention_value: {attention_value}")
+		#print(f"attention_value: {attention_value}")
 		# 2. 检测明显的跳跃
 		jump_detected = False
 		if len(gaze_points_xy) > 1:
 			prev_point = gaze_points_xy[-2]
 			jump_detected = self.detect_jump(current_point, prev_point)
-		print(f"jump_detected: {jump_detected}")
+		#print(f"jump_detected: {jump_detected}")
 		# 3. 检查是否有足够的邻居支持
 		has_neighbors = True
 		if len(gaze_points_xy) > 10:  # 只有在有足够历史数据时才检查
 			recent_points = gaze_points_xy[max(0, len(gaze_points_xy)-10):len(gaze_points_xy)]
 			has_neighbors = self.has_sufficient_neighbors(current_point, recent_points)
-		print(f"has_neighbors: {has_neighbors}")
+		#print(f"has_neighbors: {has_neighbors}")
 		# 4. 基于速度的异常检测
 		velocity_outlier = False
 		if len(gaze_points_xy) > 1:
@@ -394,11 +394,12 @@ class AttentionHeatmapGenerator:
 				velocity_outlier = self.detect_velocity_outlier(current_point, prev_point, time_diff)
 			except (IndexError, TypeError):
 				velocity_outlier = False            
-		print(f"velocity_outlier: {velocity_outlier}")
+		#print(f"velocity_outlier: {velocity_outlier}")
 		# 综合条件：当点在低注意力区域，或缺乏邻居支持，或速度异常，或是明显的跳跃时，被过滤
 		is_outlier = not heatmap_valid or not has_neighbors or velocity_outlier or jump_detected
+		problem_id = [not heatmap_valid, not has_neighbors, velocity_outlier, jump_detected]
 		
-		return not is_outlier, attention_value
+		return not is_outlier, problem_id
 	
 	def calculate_weighted_distance(self, gaze_positions_3d, hand_position_3d):
 		"""
@@ -976,17 +977,19 @@ class DataCollector:
 		current_idx = len(self.attention_heatmap_generator.all_gaze_points) - 1
 
 		self.attention_heatmap_generator.update_realtime_heatmap(current_time)
-		is_valid, attention_value = self.attention_heatmap_generator.filter_outliers_focused(
-			self.attention_heatmap_generator.filtered_gaze_points,
-			self.attention_heatmap_generator.filtered_timestamps
-		)
-		#is_valid = True
+		# is_valid, problem_id = self.attention_heatmap_generator.filter_outliers_focused(
+		# 	self.attention_heatmap_generator.all_gaze_points,
+		# 	self.attention_heatmap_generator.all_timestamps
+		# )
+		is_valid = True
 		
 		# if the current point is an outlier
-		if not is_valid and len(self.attention_heatmap_generator.all_gaze_points) > 1:
+		if not is_valid and len(self.attention_heatmap_generator.all_gaze_points) > 10:
 			
 			self.attention_heatmap_generator.filtered_timestamps.pop()
 			self.attention_heatmap_generator.filtered_gaze_points.pop()
+			pre_valid_gaze = self.attention_heatmap_generator.filtered_gaze_points[-1]
+			self.attention_heatmap_generator.filtered_gaze_points.append([current_time, pre_valid_gaze[1], pre_valid_gaze[2]])
 			self.attention_heatmap_generator.outlier_indices.append(current_idx)
 
 			# 使用上一时刻的有效注视点，但使用当前的IPA、手部位置等实时数据
@@ -1185,9 +1188,9 @@ class DataCollector:
 		print(f"\n{'='*50}")
 		print(f"Gaze filtering results:")
 		print(f"{'Total gaze points':<25}: {len(self.attention_heatmap_generator.all_gaze_points)}")
-		print(f"{'Valid gaze points':<25}: {len(self.attention_heatmap_generator.filtered_gaze_points)}")
+		print(f"{'Valid gaze points':<25}: {len(self.attention_heatmap_generator.filtered_timestamps)}")
 		print(f"{'Outlier gaze points':<25}: {len(self.attention_heatmap_generator.outlier_indices)}")
-		print(f"{'Valid ratio':<25}: {len(self.attention_heatmap_generator.filtered_gaze_points)/len(self.attention_heatmap_generator.all_gaze_points):.1%}")
+		print(f"{'Valid ratio':<25}: {len(self.attention_heatmap_generator.filtered_timestamps)/len(self.attention_heatmap_generator.all_gaze_points):.1%}")
 		print(f"{'Outlier ratio':<25}: {len(self.attention_heatmap_generator.outlier_indices)/len(self.attention_heatmap_generator.all_gaze_points):.1%}")
 
 		print(f"\n{'='*50}")

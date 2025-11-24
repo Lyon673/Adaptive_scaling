@@ -4,9 +4,9 @@ resolution_y = 540
 
 # the parameters in the scaling calculation formula
 feature_bound = {
-    'd_min': 0.05, 'd_max': 0.12,
+    'd_min': 0.00, 'd_max': 0.08,
 	'p_min': 0.95, 'p_max': 1,
-	'v_min': 0, 'v_max': 0.1,
+	'v_min': 0, 'v_max': 0.08,
     's_min': 0.01, 's_max': 0.1,
     'C_offset': 0.05
 }
@@ -70,17 +70,17 @@ init_params = {
 	'p_min': feature_bound['p_min'] , 'p_max': feature_bound['p_max'], 
 	'v_min': feature_bound['v_min'] , 'v_max': feature_bound['v_max'],
 	's_min': feature_bound['s_min'] , 's_max': feature_bound['s_max'],
-
+    #"W_d": 0.6557110261229989, "W_dp": 1.5489982389822312, "W_dv": 1.661834391297523, "W_p": 1.0, "W_pv": 1.340468616420758, "W_v": 0.4538660096723739, "Y_base": 0.03331922812540701, "tau_d": 0.7, "tau_p": 0.7, "tau_v": 1.0,
 	'tau_d': 0.7,  
 	'tau_p': 0.8,  
 	'tau_v': 0.6,  
 	'tau_s': 0.5,  
 
-	'Y_base': 0.05,  
+	'Y_base': 0.1,  
 	'W_d': 1.0,	 
 	'W_p': 1.0,	  
-	'W_v': 0.5,	 
-	'W_s': 0.5,
+	'W_v': 1.0,	 
+	'W_s': 1.0,
 	'W_dp': 0.5,	
 	'W_dv': 0.5,	 
 	'W_pv': 0.5,	
@@ -107,11 +107,11 @@ gaze_filter_params = {
 
     # Outlier filtering parameters - more focused on significant outliers
     'filter_params': {
-        'attention_threshold': 0.09, # heatmap value
+        'attention_threshold': 0.2, # heatmap value
         'window_seconds': 2.0, # time window
         'jump_threshold': 0.5, # 2d distance
         'min_neighbors': 3, # number of neighbors
-        'velocity_threshold': 100, # 2d velocity
+        'velocity_threshold': 1, # 2d velocity
     },
 
     # Fixed window configuration 
@@ -123,7 +123,7 @@ gaze_filter_params = {
     # the previous scale factor
     'prev_scale_factor': [1.0, 1.0],
 
-    'gaussian_kernel_sigma': 6,
+    'gaussian_kernel_sigma': 16,
 
     'temporal_exponent_decay': 0.8,
 

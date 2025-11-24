@@ -72,7 +72,7 @@ from surgical_robotics_challenge.utils.jnt_control_gui import JointGUI
 from surgical_robotics_challenge.utils.utilities import get_boolean_from_opt
 from surgical_robotics_challenge.utils import coordinate_frames
 import sys
-from std_msgs.msg import Float32
+from std_msgs.msg import Float32MultiArray
 
 
 class ControllerInterface:
@@ -111,8 +111,8 @@ class ControllerInterface:
 
         self.received_msg = None
 
-        self.scale = [10,10]
-        self.subscriber = rospy.Subscriber('/scale', Float32, self.scale_cb)
+        self.scale = [15,15]
+        #self.subscriber = rospy.Subscriber('/scale', Float32MultiArray, self.scale_cb)
 
 
     def update_T_c_b(self):

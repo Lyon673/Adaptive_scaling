@@ -90,21 +90,29 @@ def visualize_data(data_dir=None, save_statistics=True):
 		
 		# 找到实验开始的索引
 		start_idx = find_experiment_start(ipaL_data, ipaR_data) + 2
-		
+		end_idx = 700
+
+		for i in range(len(left_scales)):
+			if left_scales[i] > 2:
+				left_scales[i] = 2
+		for i in range(len(right_scales)):
+			if right_scales[i] > 2:
+				right_scales[i] = 2
+
 		# 如果检测到有预实验阶段，截取数据
 		if start_idx > 0:
 			if save_statistics:
 				print(f"  Removing {start_idx} pre-experiment data points")
-			ipaL_data = ipaL_data[start_idx:]
-			ipaR_data = ipaR_data[start_idx:]
-			Lpsm_velocity_magnitude = Lpsm_velocity_magnitude[start_idx:]
-			Rpsm_velocity_magnitude = Rpsm_velocity_magnitude[start_idx:]
-			left_distances = left_distances[start_idx:]
-			right_distances = right_distances[start_idx:]
-			left_scales = left_scales[start_idx:]
-			right_scales = right_scales[start_idx:]
-			psms_distance_data = psms_distance_data[start_idx:]
-			GP_distance_array = GP_distance_array[start_idx:]
+			ipaL_data = ipaL_data[start_idx:end_idx]
+			ipaR_data = ipaR_data[start_idx:end_idx]
+			Lpsm_velocity_magnitude = Lpsm_velocity_magnitude[start_idx:end_idx]
+			Rpsm_velocity_magnitude = Rpsm_velocity_magnitude[start_idx:end_idx]
+			left_distances = left_distances[start_idx:end_idx]
+			right_distances = right_distances[start_idx:end_idx]
+			left_scales = left_scales[start_idx:end_idx]
+			right_scales = right_scales[start_idx:end_idx]
+			psms_distance_data = psms_distance_data[start_idx:end_idx]
+			GP_distance_array = GP_distance_array[start_idx:end_idx]
 		
 		# 确保所有数据长度一致
 		min_length = min(len(ipaL_data), len(ipaR_data), len(Lpsm_velocity_magnitude), 
@@ -186,14 +194,14 @@ def visualize_data(data_dir=None, save_statistics=True):
 		axs[1, 0].axhline(y=avg_dist_right, color=color_right, linestyle=':', alpha=0.6, linewidth=2)
 		
 		# 4. 速度数据
-		axs[1, 1].plot(timestamps, Lpsm_velocity_magnitude, color=color_left_light, 
-					   alpha=0.3, linewidth=0.8, label='Left Raw')
-		axs[1, 1].plot(timestamps, Rpsm_velocity_magnitude, color=color_right_light, 
-					   alpha=0.3, linewidth=0.8, label='Right Raw')
-		axs[1, 1].plot(timestamps, Lpsm_velocity_smoothed, color=color_left, 
-					   alpha=0.9, linewidth=2.5, label='Left Hand Velocity (Smoothed)')
-		axs[1, 1].plot(timestamps, Rpsm_velocity_smoothed, color=color_right, 
-					   alpha=0.9, linewidth=2.5, label='Right Hand Velocity (Smoothed)')
+		axs[1, 1].plot(timestamps, Lpsm_velocity_magnitude, color=color_left, 
+					   alpha=0.9, linewidth=2.5, label='Left Raw')
+		axs[1, 1].plot(timestamps, Rpsm_velocity_magnitude, color=color_right,
+					   alpha=0.9, linewidth=2.5, label='Right Raw')
+		axs[1, 1].plot(timestamps, Lpsm_velocity_smoothed, color=color_left_light, 
+					   alpha=0.3, linewidth=2.5, label='Left Hand Velocity (Smoothed)')
+		axs[1, 1].plot(timestamps, Rpsm_velocity_smoothed, color=color_right_light, 
+					   alpha=0.3, linewidth=2.5, label='Right Hand Velocity (Smoothed)')
 		axs[1, 1].set_title('PSM Linear Velocity (Gaussian Smoothed)', 
 							fontsize=13, fontweight='bold', pad=15)
 		axs[1, 1].set_xlabel('Frame Index', fontsize=11)
