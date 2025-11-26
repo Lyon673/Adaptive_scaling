@@ -12,30 +12,33 @@ feature_bound = {
 }
 
 # the parameters in Bayesian optimization
-optimization_range = { 
-    # threshold
-    'tau_d': (0.7, 1),
-    'tau_p': (0.7, 1),
-    'tau_v': (0.7, 1),
-    'tau_s': (0.7, 1),  
+# optimization_range = { 
+#     # threshold
+#     'tau_d': (0.7, 1),
+#     'tau_p': (0.7, 1),
+#     'tau_v': (0.7, 1),
+#     'tau_s': (0.7, 1),  
 
-    # gains
-    # 'A_d': (1, 3),
-    # 'A_p': (1, 10),
-    # 'A_v': (1, 10),
-    # 'A_s': (1, 10),
+#     # gains
+#     # 'A_d': (1, 3),
+#     # 'A_p': (1, 10),
+#     # 'A_v': (1, 10),
+#     # 'A_s': (1, 10),
 
-    # weights
-    'Y_base': (0.01, 0.15),  # base
-    'W_d': (0.1, 5),	 
-    'W_p': (0.1, 5),	   
-    'W_v': (0.1, 3),	
-    'W_s': (0.1, 5),
-    'W_dps': (0.1, 1.5),	  
-    'W_dvs': (0.1, 1.5),	 
-    'W_pvs': (0.1, 1.5),	 
-    'W_dpv': (0.1, 1.5),
-    'W_dpvs': (0.1, 1.5),   
+#     # weights
+#     'Y_base': (0.01, 0.15),  # base
+#     'W_d': (0.1, 5),	 
+#     'W_p': (0.1, 5),	   
+#     'W_v': (0.1, 3),	
+#     'W_s': (0.1, 5),
+#     'W_dps': (0.1, 1.5),	  
+#     'W_dvs': (0.1, 1.5),	 
+#     'W_pvs': (0.1, 1.5),	 
+#     'W_dpv': (0.1, 1.5),
+#     'W_dpvs': (0.1, 1.5),   
+# }
+
+optimization_range = {
 }
 
 # parameters in the score calculation formula

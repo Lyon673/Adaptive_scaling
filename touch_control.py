@@ -218,7 +218,7 @@ class ControllerInterface:
         #print("<LYON> Visual Markers Updated")
 
     def scale_cb(self, scale):
-        self.scale = [scale.data[0]*10, scale.data[1]*10]
+        self.scale = [scale.data[0], scale.data[1]]
 
 if __name__ == "__main__":
     parser = ArgumentParser()

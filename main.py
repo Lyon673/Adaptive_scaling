@@ -842,7 +842,7 @@ class DataCollector:
 		self.attention_heatmap_generator.outlier_indices.clear()
 		self.attention_heatmap_generator.filtered_timestamps.clear()
 		self.attention_heatmap_generator.filtered_gaze_points.clear()
-		self.attention_heatmap_generator.prev_scale_factor=[1.0, 1.0]	
+		self.attention_heatmap_generator.prev_scale_factor=[15.0, 15.0]	
 		
 		print("global variables reset, ready to start new data collection...")
 
@@ -969,7 +969,6 @@ class DataCollector:
 		self.attention_heatmap_generator.all_gaze_points.append([current_time, current_gaze_point[0], current_gaze_point[1]])
 		self.attention_heatmap_generator.all_timestamps.append(current_time)
 
-		
 		# append filtered list for filtering and may pop later
 		self.attention_heatmap_generator.filtered_timestamps.append(current_time)
 		self.attention_heatmap_generator.filtered_gaze_points.append([current_time, current_gaze_point[0], current_gaze_point[1]])
@@ -1001,7 +1000,7 @@ class DataCollector:
 
 		
 		else:
-			# 有效点：添加到过滤历史并更新过滤后热图
+			
 			self.attention_heatmap_generator.filtered_indices.append(current_idx)
 			#self.attention_heatmap_generator.update_realtime_heatmap(current_time)
 			self.attention_heatmap_generator.prev_valid_gaze = [current_time, current_gaze_point[0]*resolution_x, current_gaze_point[1]*resolution_y]
