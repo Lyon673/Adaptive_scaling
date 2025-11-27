@@ -92,12 +92,12 @@ def visualize_data(data_dir=None, save_statistics=True):
 		start_idx = find_experiment_start(ipaL_data, ipaR_data) + 2
 		end_idx = 700
 
-		for i in range(len(left_scales)):
-			if left_scales[i] > 2:
-				left_scales[i] = 2
-		for i in range(len(right_scales)):
-			if right_scales[i] > 2:
-				right_scales[i] = 2
+		# for i in range(len(left_scales)):
+		# 	if left_scales[i] > 2:
+		# 		left_scales[i] = 2
+		# for i in range(len(right_scales)):
+		# 	if right_scales[i] > 2:
+		# 		right_scales[i] = 2
 
 		# 如果检测到有预实验阶段，截取数据
 		if start_idx > 0:

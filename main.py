@@ -62,8 +62,8 @@ stereo_r_img = []
 segment_l_img = []
 segment_r_img = []
 psm_ghost_pose = []
-Lpsm_pose_list = []
-Rpsm_pose_list = []
+Lpsm_positon_list = []
+Rpsm_positon_list = []
 Lpsm_velocity_list = []
 Rpsm_velocity_list = []
 gazepoint_list = []
@@ -75,7 +75,21 @@ ipaL_data_list = []
 ipaR_data_list = []
 pupilL_list = []
 pupilR_list = []
+
+Lpsm_pose_list = []
+Rpsm_pose_list = []
+Lmtm_pose_list = []
+Rmtm_pose_list = []
+Lgripper_edge_list = [0]
+Rgripper_edge_list = [0]
+Lgripper_state_list = []
+Rgripper_state_list = []
+
 scale_list = []
+LYON_right_direction_list = []
+Lpsm_direction_list = []
+Rpsm_direction_list = []
+theta_list = []
 
 velocity_deque_L = deque(maxlen=8)
 velocity_deque_R = deque(maxlen=8)
@@ -748,10 +762,10 @@ class DataCollector:
 
 		# acquire touch data
 
-		LPSM_POSE = message_filters.Subscriber("/ambf/env/psm1/toolyawlink/State", RigidBodyState)
-		RPSM_POSE = message_filters.Subscriber("/ambf/env/psm2/toolyawlink/State", RigidBodyState)
-		#PSM_POSE = message_filters.Subscriber("/Geomagic/pose", PoseStamped)
-		#LPSM_TWIST = message_filters.Subscriber("/Geomagic/twist", Twist)
+		LPSM_STATE = message_filters.Subscriber("/ambf/env/psm1/toolyawlink/State", RigidBodyState)
+		RPSM_STATE = message_filters.Subscriber("/ambf/env/psm2/toolyawlink/State", RigidBodyState)
+		LMTM_POSE = message_filters.Subscriber("/Geomagic_Left/pose", PoseStamped)
+		RMTM_POSE = message_filters.Subscriber("/Geomagic_Right/pose", PoseStamped)
 		DEPTH = message_filters.Subscriber("/ambf/env/cameras/cameraR/DepthData", PointCloud2)
 		FRAME = message_filters.Subscriber("/ambf/env/CameraFrame/State", RigidBodyState)
 		CAMERA = message_filters.Subscriber("/ambf/env/cameras/cameraR/State", CameraState)
@@ -760,7 +774,7 @@ class DataCollector:
 		rospy.Subscriber("/Geomagic_Left/button", DeviceButtonEvent, cal_Lpsm_clutch_times)
 		rospy.Subscriber("/Geomagic_Right/button", DeviceButtonEvent, cal_Rpsm_clutch_times)
 		# create approximate time synchronizer
-		ts = message_filters.ApproximateTimeSynchronizer([LPSM_POSE,RPSM_POSE,DEPTH,CAMERA,FRAME], queue_size=20, slop=1.2, allow_headerless=True)
+		ts = message_filters.ApproximateTimeSynchronizer([LPSM_STATE,RPSM_STATE,LMTM_POSE,RMTM_POSE,DEPTH,CAMERA,FRAME], queue_size=20, slop=1.2, allow_headerless=True)
 		#ts = message_filters.ApproximateTimeSynchronizer([DEPTH,CAMERA,FRAME], queue_size=10, slop=0.6, allow_headerless=True)
 		ts.registerCallback(self.maincb)	
 
@@ -776,9 +790,10 @@ class DataCollector:
 	# The following three functions are newly added to handle keyboard listening
 	def reset_globals(self):
 		"""Reset all global variables used for data collection"""
-		global Lpsm_pose_list, Rpsm_pose_list, Lpsm_velocity_list, Rpsm_velocity_list, gazepoint_list, gaze_list
+		global Lpsm_positon_list, Rpsm_positon_list, Lpsm_velocity_list, Rpsm_velocity_list, gazepoint_list, gaze_list
+		global Lpsm_pose_list, Rpsm_pose_list, Lmtm_pose_list, Rmtm_pose_list, Lgripper_edge_list, Rgripper_edge_list, Lgripper_state_list, Rgripper_state_list
 		global GP_distance_list, psms_distance_list, ipaL_data_list, ipaR_data_list
-		global pupilL_list, pupilR_list, scale_list
+		global pupilL_list, pupilR_list, scale_list, LYON_right_direction_list, Lpsm_direction_list, Rpsm_direction_list, theta_list
 		global velocity_deque_L, velocity_deque_R, pupilL, pupilR
 		global gazePoint, scale, velocity_deque
 		global psmPosePre, psmPosePreL, psmPosePreR, flag
@@ -788,8 +803,8 @@ class DataCollector:
 
 		
 		# Reset all lists
-		Lpsm_pose_list = []
-		Rpsm_pose_list = []
+		Lpsm_positon_list = []
+		Rpsm_positon_list = []
 		Lpsm_velocity_list = []
 		Rpsm_velocity_list = []
 		gazepoint_list = []
@@ -800,7 +815,20 @@ class DataCollector:
 		ipaR_data_list = []
 		pupilL_list = []
 		pupilR_list = []
+
+		Lpsm_pose_list = []
+		Rpsm_pose_list = []
+		Lmtm_pose_list = []
+		Rmtm_pose_list = []
+		Lgripper_edge_list = [0]
+		Rgripper_edge_list = [0]
+		Lgripper_state_list = []
+		Rgripper_state_list = []
 		scale_list = []
+		LYON_right_direction_list = []
+		Lpsm_direction_list = []
+		Rpsm_direction_list = []
+		theta_list = []
 		
 		# Reset deques
 		velocity_deque_L = deque(maxlen=8)
@@ -922,13 +950,21 @@ class DataCollector:
 		else:
 			print("no data to visualize")
 
-	def maincb(self, Lpsm, Rpsm, camera_depthdata, cameraR, cameraFrame):
+	def maincb(self, Lpsm, Rpsm, Lmtm, Rmtm, camera_depthdata, cameraR, cameraFrame):
 		if self.collecting:
 			sys.stdout.write('\r-- Time past: %02.1f' % float(time.time() - start_time))
 			sys.stdout.flush()
 
 		Lpsm_position3 = self.get_position(Lpsm.pose)
 		Rpsm_position3 = self.get_position(Rpsm.pose)
+		Lpsm_orientation4 = self.get_orientation(Lpsm.pose)
+		Rpsm_orientation4 = self.get_orientation(Rpsm.pose)
+
+		Lmtm_position3 = self.get_position(Lmtm.pose)
+		Rmtm_position3 = self.get_position(Rmtm.pose)
+		Lmtm_orientation4 = self.get_orientation(Lmtm.pose)
+		Rmtm_orientation4 = self.get_orientation(Rmtm.pose)
+
 		Lpsm_velocity6 = self.get_velocity(Lpsm.twist)
 		Rpsm_velocity6 = self.get_velocity(Rpsm.twist)
 		Lpsm_timestamp = Lpsm.header.stamp.secs + Lpsm.header.stamp.nsecs*1e-9
@@ -1022,18 +1058,31 @@ class DataCollector:
 			ipaL_data = 1
 			ipaR_data = 1
 
+		# direction
+		Lpsm_v_direction = transform_world_to_camera(Lpsm_velocity6[:3], cameraR.pose, cameraFrame.pose) - transform_world_to_camera(np.array([0,0,0]), cameraR.pose, cameraFrame.pose)
+		Rpsm_v_direction = transform_world_to_camera(Rpsm_velocity6[:3], cameraR.pose, cameraFrame.pose) - transform_world_to_camera(np.array([0,0,0]), cameraR.pose, cameraFrame.pose)
+
+		Lpsm_v_direction = np.where(np.fabs(Lpsm_v_direction) < 0.005, 0, Lpsm_v_direction)
+		Rpsm_v_direction = np.where(np.fabs(Rpsm_v_direction) < 0.005, 0, Rpsm_v_direction)
+
+		Lgp_direction = transform_world_to_camera(gazepoint_position3, cameraR.pose, cameraFrame.pose) - transform_world_to_camera(Lpsm_position3, cameraR.pose, cameraFrame.pose)
+		Rgp_direction = transform_world_to_camera(gazepoint_position3, cameraR.pose, cameraFrame.pose) - transform_world_to_camera(Rpsm_position3, cameraR.pose, cameraFrame.pose)
+
+		thetaL = calculate_vector2d_angle(Lpsm_v_direction, Lgp_direction)
+		thetaR = calculate_vector2d_angle(Rpsm_v_direction, Rgp_direction)
+
 		psm_position = [Lpsm_position3, Rpsm_position3]
 		GP_distance = [weighted_dist_left_3d, weighted_dist_right_3d]
 		psm_velocity = [Lpsm_linear_velocity, Rpsm_linear_velocity]
+		theta = [thetaL, thetaR]
 
-		scale = self.calculate_scale(GP_distance, psm_velocity, ipaL_data, ipaR_data, distance_psms)	
+		scale = self.calculate_scale(GP_distance, psm_velocity, ipaL_data, ipaR_data, distance_psms, theta)	
 		
 		try:  
 			self.scale_pub.publish(scale)
 		except rospy.ROSException as e:
 			rospy.logwarn(f"Failed to publish scale: {e}")
 
-		scale_list.append(scale.data)
 
 		cal_total_distance(Lpsm_position3, Rpsm_position3)
 		total_time_list[0] = float(time.time() - start_time)
@@ -1047,22 +1096,40 @@ class DataCollector:
 			print(f"{'Gazing Point 3d':<25}: [{gazepoint_position3[0]:.3f}, {gazepoint_position3[1]:.3f}, {gazepoint_position3[2]:.3f}]")
 			print(f"{'PSM Left Gazing Point Distance':<25}: {GP_distance[0]:.3f}")
 			print(f"{'PSM Right Gazing Point Distance':<25}: {GP_distance[1]:.3f}")
-			print(f"{'PSM Left Velocity (x, y, z)':<25}: [{psm_velocity[0]:.3f}]")
-			print(f"{'PSM Right Velocity (x, y, z)':<25}: [{psm_velocity[1]:.3f}]")
+			print(f"{'PSM Left Velocity':<25}: [{psm_velocity[0]:.3f}]")
+			print(f"{'PSM Right Velocity':<25}: [{psm_velocity[1]:.3f}]")
 			print(f"{'IPA Left Data':<25}: [{ipaL_data:.3f}]")
 			print(f"{'IPA Right Data':<25}: [{ipaR_data:.3f}]")
 			print(f"{'Scale Left':<25}: {scale.data[0]:.8f}")
 			print(f"{'Scale Right':<25}: {scale.data[1]:.8f}")
 			print(f"{'Point Status':<25}: {'Valid' if is_valid else 'Filtered'}")
+			print("\n")
+			print(f"{'Lpsm velocity3d':<25}: [{Lpsm_velocity6[0]:.3f}, {Lpsm_velocity6[1]:.3f}, {Lpsm_velocity6[2]:.3f}]")
+			print(f"{'Rpsm velocity3d':<25}: [{Rpsm_velocity6[0]:.3f}, {Rpsm_velocity6[1]:.3f}, {Rpsm_velocity6[2]:.3f}]")
+			print(f"{'PSM Left Direction':<25}: [{Lpsm_v_direction[0]:.3f}, {Lpsm_v_direction[1]:.3f}]")
+			print(f"{'PSM Right Direction':<25}: [{Rpsm_v_direction[0]:.3f}, {Rpsm_v_direction[1]:.3f}]")
 			print("=" * 50)
 			print("\n")
 
 		GP_distance_list.append(GP_distance)
 		psms_distance_list.append(distance_psms)
-		Lpsm_pose_list.append(np.append(Lpsm_position3, Lpsm_timestamp))
-		Rpsm_pose_list.append(np.append(Rpsm_position3, Rpsm_timestamp))
+		Lpsm_positon_list.append(np.append(Lpsm_position3, Lpsm_timestamp))
+		Rpsm_positon_list.append(np.append(Rpsm_position3, Rpsm_timestamp))
 		Lpsm_velocity_list.append(Lpsm_velocity6)
 		Rpsm_velocity_list.append(Rpsm_velocity6)
+
+		# for DNN train
+		Lpsm_pose_list.append(np.hstack((Lpsm_position3, Lpsm_orientation4)))
+		Rpsm_pose_list.append(np.hstack((Rpsm_position3, Rpsm_orientation4)))
+		Lmtm_pose_list.append(np.hstack((Lmtm_position3, Lmtm_orientation4)))
+		Rmtm_pose_list.append(np.hstack((Rmtm_position3, Rmtm_orientation4)))
+		Lgripper_state_list.append(1.0 if Lgripper_edge_list[-1] == 1 else 0)
+		Rgripper_state_list.append(1.0 if Rgripper_edge_list[-1] == 1 else 0)
+		Lpsm_direction_list.append(Lpsm_v_direction[:2].copy())
+		Rpsm_direction_list.append(Rpsm_v_direction[:2].copy())
+		theta_list.append(theta)
+		scale_list.append(scale.data)
+
 		if(ipaL_data != 0):
 			ipaL_data_list.append(ipaL_data)
 		if(ipaR_data != 0):
@@ -1087,77 +1154,52 @@ class DataCollector:
 
 	# 	return normalized
 
-	def calculate_scale(self, weighted_dist, psm_velocity, IPAL, IPAR, distance_psms):
+	def calculate_scale(self, weighted_dist, psm_velocity, IPAL, IPAR, distance_psms, theta):
 		scaleArray = Float32MultiArray()
-		# 使用热图加权距离替换原有的距离特征
-		# 将3D坐标归一化用于热图计算
 		
-
 		weighted_dist_L = weighted_dist[0]
 		weighted_dist_R = weighted_dist[1]
-		# 保持原有的缩放因子计算方式，但用热图加权距离替换距离特征
+
 		IPA_m = (IPAL + IPAR) / 2
 
-		# 使用热图加权距离作为距离特征
-		N_d_L = normalize(weighted_dist_L, self.params['d_min'], self.params['d_max'], 1)
-		N_d_R = normalize(weighted_dist_R, self.params['d_min'], self.params['d_max'], 1)
-		N_p = normalize(IPA_m, self.params['p_min'], self.params['p_max'], 1)
-		N_v_L = normalize(psm_velocity[0], self.params['v_min'], self.params['v_max'], 1)
-		N_v_R = normalize(psm_velocity[1], self.params['v_min'], self.params['v_max'], 1)
-		N_s = normalize(distance_psms, self.params['s_min'], self.params['s_max'], 1) 
+		N_d_gpL = normalize(weighted_dist_L, config.feature_bound['d_min'], config.feature_bound['d_max'], 1)
+		N_d_gpR = normalize(weighted_dist_R, config.feature_bound['d_min'], config.feature_bound['d_max'], 1)
+		N_ipa = normalize(IPA_m, config.feature_bound['p_min'], config.feature_bound['p_max'], 1)
+		N_vL = normalize(psm_velocity[0], config.feature_bound['v_min'], config.feature_bound['v_max'], 1)
+		N_vR = normalize(psm_velocity[1], config.feature_bound['v_min'], config.feature_bound['v_max'], 1)
+		N_d_pp = normalize(distance_psms, config.feature_bound['s_min'], config.feature_bound['s_max'], 1) 
 
-		# 原有的tan函数计算方式
-		T_d_L = np.tan(0.49 * np.pi * self.params['tau_d'] * N_d_L)
-		T_d_R = np.tan(0.49 * np.pi * self.params['tau_d'] * N_d_R)
-		T_p = np.tan(0.49 * np.pi * self.params['tau_p'] * N_p)
-		T_v_L = np.tan(0.49 * np.pi * self.params['tau_v'] * N_v_L)
-		T_v_R = np.tan(0.49 * np.pi * self.params['tau_v'] * N_v_R)
-		T_s = np.tan(0.49 * np.pi * self.params['tau_s'] * N_s)
 
-		weighted_sum_L = (
-			self.params['W_d'] * T_d_L +
-			self.params['W_p'] * T_p +
-			self.params['W_v'] * T_v_L +
-			self.params['W_s'] * T_s +
-			self.params['W_dps'] * T_d_L * T_p * T_s +
-			self.params['W_dvs'] * T_d_L * T_v_L * T_s +
-			self.params['W_pvs'] * T_p * T_v_L * T_s +
-			self.params['W_dpv'] * T_d_L * T_p * T_v_L +
-			self.params['W_dpvs'] * T_d_L * T_p * T_v_L * T_s +
-			self.params['C_offset']
-		)
 
-		output_L = self.params['Y_base'] * weighted_sum_L
+		output_L = self.params['K_g'] * (self.thetaFunc(theta[0]) * self.expFunc(N_d_gpL, self.params['A_gp']) + \
+					self.params['K_p'] * (1 - self.thetaFunc(theta[0])) * (self.expFunc(N_d_pp, self.params['A_pp'])*self.expFunc(N_vL, self.params['A_v'])*self.expFunc(N_ipa, self.params['A_ipa']))**(1/3) ) + \
+					self.params['C_base']
 
-		weighted_sum_R = (
-			self.params['W_d'] * T_d_R +
-			self.params['W_p'] * T_p +
-			self.params['W_v'] * T_v_R +
-			self.params['W_s'] * T_s +
-			self.params['W_dps'] * T_d_R * T_p * T_s +
-			self.params['W_dvs'] * T_d_R * T_v_R * T_s +
-			self.params['W_pvs'] * T_p * T_v_R * T_s +
-			self.params['W_dpv'] * T_d_R * T_p * T_v_R +
-			self.params['W_dpvs'] * T_d_R * T_p * T_v_R * T_s +
-			self.params['C_offset']
-		)
+		output_R = self.params['K_g'] * (self.thetaFunc(theta[1]) * self.expFunc(N_d_gpR, self.params['A_gp']) + \
+					self.params['K_p'] * (1 - self.thetaFunc(theta[1])) * (self.expFunc(N_d_pp, self.params['A_pp'])*self.expFunc(N_vR, self.params['A_v'])*self.expFunc(N_ipa, self.params['A_ipa']))**(1/3) ) + \
+					self.params['C_base']
 
-		output_R = self.params['Y_base'] * weighted_sum_R
-
-		scaleArray.data = [np.clip(output_L, 0.1, 4), np.clip(output_R, 0.1, 4)]
+		scaleArray.data = [np.clip(output_L, 0.1, 25), np.clip(output_R, 0.1, 25)]
 
 		self.attention_heatmap_generator.prev_scale_factor = scaleArray.data.copy()
 
 		return scaleArray
 
+	def thetaFunc(self, theta):
+		return 1 - 1 / (1 + np.exp(-self.params['A_theta'] * (theta - np.pi/2)))
+
+	def expFunc(self, x, alpha):
+		return np.exp(-(alpha * x)**2)
+
+
 	def get_position(self,pose):
 		return np.array([pose.position.x,pose.position.y,pose.position.z])
+
+	def get_orientation(self,pose):
+		return np.array([pose.orientation.x,pose.orientation.y,pose.orientation.z,pose.orientation.w])
 	
 	def get_velocity(self,twist):
-		return np.array([twist.linear.x,twist.linear.y,twist.linear.z])
-
-	def orientation2numpy(pose):
-		return np.array([pose.orientation.x,pose.orientation.y,pose.orientation.z,pose.orientation.w])
+		return np.array([twist.linear.x,twist.linear.y,twist.linear.z,twist.angular.x,twist.angular.y,twist.angular.z])
 
 
 	def print_statistics(self):
@@ -1167,8 +1209,8 @@ class DataCollector:
 		print("\n")
 		print(f"\n{'='*50}")
 		print(f"Features collected:")
-		print(f"{'LPSM Pose List Length':<25}: {len(Lpsm_pose_list)}")
-		print(f"{'RPSM Pose List Length':<25}: {len(Rpsm_pose_list)}")
+		print(f"{'LPSM Position List Length':<25}: {len(Lpsm_positon_list)}")
+		print(f"{'RPSM Position List Length':<25}: {len(Rpsm_positon_list)}")
 		print(f"{'LPSM Velocity List Length':<25}: {len(Lpsm_velocity_list)}")
 		print(f"{'RPSM Velocity List Length':<25}: {len(Rpsm_velocity_list)}")
 		print(f"{'Gaze and PSM distance List Length':<25}: {len(GP_distance_list)}")
@@ -1181,6 +1223,13 @@ class DataCollector:
 		print(f"{'IPA Right Data List Length':<25}: {len(ipaR_data_list)}")
 		print(f"{'Pupil Left Data List Length':<25}: {len(pupilL_list)}")
 		print(f"{'Pupil Right Data List Length':<25}: {len(pupilR_list)}")
+		print(f"{'LPSM Pose List Length':<25}: {len(Lpsm_pose_list)}")
+		print(f"{'RPSM Pose List Length':<25}: {len(Rpsm_pose_list)}")
+		print(f"{'LMTM Pose List Length':<25}: {len(Lmtm_pose_list)}")
+		print(f"{'RMTM Pose List Length':<25}: {len(Rmtm_pose_list)}")
+		print(f"{'Lgripper State List Length':<25}: {len(Lgripper_state_list)}")
+		print(f"{'Rgripper State List Length':<25}: {len(Rgripper_state_list)}")
+		print(f"{'Scale List Length':<25}: {len(scale_list)}")
 		# print(f"pupilL_list Length:{len(pupilL)}")
 		# print(f"pupilL_list Length:{len(pupilR)}")
 
@@ -1391,6 +1440,43 @@ def get_transformation_matrix(position, quaternion):
 
 	return transformation_matrix
 
+
+def transform_world_to_camera(point_world, camera_pose, camera_frame_pose):
+	"""
+	Transform 3D coordinates from the world frame into the camera frame.
+
+	Args:
+		point_world: iterable or np.ndarray with XYZ in world coordinates.
+		camera_pose: geometry_msgs/Pose, camera pose relative to the camera frame.
+		camera_frame_pose: geometry_msgs/Pose, camera frame pose relative to world.
+	"""
+	point_world = np.asarray(point_world, dtype=float)
+	if point_world.shape != (3,):
+		raise ValueError('point_world must be length 3')
+
+	T_FL = get_transformation_matrix(position2numpy(camera_pose), orientation2numpy(camera_pose))
+	T_WF = get_transformation_matrix(position2numpy(camera_frame_pose), orientation2numpy(camera_frame_pose))
+	T_WL = T_WF.dot(T_FL)  # camera to world
+	T_LW = np.linalg.inv(T_WL)
+
+	point_world_h = np.append(point_world, 1.0)
+	point_cam = T_LW.dot(point_world_h)
+	return point_cam[:2]
+
+def calculate_vector2d_angle(vector1, vector2):
+	"""
+	Calculate the angle between two 2D vectors. 
+	"""
+	norm1 = np.linalg.norm(vector1, axis=0)
+	norm2 = np.linalg.norm(vector2, axis=0)
+	if norm1 == 0 or norm2 == 0:
+		cos_angle = 0
+	else:
+		cos_angle = np.dot(vector1, vector2) / (norm1 * norm2)
+	angle = np.arccos(cos_angle)
+
+	return angle
+
 # -------------------------------------------------------------
 
 
@@ -1402,114 +1488,6 @@ def normalize(value, min_val, max_val, corr):
 
 	return normalized_value
 
-
-def scale_cal(distance_GP, velocity_psm, IPAL, IPAR, params, distance_psms=None):	
-
-	scaleArray = Float32MultiArray()
-
-	# to fix: bimanual mode's scale
-	#scale = k_s * (np.exp((min(1, (distance_GP)/(d_GP_max)) * min(1, velocity_psm/v_psm_max+0.01) * \
-	#	max(0, (ipa_max-IPAL)/ipa_max) * max(0, (ipa_max-IPAR)/ipa_max) )**0.2 *2-1) /2.35*9-0.4089)		
-
-	# the left one is the left touch, the right one is the right touch
-	# IPA_m = (IPAL+IPAR)/2
-	# N_d_L = normalize(distance_GP[0], params['d_min'], params['d_max'],1)
-	# N_d_R = normalize(distance_GP[1], params['d_min'], params['d_max'],1)
-	# N_p = normalize(IPA_m, params['p_min'], params['p_max'],1)
-	# N_v_L = normalize(velocity_psm[0], params['v_min'], params['v_max'],1)
-	# N_v_R = normalize(velocity_psm[1], params['v_min'], params['v_max'],1)
-	# N_s = normalize(distance_psms, params['s_min'], params['s_max'],1) 
-
-	# # # (G_x)
-	# G_d_L = params['A_d'] if N_d_L >= params['tau_d'] else 1.0
-	# G_d_R = params['A_d'] if N_d_R >= params['tau_d'] else 1.0
-	# G_p = params['A_p'] if N_p >= params['tau_p'] else 1.0
-	# G_v_L = params['A_v'] if N_v_L >= params['tau_v'] else 1.0
-	# G_v_R = params['A_v'] if N_v_R >= params['tau_v'] else 1.0
-	# G_s = params['A_s'] if N_s >= params['tau_s'] else 1.0
-
-	# weighted_sum_L = (
-	#	 params['W_d'] * N_d_L +
-	#	 params['W_p'] * N_p +
-	#	 params['W_v'] * N_v_L +
-	#	 params['W_dps'] * N_d_L * N_p * N_s +
-	#	 params['W_dvs'] * N_d_L * N_v_L * N_s +
-	#	 params['W_pvs'] * N_p * N_v_L * N_s +
-	#	 params['W_dpv'] * N_d_L * N_p * N_v_L +
-	#	 params['W_dpvs'] * N_d_L * N_p * N_v_L * N_s +
-	#	 params['C_offset']
-	# )
-	
-	# output_L = params['Y_base'] * G_d_L * G_p * G_v_L * G_s* weighted_sum_L
-
-	# # right 
-	# weighted_sum_R = (
-	#	 params['W_d'] * N_d_R +
-	#	 params['W_p'] * N_p +
-	#	 params['W_v'] * N_v_R +
-	#	 params['W_dps'] * N_d_R * N_p * N_s  +
-	#	 params['W_dvs'] * N_d_R * N_v_R * N_s  +
-	#	 params['W_pvs'] * N_p * N_v_R * N_s  +
-	#	 params['W_dpv'] * N_d_R * N_p * N_v_R +
-	#	 params['W_dpvs'] * N_d_R * N_p * N_v_R * N_s +
-	#	 params['C_offset']
-	# )
-	
-	# output_R = params['Y_base'] * G_d_R * G_p * G_v_R * weighted_sum_R		
-
-	""" tan func"""
-	IPA_m = (IPAL+IPAR)/2
-	N_d_L = normalize(distance_GP[0], params['d_min'], params['d_max'],1)
-	N_d_R = normalize(distance_GP[1], params['d_min'], params['d_max'],1)
-	N_p = normalize(IPA_m, params['p_min'], params['p_max'],1)
-	N_v_L = normalize(velocity_psm[0], params['v_min'], params['v_max'],1)
-	N_v_R = normalize(velocity_psm[1], params['v_min'], params['v_max'],1)
-	N_s = normalize(distance_psms, params['s_min'], params['s_max'],1) 
-
-	T_d_L = np.tan(0.49* np.pi * params['tau_d'] * N_d_L)
-	T_d_R = np.tan(0.49* np.pi * params['tau_d'] * N_d_R)
-	T_p = np.tan(0.49* np.pi * params['tau_p'] * N_p)
-	T_v_L = np.tan(0.49* np.pi * params['tau_v'] * N_v_L)
-	T_v_R = np.tan(0.49* np.pi * params['tau_v'] * N_v_R)
-	T_s = np.tan(0.49* np.pi * params['tau_s'] * N_s)
-
-	weighted_sum_L = (
-		params['W_d'] * T_d_L +
-		params['W_p'] * T_p +
-		params['W_v'] * T_v_L +
-		params['W_s'] * T_s +
-		params['W_dps'] * T_d_L * T_p * T_s +
-		params['W_dvs'] * T_d_L * T_v_L * T_s +
-		params['W_pvs'] * T_p * T_v_L * T_s +
-		params['W_dpv'] * T_d_L * T_p * T_v_L +
-		params['W_dpvs'] * T_d_L * T_p * T_v_L * T_s +
-		params['C_offset']
-	)
-	
-	output_L = params['Y_base'] * weighted_sum_L
-
-	weighted_sum_R = (
-		params['W_d'] * T_d_R +
-		params['W_p'] * T_p +
-		params['W_v'] * T_v_R +
-		params['W_s'] * T_s +
-		params['W_dps'] * T_d_R * T_p * T_s  +
-		params['W_dvs'] * T_d_R * T_v_R * T_s  +
-		params['W_pvs'] * T_p * T_v_R * T_s  +
-		params['W_dpv'] * T_d_R * T_p * T_v_R +
-		params['W_dpvs'] * T_d_R * T_p * T_v_R * T_s +
-		params['C_offset']
-	)
-	
-	output_R = params['Y_base'] * weighted_sum_R
-
-	scaleArray.data = [np.clip(output_L,0.1,4), np.clip(output_R,0.1,4)]
-
-
-	return scaleArray
-
-def sigmoid(x):
-	return 1 / (1 + np.exp(-x))
 
 """
 The functions for calculating features
@@ -1529,10 +1507,18 @@ def cal_total_distance(Lpsm_position3,Rpsm_position3):
 def cal_Lpsm_clutch_times(button):
 	if button.grey_button == 1:
 		clutch_times_list[0] += 1
+	if button.white_button == 1:
+		Lgripper_edge_list.append(1)
+	else:
+		Lgripper_edge_list.append(0)
+
 def cal_Rpsm_clutch_times(button):
 	if button.grey_button == 1:
 		clutch_times_list[1] += 1
-
+	if button.white_button == 1:
+		Rgripper_edge_list.append(1)
+	else:
+		Rgripper_edge_list.append(0)
 
 """
 if left gaze point and right are both available, we set gaze point as their medium point.If only one, set as that.If none, no change.
@@ -1620,10 +1606,150 @@ def get_transformation_matrix(position, quaternion):
 	return transformation_matrix
 
 
+def plot_theta_over_time(save_dir):
+	"""
+	Plot theta (angle between velocity and gaze direction) over time.
+	Two subplots: left PSM and right PSM.
+	"""
+	global theta_list
+
+	if not theta_list:
+		print("theta_list is empty, skipping theta plot.")
+		return
+
+	save_dir = save_dir or os.path.dirname(os.path.abspath(__file__))
+	theta_array = np.array(theta_list)
+
+	# Extract left and right theta values
+	thetaL = np.degrees(theta_array[:, 0]) if theta_array.ndim > 1 else theta_array
+	thetaR = np.degrees(theta_array[:, 1]) if theta_array.ndim > 1 else np.zeros_like(thetaL)
+
+	timesteps = np.arange(len(theta_list))
+	output_path = os.path.join(save_dir, 'theta_over_time.png')
+
+	fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+	# Left PSM theta
+	ax1.plot(timesteps, thetaL, label='Left PSM', color='tab:blue', linewidth=1.5)
+	ax1.set_xlabel('Time step', fontsize=12)
+	ax1.set_ylabel('Theta (rad)', fontsize=12)
+	ax1.set_title('Left PSM: Angle between Velocity and Gaze Direction', fontsize=13)
+	ax1.grid(True, linestyle='--', alpha=0.4)
+	ax1.legend(fontsize=11)
+
+	# Right PSM theta
+	ax2.plot(timesteps, thetaR, label='Right PSM', color='tab:orange', linewidth=1.5)
+	ax2.set_xlabel('Time step', fontsize=12)
+	ax2.set_ylabel('Theta (rad)', fontsize=12)
+	ax2.set_title('Right PSM: Angle between Velocity and Gaze Direction', fontsize=13)
+	ax2.grid(True, linestyle='--', alpha=0.4)
+	ax2.legend(fontsize=11)
+
+	fig.tight_layout()
+	fig.savefig(output_path, dpi=150, bbox_inches='tight')
+	plt.close(fig)
+
+	print(f"Theta plot saved to: {output_path}")
+
+
+def plot_psm_velocity_directions(save_dir):
+	"""
+	Plot left/right PSM velocity directions (x/y and angles) into a single figure.
+	Left column: LPSM, Right column: RPSM.
+	Rows:
+	1) vx vs time, 2) vy vs time, 3) angle with x-axis, 4) angle with y-axis.
+	"""
+	global Lpsm_direction_list, Rpsm_direction_list
+
+	if not Lpsm_direction_list and not Rpsm_direction_list:
+		print("PSM direction lists are empty, skipping PSM direction plots.")
+		return
+
+	save_dir = save_dir or os.path.dirname(os.path.abspath(__file__))
+
+	L_data = np.array(Lpsm_direction_list) if Lpsm_direction_list else None
+	R_data = np.array(Rpsm_direction_list) if Rpsm_direction_list else None
+
+	def compute_angles(data):
+		"""Return (angle_with_x, angle_with_y) in degrees for 2D vectors."""
+		if data is None or data.size == 0:
+			return None, None
+		if data.ndim == 1:
+			data = data.reshape(-1, 1)
+		norm = np.linalg.norm(data, axis=1)
+		# Avoid division by zero
+		with np.errstate(divide='ignore', invalid='ignore'):
+			cos_x = np.where(norm > 0, data[:, 0] / norm, 0)
+			# Clamp to valid range for arccos
+			cos_x = np.clip(cos_x, -1.0, 1.0)
+			angle_x = np.degrees(np.arccos(cos_x))
+
+			cos_y = np.where(norm > 0, data[:, 1] / norm, 0)
+			cos_y = np.clip(cos_y, -1.0, 1.0)
+			angle_y = np.degrees(np.arccos(cos_y))
+
+		return angle_x, angle_y
+
+	L_angle_x, L_angle_y = compute_angles(L_data) if L_data is not None else (None, None)
+	R_angle_x, R_angle_y = compute_angles(R_data) if R_data is not None else (None, None)
+
+	max_len = max(
+		0,
+		0 if L_data is None else L_data.shape[0],
+		0 if R_data is None else R_data.shape[0],
+	)
+	t = np.arange(max_len)
+
+	fig, axes = plt.subplots(4, 2, figsize=(14, 10), sharex=True)
+
+	def plot_side(col, data, angle_x, angle_y, side_label):
+		# vx
+		if data is not None:
+			axes[0, col].plot(np.arange(data.shape[0]), data[:, 0], label=f'{side_label} vx', color='tab:blue')
+		axes[0, col].set_ylabel('vx')
+		axes[0, col].set_title(f'{side_label} PSM')
+		axes[0, col].grid(True, linestyle='--', alpha=0.4)
+
+		# vy
+		if data is not None and data.shape[1] > 1:
+			axes[1, col].plot(np.arange(data.shape[0]), data[:, 1], label=f'{side_label} vy', color='tab:orange')
+		axes[1, col].set_ylabel('vy')
+		axes[1, col].grid(True, linestyle='--', alpha=0.4)
+
+		# angle with x-axis
+		if angle_x is not None:
+			axes[2, col].plot(np.arange(angle_x.shape[0]), angle_x, label=f'{side_label} angle(x)', color='tab:green')
+		axes[2, col].set_ylabel('angle(x) [deg]')
+		axes[2, col].grid(True, linestyle='--', alpha=0.4)
+
+		# angle with y-axis
+		if angle_y is not None:
+			axes[3, col].plot(np.arange(angle_y.shape[0]), angle_y, label=f'{side_label} angle(y)', color='tab:red')
+		axes[3, col].set_ylabel('angle(y) [deg]')
+		axes[3, col].set_xlabel('Time step')
+		axes[3, col].grid(True, linestyle='--', alpha=0.4)
+
+		for r in range(4):
+			axes[r, col].legend()
+
+	plot_side(0, L_data, L_angle_x, L_angle_y, 'Left')
+	plot_side(1, R_data, R_angle_x, R_angle_y, 'Right')
+
+	fig.suptitle('PSM Velocity Directions and Angles', fontsize=14)
+	fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+
+	output_path = os.path.join(save_dir, 'PSM_velocity_directions.png')
+	fig.savefig(output_path, dpi=150)
+	plt.close(fig)
+
+	print(f"PSM velocity direction plots saved to: {output_path}")
+
+
 def save_data_cb():
 	"""
 	data storage callback, invoked when script terminates
 	"""
+	global Lpsm_direction_list, Rpsm_direction_list, theta_list
 	current_file_path = os.path.abspath(__file__)
 	
 	current_dir = os.path.dirname(current_file_path)
@@ -1632,8 +1758,8 @@ def save_data_cb():
 	latest_dir = get_latest_data_dir(data_base_dir)
 
 	print(f"saving data to {latest_dir}...")
-	np.save(join(latest_dir, 'Lpsm_position.npy'), Lpsm_pose_list)
-	np.save(join(latest_dir, 'Rpsm_position.npy'), Rpsm_pose_list)
+	np.save(join(latest_dir, 'Lpsm_position.npy'), Lpsm_positon_list)
+	np.save(join(latest_dir, 'Rpsm_position.npy'), Rpsm_positon_list)
 	np.save(join(latest_dir, 'Lpsm_velocity.npy'), Lpsm_velocity_list)
 	np.save(join(latest_dir, 'Rpsm_velocity.npy'), Rpsm_velocity_list)
 	np.save(join(latest_dir, 'gazepoint_position_data.npy'), gazepoint_list)
@@ -1654,7 +1780,20 @@ def save_data_cb():
 	pupilR_array = np.array([[p.get_data(), p.get_timestamp()] for p in pupilR_list])
 	np.save(join(latest_dir, 'pupilL_data.npy'), pupilL_array)
 	np.save(join(latest_dir, 'pupilR_data.npy'), pupilR_array)
+
+	np.save(join(latest_dir, 'Lpsm_pose.npy'), Lpsm_pose_list)
+	np.save(join(latest_dir, 'Rpsm_pose.npy'), Rpsm_pose_list)
+	np.save(join(latest_dir, 'Lmtm_pose.npy'), Lmtm_pose_list)
+	np.save(join(latest_dir, 'Rmtm_pose.npy'), Rmtm_pose_list)
+	np.save(join(latest_dir, 'Lgripper_state.npy'), Lgripper_state_list)
+	np.save(join(latest_dir, 'Rgripper_state.npy'), Rgripper_state_list)
 	np.save(join(latest_dir, 'scale_data.npy'), scale_list)
+	np.save(join(latest_dir, 'Lpsm_direction.npy'), np.array(Lpsm_direction_list))
+	np.save(join(latest_dir, 'Rpsm_direction.npy'), np.array(Rpsm_direction_list))
+	np.save(join(latest_dir, 'theta.npy'), np.array(theta_list))
+
+	plot_psm_velocity_directions(latest_dir)
+	plot_theta_over_time(latest_dir)
 	print("done saving...")
 
 

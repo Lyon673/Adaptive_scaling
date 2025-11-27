@@ -11,34 +11,17 @@ feature_bound = {
     'C_offset': 0.05
 }
 
-# the parameters in Bayesian optimization
-# optimization_range = { 
-#     # threshold
-#     'tau_d': (0.7, 1),
-#     'tau_p': (0.7, 1),
-#     'tau_v': (0.7, 1),
-#     'tau_s': (0.7, 1),  
-
-#     # gains
-#     # 'A_d': (1, 3),
-#     # 'A_p': (1, 10),
-#     # 'A_v': (1, 10),
-#     # 'A_s': (1, 10),
-
-#     # weights
-#     'Y_base': (0.01, 0.15),  # base
-#     'W_d': (0.1, 5),	 
-#     'W_p': (0.1, 5),	   
-#     'W_v': (0.1, 3),	
-#     'W_s': (0.1, 5),
-#     'W_dps': (0.1, 1.5),	  
-#     'W_dvs': (0.1, 1.5),	 
-#     'W_pvs': (0.1, 1.5),	 
-#     'W_dpv': (0.1, 1.5),
-#     'W_dpvs': (0.1, 1.5),   
-# }
 
 optimization_range = {
+    'K_g': (8.0, 12.0),
+    'K_p': (0.8, 1.2),
+    'C_base': (6.0, 15.0),
+
+    'A_theta': (2.5, 8.0),
+    'A_gp': (1.0, 10.0),
+    'A_pp': (1.0, 10.0),
+    'A_v': (1.0, 10.0),
+    'A_ipa': (1.0, 10.0),
 }
 
 # parameters in the score calculation formula
@@ -68,32 +51,15 @@ fixed = {"fixed_scale": 0.35, "AFflag": 1}
 
 # the initial params for the optimization
 init_params = {
+    'K_g': 10.0,
+    'K_p': 1.0,
+    'C_base': 9.0,
 
-	'd_min': feature_bound['d_min'] , 'd_max': feature_bound['d_max'],
-	'p_min': feature_bound['p_min'] , 'p_max': feature_bound['p_max'], 
-	'v_min': feature_bound['v_min'] , 'v_max': feature_bound['v_max'],
-	's_min': feature_bound['s_min'] , 's_max': feature_bound['s_max'],
-    #"W_d": 0.6557110261229989, "W_dp": 1.5489982389822312, "W_dv": 1.661834391297523, "W_p": 1.0, "W_pv": 1.340468616420758, "W_v": 0.4538660096723739, "Y_base": 0.03331922812540701, "tau_d": 0.7, "tau_p": 0.7, "tau_v": 1.0,
-	'tau_d': 0.7,  
-	'tau_p': 0.8,  
-	'tau_v': 0.6,  
-	'tau_s': 0.5,  
-
-	'Y_base': 0.1,  
-	'W_d': 1.0,	 
-	'W_p': 1.0,	  
-	'W_v': 1.0,	 
-	'W_s': 1.0,
-	'W_dp': 0.5,	
-	'W_dv': 0.5,	 
-	'W_pv': 0.5,	
-	'W_dpv': 0.5,	
-	'W_dps': 0.5,	
-	'W_dvs': 0.5,	
-	'W_pvs': 0.5,	
-	'W_dpvs': 0.5, 
-
-	'C_offset': feature_bound['C_offset'],
+    'A_theta': 4.6,
+    'A_gp': 6.0,
+    'A_pp': 3.5,
+    'A_v': 2.0,
+    'A_ipa': 2.0,
 
 	'fixed_scale': 1.0,  
 	'AFflag': 0 # 0-adaptive, 1-fixed
