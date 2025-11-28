@@ -47,6 +47,7 @@ from scipy.ndimage import gaussian_filter
 from gracefulness import get_latest_data_dir
 from bayesian_optimization_GUI import BayesianOptimizationGUI
 from visualization import visualize_data
+from featureFilter import RealTimeSavitzkyGolay
 
 import params.config as config
 
@@ -91,8 +92,18 @@ Lpsm_direction_list = []
 Rpsm_direction_list = []
 theta_list = []
 
+# Filtered data lists
+Lpsm_velocity_filtered_list = []
+Rpsm_velocity_filtered_list = []
+ipaL_data_filtered_list = []
+ipaR_data_filtered_list = []
+
 velocity_deque_L = deque(maxlen=8)
 velocity_deque_R = deque(maxlen=8)
+
+# High frequency velocity queues for real-time filtering
+HF_Lpsm_velocity_queue = deque(maxlen=30)
+HF_Rpsm_velocity_queue = deque(maxlen=30)
 
 pupilL = deque(maxlen=128)
 pupilR = deque(maxlen=128)
@@ -773,12 +784,17 @@ class DataCollector:
 		#CAMERA_DEPTHDATA = message_filters.Subscriber("/ambf/env/cameras/cameraL/DepthData", PointCSubscriber("/ambf/env/cameras/cameraL/DepthData", PointCloud2)loud2)
 		rospy.Subscriber("/Geomagic_Left/button", DeviceButtonEvent, cal_Lpsm_clutch_times)
 		rospy.Subscriber("/Geomagic_Right/button", DeviceButtonEvent, cal_Rpsm_clutch_times)
+		rospy.Subscriber("/ambf/env/psm1/toolyawlink/State", RigidBodyState, update_HF_Lpsm_velocity)
+		rospy.Subscriber("/ambf/env/psm2/toolyawlink/State", RigidBodyState, update_HF_Rpsm_velocity)
 		# create approximate time synchronizer
 		ts = message_filters.ApproximateTimeSynchronizer([LPSM_STATE,RPSM_STATE,LMTM_POSE,RMTM_POSE,DEPTH,CAMERA,FRAME], queue_size=20, slop=1.2, allow_headerless=True)
 		#ts = message_filters.ApproximateTimeSynchronizer([DEPTH,CAMERA,FRAME], queue_size=10, slop=0.6, allow_headerless=True)
 		ts.registerCallback(self.maincb)	
 
 		# Initialize attention heatmap generator
+
+		self.linear_velocity_filter = RealTimeSavitzkyGolay()
+		self.ipa_filter = RealTimeSavitzkyGolay()
 		
 		self.attention_heatmap_generator = AttentionHeatmapGenerator(screen_width=resolution_x, screen_height=resolution_y, heatmap_size=(config.gaze_filter_params['heatmap_size_x'], config.gaze_filter_params['heatmap_size_y']))
 		# --- KEYBOARD LISTENER INTEGRATION START ---
@@ -794,7 +810,8 @@ class DataCollector:
 		global Lpsm_pose_list, Rpsm_pose_list, Lmtm_pose_list, Rmtm_pose_list, Lgripper_edge_list, Rgripper_edge_list, Lgripper_state_list, Rgripper_state_list
 		global GP_distance_list, psms_distance_list, ipaL_data_list, ipaR_data_list
 		global pupilL_list, pupilR_list, scale_list, LYON_right_direction_list, Lpsm_direction_list, Rpsm_direction_list, theta_list
-		global velocity_deque_L, velocity_deque_R, pupilL, pupilR
+		global Lpsm_velocity_filtered_list, Rpsm_velocity_filtered_list, ipaL_data_filtered_list, ipaR_data_filtered_list
+		global velocity_deque_L, velocity_deque_R, HF_Lpsm_velocity_queue, HF_Rpsm_velocity_queue, pupilL, pupilR
 		global gazePoint, scale, velocity_deque
 		global psmPosePre, psmPosePreL, psmPosePreR, flag
 		global ipaL_data, ipaR_data, last_button_state, last_button_stateL, last_button_stateR
@@ -830,9 +847,17 @@ class DataCollector:
 		Rpsm_direction_list = []
 		theta_list = []
 		
+		# Reset filtered data lists
+		Lpsm_velocity_filtered_list = []
+		Rpsm_velocity_filtered_list = []
+		ipaL_data_filtered_list = []
+		ipaR_data_filtered_list = []
+		
 		# Reset deques
 		velocity_deque_L = deque(maxlen=8)
 		velocity_deque_R = deque(maxlen=8)
+		HF_Lpsm_velocity_queue = deque(maxlen=30)
+		HF_Rpsm_velocity_queue = deque(maxlen=30)
 		pupilL = deque(maxlen=128)
 		pupilR = deque(maxlen=128)
 		scale = deque(maxlen=10)
@@ -862,7 +887,6 @@ class DataCollector:
 		latest_gaze_point_ratio = [0.5, 0.5]
 
 		# Reset attention heatmap
-		
 		self.attention_heatmap_generator.all_gaze_points.clear()
 		self.attention_heatmap_generator.all_timestamps.clear()
 		self.attention_heatmap_generator.realtime_heatmap = np.zeros(self.attention_heatmap_generator.heatmap_size)
@@ -870,7 +894,15 @@ class DataCollector:
 		self.attention_heatmap_generator.outlier_indices.clear()
 		self.attention_heatmap_generator.filtered_timestamps.clear()
 		self.attention_heatmap_generator.filtered_gaze_points.clear()
-		self.attention_heatmap_generator.prev_scale_factor=[15.0, 15.0]	
+		
+		self.attention_heatmap_generator.gaze_points_3d_with_time = []
+		self.attention_heatmap_generator.all_gaze_points_3d = []
+		self.attention_heatmap_generator.all_hand_positions_3d = []
+		self.attention_heatmap_generator.weighted_distances_left = []
+		self.attention_heatmap_generator.weighted_distances_right = []
+		
+		self.attention_heatmap_generator.prev_scale_factor = [15.0, 15.0]
+		self.attention_heatmap_generator.prev_valid_gaze = None
 		
 		print("global variables reset, ready to start new data collection...")
 
@@ -972,74 +1004,77 @@ class DataCollector:
 
 		gazepoint_position3 = get_gazepoint_position3(camera_depthdata, cameraR.pose, cameraFrame.pose, gazePoint[0], gazePoint[1])
 
-		self.attention_heatmap_generator.all_gaze_points_3d.append(gazepoint_position3)
-		self.attention_heatmap_generator.all_hand_positions_3d.append([Lpsm_position3, Rpsm_position3])
+		weighted_dist_left_3d = np.linalg.norm(gazepoint_position3 - Lpsm_position3)
+		weighted_dist_right_3d = np.linalg.norm(gazepoint_position3 - Rpsm_position3)
+
+		# self.attention_heatmap_generator.all_gaze_points_3d.append(gazepoint_position3)
+		# self.attention_heatmap_generator.all_hand_positions_3d.append([Lpsm_position3, Rpsm_position3])
 	
-		global latest_gaze_timestamp ,latest_gaze_point_ratio
+		# global latest_gaze_timestamp ,latest_gaze_point_ratio
 		
-		current_time = latest_gaze_timestamp 
-		current_gaze_point = latest_gaze_point_ratio	
+		# current_time = latest_gaze_timestamp 
+		# current_gaze_point = latest_gaze_point_ratio	
 
-		if current_time <= 0:
-			current_time = time.time()	
+		# if current_time <= 0:
+		# 	current_time = time.time()	
 
-		# 直接存储数据到时间窗口列表
-		if gazepoint_position3 is not None:
-			self.attention_heatmap_generator.gaze_points_3d_with_time.append((current_time, gazepoint_position3))		
+		# # 直接存储数据到时间窗口列表
+		# if gazepoint_position3 is not None:
+		# 	self.attention_heatmap_generator.gaze_points_3d_with_time.append((current_time, gazepoint_position3))		
 
-		# 获取时间窗口内的注视点和最新的手部位置
-		recent_gaze_points = self.attention_heatmap_generator.get_recent_gaze_points(current_time)
+		# # 获取时间窗口内的注视点和最新的手部位置
+		# recent_gaze_points = self.attention_heatmap_generator.get_recent_gaze_points(current_time)
 
-		# 计算三维加权距离
-		weighted_dist_left_3d = self.attention_heatmap_generator.calculate_weighted_distance(
-			recent_gaze_points, Lpsm_position3
-		)
-		weighted_dist_right_3d = self.attention_heatmap_generator.calculate_weighted_distance(
-			recent_gaze_points, Rpsm_position3
-		)
-		
-		self.attention_heatmap_generator.weighted_distances_left.append(weighted_dist_left_3d)
-		self.attention_heatmap_generator.weighted_distances_right.append(weighted_dist_right_3d)		
-
-		# append all
-		self.attention_heatmap_generator.all_gaze_points.append([current_time, current_gaze_point[0], current_gaze_point[1]])
-		self.attention_heatmap_generator.all_timestamps.append(current_time)
-
-		# append filtered list for filtering and may pop later
-		self.attention_heatmap_generator.filtered_timestamps.append(current_time)
-		self.attention_heatmap_generator.filtered_gaze_points.append([current_time, current_gaze_point[0], current_gaze_point[1]])
-
-		current_idx = len(self.attention_heatmap_generator.all_gaze_points) - 1
-
-		self.attention_heatmap_generator.update_realtime_heatmap(current_time)
-		# is_valid, problem_id = self.attention_heatmap_generator.filter_outliers_focused(
-		# 	self.attention_heatmap_generator.all_gaze_points,
-		# 	self.attention_heatmap_generator.all_timestamps
+		# # 计算三维加权距离
+		# weighted_dist_left_3d = self.attention_heatmap_generator.calculate_weighted_distance(
+		# 	recent_gaze_points, Lpsm_position3
 		# )
-		is_valid = True
+		# weighted_dist_right_3d = self.attention_heatmap_generator.calculate_weighted_distance(
+		# 	recent_gaze_points, Rpsm_position3
+		# )
 		
-		# if the current point is an outlier
-		if not is_valid and len(self.attention_heatmap_generator.all_gaze_points) > 10:
-			
-			self.attention_heatmap_generator.filtered_timestamps.pop()
-			self.attention_heatmap_generator.filtered_gaze_points.pop()
-			pre_valid_gaze = self.attention_heatmap_generator.filtered_gaze_points[-1]
-			self.attention_heatmap_generator.filtered_gaze_points.append([current_time, pre_valid_gaze[1], pre_valid_gaze[2]])
-			self.attention_heatmap_generator.outlier_indices.append(current_idx)
+		# self.attention_heatmap_generator.weighted_distances_left.append(weighted_dist_left_3d)
+		# self.attention_heatmap_generator.weighted_distances_right.append(weighted_dist_right_3d)		
 
-			# 使用上一时刻的有效注视点，但使用当前的IPA、手部位置等实时数据
-			prev_time = self.attention_heatmap_generator.all_timestamps[-2]  # 上一帧的时间戳
-			prev_recent_gaze_points = self.attention_heatmap_generator.get_recent_gaze_points(prev_time)			
-			prev_gaze = self.attention_heatmap_generator.prev_valid_gaze
-			weighted_dist_left_3d = self.attention_heatmap_generator.calculate_weighted_distance(prev_recent_gaze_points, Lpsm_position3)
-			weighted_dist_right_3d = self.attention_heatmap_generator.calculate_weighted_distance(prev_recent_gaze_points, Rpsm_position3)
+		# # append all
+		# self.attention_heatmap_generator.all_gaze_points.append([current_time, current_gaze_point[0], current_gaze_point[1]])
+		# self.attention_heatmap_generator.all_timestamps.append(current_time)
+
+		# # append filtered list for filtering and may pop later
+		# self.attention_heatmap_generator.filtered_timestamps.append(current_time)
+		# self.attention_heatmap_generator.filtered_gaze_points.append([current_time, current_gaze_point[0], current_gaze_point[1]])
+
+		# current_idx = len(self.attention_heatmap_generator.all_gaze_points) - 1
+
+		# self.attention_heatmap_generator.update_realtime_heatmap(current_time)
+		# # is_valid, problem_id = self.attention_heatmap_generator.filter_outliers_focused(
+		# # 	self.attention_heatmap_generator.all_gaze_points,
+		# # 	self.attention_heatmap_generator.all_timestamps
+		# # )
+		# is_valid = True
+		
+		# # if the current point is an outlier
+		# if not is_valid and len(self.attention_heatmap_generator.all_gaze_points) > 10:
+			
+		# 	self.attention_heatmap_generator.filtered_timestamps.pop()
+		# 	self.attention_heatmap_generator.filtered_gaze_points.pop()
+		# 	pre_valid_gaze = self.attention_heatmap_generator.filtered_gaze_points[-1]
+		# 	self.attention_heatmap_generator.filtered_gaze_points.append([current_time, pre_valid_gaze[1], pre_valid_gaze[2]])
+		# 	self.attention_heatmap_generator.outlier_indices.append(current_idx)
+
+		# 	# 使用上一时刻的有效注视点，但使用当前的IPA、手部位置等实时数据
+		# 	prev_time = self.attention_heatmap_generator.all_timestamps[-2]  # 上一帧的时间戳
+		# 	prev_recent_gaze_points = self.attention_heatmap_generator.get_recent_gaze_points(prev_time)			
+		# 	prev_gaze = self.attention_heatmap_generator.prev_valid_gaze
+		# 	weighted_dist_left_3d = self.attention_heatmap_generator.calculate_weighted_distance(prev_recent_gaze_points, Lpsm_position3)
+		# 	weighted_dist_right_3d = self.attention_heatmap_generator.calculate_weighted_distance(prev_recent_gaze_points, Rpsm_position3)
 
 		
-		else:
+		# else:
 			
-			self.attention_heatmap_generator.filtered_indices.append(current_idx)
-			#self.attention_heatmap_generator.update_realtime_heatmap(current_time)
-			self.attention_heatmap_generator.prev_valid_gaze = [current_time, current_gaze_point[0]*resolution_x, current_gaze_point[1]*resolution_y]
+		# 	self.attention_heatmap_generator.filtered_indices.append(current_idx)
+		# 	#self.attention_heatmap_generator.update_realtime_heatmap(current_time)
+		# 	self.attention_heatmap_generator.prev_valid_gaze = [current_time, current_gaze_point[0]*resolution_x, current_gaze_point[1]*resolution_y]
 
 		
 		Lpsm_linear_velocity = np.sqrt(Lpsm_velocity6[0]**2 + Lpsm_velocity6[1]**2 + Lpsm_velocity6[2]**2)
@@ -1058,9 +1093,16 @@ class DataCollector:
 			ipaL_data = 1
 			ipaR_data = 1
 
+		Lpsm_linear_velocity_filtered = self.linear_velocity_filter.update(Lpsm_linear_velocity)
+		Rpsm_linear_velocity_filtered = self.linear_velocity_filter.update(Rpsm_linear_velocity)
+		ipaL_data_filtered = self.ipa_filter.update(ipaL_data)
+		ipaR_data_filtered = self.ipa_filter.update(ipaR_data)
+
 		# direction
-		Lpsm_v_direction = transform_world_to_camera(Lpsm_velocity6[:3], cameraR.pose, cameraFrame.pose) - transform_world_to_camera(np.array([0,0,0]), cameraR.pose, cameraFrame.pose)
-		Rpsm_v_direction = transform_world_to_camera(Rpsm_velocity6[:3], cameraR.pose, cameraFrame.pose) - transform_world_to_camera(np.array([0,0,0]), cameraR.pose, cameraFrame.pose)
+		Lpsm_v_average = np.mean(HF_Lpsm_velocity_queue, axis=0)
+		Rpsm_v_average = np.mean(HF_Rpsm_velocity_queue, axis=0)
+		Lpsm_v_direction = transform_world_to_camera(Lpsm_v_average, cameraR.pose, cameraFrame.pose) - transform_world_to_camera(np.array([0,0,0]), cameraR.pose, cameraFrame.pose)
+		Rpsm_v_direction = transform_world_to_camera(Rpsm_v_average, cameraR.pose, cameraFrame.pose) - transform_world_to_camera(np.array([0,0,0]), cameraR.pose, cameraFrame.pose)
 
 		Lpsm_v_direction = np.where(np.fabs(Lpsm_v_direction) < 0.005, 0, Lpsm_v_direction)
 		Rpsm_v_direction = np.where(np.fabs(Rpsm_v_direction) < 0.005, 0, Rpsm_v_direction)
@@ -1073,21 +1115,22 @@ class DataCollector:
 
 		psm_position = [Lpsm_position3, Rpsm_position3]
 		GP_distance = [weighted_dist_left_3d, weighted_dist_right_3d]
-		psm_velocity = [Lpsm_linear_velocity, Rpsm_linear_velocity]
+		psm_velocity = [Lpsm_linear_velocity_filtered, Rpsm_linear_velocity_filtered]
 		theta = [thetaL, thetaR]
+		ipa = [ipaL_data_filtered, ipaR_data_filtered]
 
-		scale = self.calculate_scale(GP_distance, psm_velocity, ipaL_data, ipaR_data, distance_psms, theta)	
+		scale = self.calculate_scale(GP_distance, psm_velocity, ipa, distance_psms, theta)	
 		
 		try:  
 			self.scale_pub.publish(scale)
 		except rospy.ROSException as e:
 			rospy.logwarn(f"Failed to publish scale: {e}")
 
-
-		cal_total_distance(Lpsm_position3, Rpsm_position3)
-		total_time_list[0] = float(time.time() - start_time)
-
 		if self.collecting:
+			# 只在收集数据时才更新这些统计信息
+			cal_total_distance(Lpsm_position3, Rpsm_position3)
+			total_time_list[0] = float(time.time() - start_time)
+			
 			print("\n")
 			print("=" * 50)
 			print(f"{'PSM Left 3d Position':<25}: [{psm_position[0][0]:.3f}, {psm_position[0][1]:.3f}, {psm_position[0][2]:.3f}]")
@@ -1102,7 +1145,7 @@ class DataCollector:
 			print(f"{'IPA Right Data':<25}: [{ipaR_data:.3f}]")
 			print(f"{'Scale Left':<25}: {scale.data[0]:.8f}")
 			print(f"{'Scale Right':<25}: {scale.data[1]:.8f}")
-			print(f"{'Point Status':<25}: {'Valid' if is_valid else 'Filtered'}")
+			#print(f"{'Point Status':<25}: {'Valid' if is_valid else 'Filtered'}")
 			print("\n")
 			print(f"{'Lpsm velocity3d':<25}: [{Lpsm_velocity6[0]:.3f}, {Lpsm_velocity6[1]:.3f}, {Lpsm_velocity6[2]:.3f}]")
 			print(f"{'Rpsm velocity3d':<25}: [{Rpsm_velocity6[0]:.3f}, {Rpsm_velocity6[1]:.3f}, {Rpsm_velocity6[2]:.3f}]")
@@ -1111,29 +1154,34 @@ class DataCollector:
 			print("=" * 50)
 			print("\n")
 
-		GP_distance_list.append(GP_distance)
-		psms_distance_list.append(distance_psms)
-		Lpsm_positon_list.append(np.append(Lpsm_position3, Lpsm_timestamp))
-		Rpsm_positon_list.append(np.append(Rpsm_position3, Rpsm_timestamp))
-		Lpsm_velocity_list.append(Lpsm_velocity6)
-		Rpsm_velocity_list.append(Rpsm_velocity6)
+			GP_distance_list.append(GP_distance)
+			psms_distance_list.append(distance_psms)
+			Lpsm_positon_list.append(np.append(Lpsm_position3, Lpsm_timestamp))
+			Rpsm_positon_list.append(np.append(Rpsm_position3, Rpsm_timestamp))
+			Lpsm_velocity_list.append(Lpsm_velocity6)
+			Rpsm_velocity_list.append(Rpsm_velocity6)
 
-		# for DNN train
-		Lpsm_pose_list.append(np.hstack((Lpsm_position3, Lpsm_orientation4)))
-		Rpsm_pose_list.append(np.hstack((Rpsm_position3, Rpsm_orientation4)))
-		Lmtm_pose_list.append(np.hstack((Lmtm_position3, Lmtm_orientation4)))
-		Rmtm_pose_list.append(np.hstack((Rmtm_position3, Rmtm_orientation4)))
-		Lgripper_state_list.append(1.0 if Lgripper_edge_list[-1] == 1 else 0)
-		Rgripper_state_list.append(1.0 if Rgripper_edge_list[-1] == 1 else 0)
-		Lpsm_direction_list.append(Lpsm_v_direction[:2].copy())
-		Rpsm_direction_list.append(Rpsm_v_direction[:2].copy())
-		theta_list.append(theta)
-		scale_list.append(scale.data)
+			# for DNN train
+			Lpsm_pose_list.append(np.hstack((Lpsm_position3, Lpsm_orientation4)))
+			Rpsm_pose_list.append(np.hstack((Rpsm_position3, Rpsm_orientation4)))
+			Lmtm_pose_list.append(np.hstack((Lmtm_position3, Lmtm_orientation4)))
+			Rmtm_pose_list.append(np.hstack((Rmtm_position3, Rmtm_orientation4)))
+			Lgripper_state_list.append(1.0 if Lgripper_edge_list[-1] == 1 else 0)
+			Rgripper_state_list.append(1.0 if Rgripper_edge_list[-1] == 1 else 0)
+			Lpsm_direction_list.append(Lpsm_v_direction[:2].copy())
+			Rpsm_direction_list.append(Rpsm_v_direction[:2].copy())
+			theta_list.append(theta)
+			scale_list.append(scale.data)
 
-		if(ipaL_data != 0):
-			ipaL_data_list.append(ipaL_data)
-		if(ipaR_data != 0):
-			ipaR_data_list.append(ipaR_data)		
+			if(ipaL_data != 0):
+				ipaL_data_list.append(ipaL_data)
+			if(ipaR_data != 0):
+				ipaR_data_list.append(ipaR_data)	
+
+			Lpsm_velocity_filtered_list.append(Lpsm_linear_velocity_filtered)
+			Rpsm_velocity_filtered_list.append(Rpsm_linear_velocity_filtered)
+			ipaL_data_filtered_list.append(ipaL_data_filtered)
+			ipaR_data_filtered_list.append(ipaR_data_filtered)
 
 
 	# def normalize_3d_position(self, position_3d):
@@ -1154,13 +1202,13 @@ class DataCollector:
 
 	# 	return normalized
 
-	def calculate_scale(self, weighted_dist, psm_velocity, IPAL, IPAR, distance_psms, theta):
+	def calculate_scale(self, weighted_dist, psm_velocity, IPA, distance_psms, theta):
 		scaleArray = Float32MultiArray()
 		
 		weighted_dist_L = weighted_dist[0]
 		weighted_dist_R = weighted_dist[1]
 
-		IPA_m = (IPAL + IPAR) / 2
+		IPA_m = (IPA[0] + IPA[1]) / 2
 
 		N_d_gpL = normalize(weighted_dist_L, config.feature_bound['d_min'], config.feature_bound['d_max'], 1)
 		N_d_gpR = normalize(weighted_dist_R, config.feature_bound['d_min'], config.feature_bound['d_max'], 1)
@@ -1233,13 +1281,13 @@ class DataCollector:
 		# print(f"pupilL_list Length:{len(pupilL)}")
 		# print(f"pupilL_list Length:{len(pupilR)}")
 
-		print(f"\n{'='*50}")
-		print(f"Gaze filtering results:")
-		print(f"{'Total gaze points':<25}: {len(self.attention_heatmap_generator.all_gaze_points)}")
-		print(f"{'Valid gaze points':<25}: {len(self.attention_heatmap_generator.filtered_timestamps)}")
-		print(f"{'Outlier gaze points':<25}: {len(self.attention_heatmap_generator.outlier_indices)}")
-		print(f"{'Valid ratio':<25}: {len(self.attention_heatmap_generator.filtered_timestamps)/len(self.attention_heatmap_generator.all_gaze_points):.1%}")
-		print(f"{'Outlier ratio':<25}: {len(self.attention_heatmap_generator.outlier_indices)/len(self.attention_heatmap_generator.all_gaze_points):.1%}")
+		# print(f"\n{'='*50}")
+		# print(f"Gaze filtering results:")
+		# print(f"{'Total gaze points':<25}: {len(self.attention_heatmap_generator.all_gaze_points)}")
+		# print(f"{'Valid gaze points':<25}: {len(self.attention_heatmap_generator.filtered_timestamps)}")
+		# print(f"{'Outlier gaze points':<25}: {len(self.attention_heatmap_generator.outlier_indices)}")
+		# print(f"{'Valid ratio':<25}: {len(self.attention_heatmap_generator.filtered_timestamps)/len(self.attention_heatmap_generator.all_gaze_points):.1%}")
+		# print(f"{'Outlier ratio':<25}: {len(self.attention_heatmap_generator.outlier_indices)/len(self.attention_heatmap_generator.all_gaze_points):.1%}")
 
 		print(f"\n{'='*50}")
 		print(f"Global factors:")
@@ -1316,16 +1364,17 @@ class DataCollector:
 			
 			
 			flush_input()
+			break
 			# Ask whether to continue
-			try:
-				#print(f"\n当前使用的参数: {self.params}")
-				ok = input("是否进行下一次数据收集？(y or n): ")
-				if ok.lower() != "y":
-					break
-			except KeyboardInterrupt:
-				# Using Ctrl+C here to exit the entire program is reasonable
-				print("\n程序退出")
-				break
+			# try:
+			# 	#print(f"\n当前使用的参数: {self.params}")
+			# 	ok = input("是否进行下一次数据收集？(y or n): ")
+			# 	if ok.lower() != "y":
+			# 		break
+			# except KeyboardInterrupt:
+			# 	# Using Ctrl+C here to exit the entire program is reasonable
+			# 	print("\n程序退出")
+			# 	break
 
 def flush_input():
 	"""Clear the standard input buffer according to the operating system"""
@@ -1482,9 +1531,9 @@ def calculate_vector2d_angle(vector1, vector2):
 
 def normalize(value, min_val, max_val, corr):
 	if corr == 1:
-		normalized_value = np.clip((value - min_val) / (max_val - min_val),0,1)
+		normalized_value = np.clip((value - min_val) / (max_val - min_val),0.001,1)
 	else: 
-		normalized_value = np.clip((-value + max_val) / (max_val - min_val),0,1)
+		normalized_value = np.clip((-value + max_val) / (max_val - min_val),0.001,1)
 
 	return normalized_value
 
@@ -1519,6 +1568,16 @@ def cal_Rpsm_clutch_times(button):
 		Rgripper_edge_list.append(1)
 	else:
 		Rgripper_edge_list.append(0)
+
+def update_HF_Lpsm_velocity(psm):
+	velocity3 = np.array([psm.twist.linear.x,psm.twist.linear.y,psm.twist.linear.z])
+	HF_Lpsm_velocity_queue.append(velocity3)
+
+def update_HF_Rpsm_velocity(psm):
+	velocity3 = np.array([psm.twist.linear.x,psm.twist.linear.y,psm.twist.linear.z])
+	HF_Rpsm_velocity_queue.append(velocity3)
+
+
 
 """
 if left gaze point and right are both available, we set gaze point as their medium point.If only one, set as that.If none, no change.
@@ -1750,6 +1809,7 @@ def save_data_cb():
 	data storage callback, invoked when script terminates
 	"""
 	global Lpsm_direction_list, Rpsm_direction_list, theta_list
+	global Lpsm_velocity_filtered_list, Rpsm_velocity_filtered_list, ipaL_data_filtered_list, ipaR_data_filtered_list
 	current_file_path = os.path.abspath(__file__)
 	
 	current_dir = os.path.dirname(current_file_path)
@@ -1769,6 +1829,12 @@ def save_data_cb():
 	np.save(join(latest_dir, 'psms_distance_data.npy'), psms_distance_list)
 	np.save(join(latest_dir, 'ipaL_data.npy'), ipaL_data_list)
 	np.save(join(latest_dir, 'ipaR_data.npy'), ipaR_data_list)
+	
+	# Save filtered data
+	np.save(join(latest_dir, 'Lpsm_velocity_filtered.npy'), Lpsm_velocity_filtered_list)
+	np.save(join(latest_dir, 'Rpsm_velocity_filtered.npy'), Rpsm_velocity_filtered_list)
+	np.save(join(latest_dir, 'ipaL_data_filtered.npy'), ipaL_data_filtered_list)
+	np.save(join(latest_dir, 'ipaR_data_filtered.npy'), ipaR_data_filtered_list)
 	  
 	np.save(join(latest_dir, 'clutch_times.npy'), clutch_times_list)
 	np.save(join(latest_dir, 'total_distance.npy'), total_distance_list)

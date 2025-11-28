@@ -8,7 +8,6 @@ feature_bound = {
 	'p_min': 0.95, 'p_max': 1,
 	'v_min': 0, 'v_max': 0.08,
     's_min': 0.01, 's_max': 0.1,
-    'C_offset': 0.05
 }
 
 

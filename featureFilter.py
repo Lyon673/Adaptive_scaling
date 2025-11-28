@@ -50,7 +50,8 @@ def kalman_filter_1d(measurements, process_var=1e-3, measurement_var=1e-2, initi
     return filtered
 
 
-def savgol_filter_ipa(measurements, window_length=31, polyorder=5):
+
+def savgol_filter_ipa(measurements, window_length=15, polyorder=5):
     """
     Apply Savitzky-Golay smoothing to IPA data.
 
@@ -66,6 +67,8 @@ def savgol_filter_ipa(measurements, window_length=31, polyorder=5):
     return savgol_filter(measurements, window_length=window_length, polyorder=polyorder, mode='interp')
 
 
+
+
 class RealTimeSavitzkyGolay:
     """
     Sliding-window Savitzky-Golay filter for streaming IPA samples.
@@ -74,7 +77,7 @@ class RealTimeSavitzkyGolay:
     filtered value each time a new sample arrives.
     """
 
-    def __init__(self, window_length=31, polyorder=5):
+    def __init__(self, window_length=15, polyorder=3):
         if window_length % 2 == 0:
             raise ValueError('window_length must be odd')
         if polyorder >= window_length:
