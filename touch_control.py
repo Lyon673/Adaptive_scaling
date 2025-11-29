@@ -112,7 +112,7 @@ class ControllerInterface:
         self.received_msg = None
 
         self.scale = [16,16]
-        #self.subscriber = rospy.Subscriber('/scale', Float32MultiArray, self.scale_cb)
+        self.subscriber = rospy.Subscriber('/scale', Float32MultiArray, self.scale_cb)
 
 
     def update_T_c_b(self):

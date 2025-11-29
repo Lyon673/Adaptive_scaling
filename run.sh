@@ -25,15 +25,20 @@ tmux split-window -v -t "${SESSION_TARGET_MAIN}.2"
 
 
 echo "Launching ROS components..."
-# tmux send-keys -t "${SESSION_TARGET_ROS}.0" "roscore" C-m
+tmux send-keys -t "${SESSION_TARGET_ROS}.0" "roscore" C-m
+sleep 1 
+tmux send-keys -t "${SESSION_TARGET_ROS}.1" "roslaunch geomagic_control geomagic_headless.launch device_name:=Right prefix:=Geomagic_Right" C-m
+sleep 1 
+tmux send-keys -t "${SESSION_TARGET_ROS}.2" "roslaunch geomagic_control geomagic_headless.launch device_name:=Left prefix:=Geomagic_Left" C-m
+sleep 1 
+tmux send-keys -t "${SESSION_TARGET_ROS}.3" "./env.sh" C-m
+# tmux send-keys -t "${SESSION_TARGET_ROS}.0" "roslaunch geomagic_control geomagic_headless.launch device_name:=Right prefix:=Geomagic_Right" C-m
 # sleep 1 
-tmux send-keys -t "${SESSION_TARGET_ROS}.0" "roslaunch geomagic_control geomagic_headless.launch device_name:=Right prefix:=Geomagic_Right" C-m
-sleep 1 
-tmux send-keys -t "${SESSION_TARGET_ROS}.1" "roslaunch geomagic_control geomagic_headless.launch device_name:=Left prefix:=Geomagic_Left" C-m
-sleep 1 
-tmux send-keys -t "${SESSION_TARGET_ROS}.2" "./env.sh" C-m
-sleep 1
-tmux send-keys -t "${SESSION_TARGET_ROS}.3" "python3 touch_control.py" C-m
+# tmux send-keys -t "${SESSION_TARGET_ROS}.1" "roslaunch geomagic_control geomagic_headless.launch device_name:=Left prefix:=Geomagic_Left" C-m
+# sleep 1 
+# tmux send-keys -t "${SESSION_TARGET_ROS}.2" "./env.sh" C-m
+# sleep 2
+# tmux send-keys -t "${SESSION_TARGET_ROS}.3" "python3 touch_control.py" C-m
 
 
 echo "Launching main application..."

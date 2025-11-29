@@ -112,6 +112,22 @@ def visualize_data(data_dir=None, save_statistics=True):
 		thetaL = np.degrees(theta_array[:, 0]) if theta_array.ndim > 1 else np.degrees(theta_array)
 		thetaR = np.degrees(theta_array[:, 1]) if theta_array.ndim > 1 else np.zeros_like(thetaL)
 		
+		# 加载 forward/backward factor 数据
+		try:
+			Lforward_factor = np.load(os.path.join(data_dir, 'Lforward_factor.npy'), allow_pickle=True)
+			Lbackward_factor = np.load(os.path.join(data_dir, 'Lbackward_factor.npy'), allow_pickle=True)
+			Rforward_factor = np.load(os.path.join(data_dir, 'Rforward_factor.npy'), allow_pickle=True)
+			Rbackward_factor = np.load(os.path.join(data_dir, 'Rbackward_factor.npy'), allow_pickle=True)
+			has_factors = True
+		except FileNotFoundError:
+			Lforward_factor = None
+			Lbackward_factor = None
+			Rforward_factor = None
+			Rbackward_factor = None
+			has_factors = False
+			if save_statistics:
+				print("  Forward/backward factor data not found")
+		
 		# 找到实验开始的索引
 		start_idx = find_experiment_start(ipaL_data, ipaR_data) + 2
 		end_idx = 700
@@ -140,6 +156,13 @@ def visualize_data(data_dir=None, save_statistics=True):
 			thetaL = thetaL[start_idx:end_idx]
 			thetaR = thetaR[start_idx:end_idx]
 			
+			# 截取 forward/backward factor 数据
+			if has_factors:
+				Lforward_factor = Lforward_factor[start_idx:end_idx]
+				Lbackward_factor = Lbackward_factor[start_idx:end_idx]
+				Rforward_factor = Rforward_factor[start_idx:end_idx]
+				Rbackward_factor = Rbackward_factor[start_idx:end_idx]
+			
 			# 截取滤波后的数据
 			if use_filtered:
 				Lpsm_velocity_filtered = Lpsm_velocity_filtered[start_idx:end_idx]
@@ -156,6 +179,10 @@ def visualize_data(data_dir=None, save_statistics=True):
 		if use_filtered:
 			lengths.extend([len(Lpsm_velocity_filtered), len(Rpsm_velocity_filtered),
 						   len(ipaL_data_filtered), len(ipaR_data_filtered)])
+		
+		if has_factors:
+			lengths.extend([len(Lforward_factor), len(Lbackward_factor),
+						   len(Rforward_factor), len(Rbackward_factor)])
 		
 		min_length = min(lengths)
 		
@@ -179,6 +206,13 @@ def visualize_data(data_dir=None, save_statistics=True):
 			Rpsm_velocity_filtered = Rpsm_velocity_filtered[:min_length]
 			ipaL_data_filtered = ipaL_data_filtered[:min_length]
 			ipaR_data_filtered = ipaR_data_filtered[:min_length]
+		
+		# 截取 forward/backward factor 数据
+		if has_factors:
+			Lforward_factor = Lforward_factor[:min_length]
+			Lbackward_factor = Lbackward_factor[:min_length]
+			Rforward_factor = Rforward_factor[:min_length]
+			Rbackward_factor = Rbackward_factor[:min_length]
 		
 		# 决定使用filtered还是smoothed数据
 		if use_filtered:
@@ -209,37 +243,57 @@ def visualize_data(data_dir=None, save_statistics=True):
 		fig, axs = plt.subplots(4, 2, figsize=(16, 22))
 		fig.patch.set_facecolor('white')
 		
-		# 1. IPA数据（左右手）- 显示原始和滤波后的数据
-		axs[0, 0].scatter(timestamps, ipaL_data, c=color_left, alpha=0.3, s=10, 
-						  edgecolors='none', label='Left Raw')
-		axs[0, 0].scatter(timestamps, ipaR_data, c=color_right, alpha=0.3, s=10, 
-						  edgecolors='none', label='Right Raw')
-		axs[0, 0].plot(timestamps, ipaL_smoothed, color=color_left, alpha=0.9, 
-					   linewidth=2.5, label='Left Filtered')
-		axs[0, 0].plot(timestamps, ipaR_smoothed, color=color_right, alpha=0.9, 
-					   linewidth=2.5, label='Right Filtered')
-		
 		filter_method = 'Real-Time Filtered' if use_filtered else 'Gaussian Smoothed'
-		axs[0, 0].set_title(f'IPA Data ({filter_method})', 
+		
+		# # 1. IPA数据（左右手）- 注释掉
+		# axs[0, 0].scatter(timestamps, ipaL_data, c=color_left, alpha=0.3, s=10, 
+		# 				  edgecolors='none', label='Left Raw')
+		# axs[0, 0].scatter(timestamps, ipaR_data, c=color_right, alpha=0.3, s=10, 
+		# 				  edgecolors='none', label='Right Raw')
+		# axs[0, 0].plot(timestamps, ipaL_smoothed, color=color_left, alpha=0.9, 
+		# 			   linewidth=2.5, label='Left Filtered')
+		# axs[0, 0].plot(timestamps, ipaR_smoothed, color=color_right, alpha=0.9, 
+		# 			   linewidth=2.5, label='Right Filtered')
+		# axs[0, 0].set_title(f'IPA Data ({filter_method})', 
+		# 					fontsize=13, fontweight='bold', pad=15)
+		# axs[0, 0].set_xlabel('Frame Index', fontsize=11)
+		# axs[0, 0].set_ylabel('IPA Values', fontsize=11)
+		# axs[0, 0].legend(loc='best', frameon=True, fancybox=True, shadow=True, fontsize=9)
+		# axs[0, 0].grid(True, alpha=0.2, linestyle='--')
+		# axs[0, 0].set_facecolor('#f8f9fa')
+		
+		# 1. [0,0] 平均IPA数据 - 显示原始和滤波后的数据
+		axs[0, 0].scatter(timestamps, ipa_average, c='#9b59b6', alpha=0.3, s=10, 
+						  edgecolors='none', label='Raw Average')
+		axs[0, 0].plot(timestamps, ipa_average_smoothed, color='#9b59b6', alpha=0.9, 
+					   linewidth=2.5, label=f'Filtered Average')
+		axs[0, 0].set_title(f'Average IPA ({filter_method})', 
 							fontsize=13, fontweight='bold', pad=15)
 		axs[0, 0].set_xlabel('Frame Index', fontsize=11)
-		axs[0, 0].set_ylabel('IPA Values', fontsize=11)
-		axs[0, 0].legend(loc='best', frameon=True, fancybox=True, shadow=True, fontsize=9)
+		axs[0, 0].set_ylabel('Average IPA Value', fontsize=11)
+		axs[0, 0].legend(loc='best', frameon=True, fancybox=True, shadow=True)
 		axs[0, 0].grid(True, alpha=0.2, linestyle='--')
 		axs[0, 0].set_facecolor('#f8f9fa')
 		
-		# 2. 平均IPA数据 - 显示原始和滤波后的数据
-		axs[0, 1].scatter(timestamps, ipa_average, c='#9b59b6', alpha=0.3, s=10, 
-						  edgecolors='none', label='Raw Average')
-		axs[0, 1].plot(timestamps, ipa_average_smoothed, color='#9b59b6', alpha=0.9, 
-					   linewidth=2.5, label=f'Filtered Average')
-		axs[0, 1].set_title(f'Average IPA ({filter_method})', 
+		# 2. [0,1] PSMs距离数据
+		axs[0, 1].plot(timestamps, psms_distance_data, color='#f39c12', alpha=0.8, 
+					   linewidth=2.5, label='Distance Between PSMs')
+		axs[0, 1].fill_between(timestamps, psms_distance_data, alpha=0.15, color='#f39c12')
+		axs[0, 1].set_title('Distance Between Left and Right PSM', 
 							fontsize=13, fontweight='bold', pad=15)
 		axs[0, 1].set_xlabel('Frame Index', fontsize=11)
-		axs[0, 1].set_ylabel('Average IPA Value', fontsize=11)
+		axs[0, 1].set_ylabel('Distance (meters)', fontsize=11)
 		axs[0, 1].legend(loc='best', frameon=True, fancybox=True, shadow=True)
 		axs[0, 1].grid(True, alpha=0.2, linestyle='--')
 		axs[0, 1].set_facecolor('#f8f9fa')
+		
+		avg_psms_dist_01 = np.mean(psms_distance_data)
+		min_psms_dist_01 = np.min(psms_distance_data)
+		max_psms_dist_01 = np.max(psms_distance_data)
+		axs[0, 1].axhline(y=avg_psms_dist_01, color='#f39c12', linestyle=':', alpha=0.6, linewidth=2)
+		axs[0, 1].text(0.02, 0.98, f'Avg: {avg_psms_dist_01:.4f}m\nMin: {min_psms_dist_01:.4f}m\nMax: {max_psms_dist_01:.4f}m',
+					   transform=axs[0, 1].transAxes, verticalalignment='top', fontsize=10,
+					   bbox=dict(boxstyle='round', facecolor='#ecf0f1', alpha=0.8, edgecolor='#95a5a6'))
 		
 		# 3. GP距离数据
 		axs[1, 0].plot(timestamps, left_distances, color=color_left, alpha=0.8, 
@@ -283,63 +337,88 @@ def visualize_data(data_dir=None, save_statistics=True):
 		axs[1, 1].axhline(y=avg_vel_left, color=color_left, linestyle=':', alpha=0.6, linewidth=2)
 		axs[1, 1].axhline(y=avg_vel_right, color=color_right, linestyle=':', alpha=0.6, linewidth=2)
 		
-		# 5. Theta 数据 - 左手
-		axs[2, 0].plot(timestamps, thetaL, color=color_left, alpha=0.8, 
-					   linewidth=2.0, label='Left PSM Theta')
-		axs[2, 0].fill_between(timestamps, thetaL, alpha=0.15, color=color_left)
-		axs[2, 0].set_title('Left PSM: Angle Between Velocity and Gaze Direction', 
+		# 5. [2,0] 左手 Forward/Backward Factors
+		if has_factors:
+			axs[2, 0].plot(timestamps, Lforward_factor, color='#2ecc71', alpha=0.9, 
+						   linewidth=2.5, label='Forward Factor')
+			axs[2, 0].plot(timestamps, Lbackward_factor, color='#e67e22', alpha=0.9, 
+						   linewidth=2.5, label='Backward Factor')
+			axs[2, 0].fill_between(timestamps, Lforward_factor, alpha=0.1, color='#2ecc71')
+			axs[2, 0].fill_between(timestamps, Lbackward_factor, alpha=0.1, color='#e67e22')
+			
+			avg_lforward = np.mean(Lforward_factor)
+			avg_lbackward = np.mean(Lbackward_factor)
+			axs[2, 0].axhline(y=avg_lforward, color='#2ecc71', linestyle=':', alpha=0.6, linewidth=2)
+			axs[2, 0].axhline(y=avg_lbackward, color='#e67e22', linestyle=':', alpha=0.6, linewidth=2)
+			
+			axs[2, 0].text(0.02, 0.98, f'Forward Avg: {avg_lforward:.3f}\nBackward Avg: {avg_lbackward:.3f}',
+						   transform=axs[2, 0].transAxes, verticalalignment='top', fontsize=10,
+						   bbox=dict(boxstyle='round', facecolor='#ecf0f1', alpha=0.8, edgecolor='#95a5a6'))
+		else:
+			axs[2, 0].text(0.5, 0.5, 'No factor data available', 
+						   transform=axs[2, 0].transAxes, ha='center', va='center', fontsize=12)
+		
+		axs[2, 0].set_title('Left PSM: Forward and Backward Factors', 
 							fontsize=13, fontweight='bold', pad=15)
 		axs[2, 0].set_xlabel('Frame Index', fontsize=11)
-		axs[2, 0].set_ylabel('Theta (degrees)', fontsize=11)
+		axs[2, 0].set_ylabel('Factor Value', fontsize=11)
 		axs[2, 0].legend(loc='best', frameon=True, fancybox=True, shadow=True)
 		axs[2, 0].grid(True, alpha=0.2, linestyle='--')
 		axs[2, 0].set_facecolor('#f8f9fa')
 		
-		avg_thetaL = np.mean(thetaL)
-		axs[2, 0].axhline(y=avg_thetaL, color=color_left, linestyle=':', alpha=0.6, linewidth=2)
-		axs[2, 0].text(0.02, 0.98, f'Avg: {avg_thetaL:.2f}°\nMin: {np.min(thetaL):.2f}°\nMax: {np.max(thetaL):.2f}°',
-					   transform=axs[2, 0].transAxes, verticalalignment='top', fontsize=10,
-					   bbox=dict(boxstyle='round', facecolor='#ecf0f1', alpha=0.8, edgecolor='#95a5a6'))
+		# 6. [2,1] 右手 Forward/Backward Factors
+		if has_factors:
+			axs[2, 1].plot(timestamps, Rforward_factor, color='#2ecc71', alpha=0.9, 
+						   linewidth=2.5, label='Forward Factor')
+			axs[2, 1].plot(timestamps, Rbackward_factor, color='#e67e22', alpha=0.9, 
+						   linewidth=2.5, label='Backward Factor')
+			axs[2, 1].fill_between(timestamps, Rforward_factor, alpha=0.1, color='#2ecc71')
+			axs[2, 1].fill_between(timestamps, Rbackward_factor, alpha=0.1, color='#e67e22')
+			
+			avg_rforward = np.mean(Rforward_factor)
+			avg_rbackward = np.mean(Rbackward_factor)
+			axs[2, 1].axhline(y=avg_rforward, color='#2ecc71', linestyle=':', alpha=0.6, linewidth=2)
+			axs[2, 1].axhline(y=avg_rbackward, color='#e67e22', linestyle=':', alpha=0.6, linewidth=2)
+			
+			axs[2, 1].text(0.02, 0.98, f'Forward Avg: {avg_rforward:.3f}\nBackward Avg: {avg_rbackward:.3f}',
+						   transform=axs[2, 1].transAxes, verticalalignment='top', fontsize=10,
+						   bbox=dict(boxstyle='round', facecolor='#ecf0f1', alpha=0.8, edgecolor='#95a5a6'))
+		else:
+			axs[2, 1].text(0.5, 0.5, 'No factor data available', 
+						   transform=axs[2, 1].transAxes, ha='center', va='center', fontsize=12)
 		
-		# 6. Theta 数据 - 右手
-		axs[2, 1].plot(timestamps, thetaR, color=color_right, alpha=0.8, 
-					   linewidth=2.0, label='Right PSM Theta')
-		axs[2, 1].fill_between(timestamps, thetaR, alpha=0.15, color=color_right)
-		axs[2, 1].set_title('Right PSM: Angle Between Velocity and Gaze Direction', 
+		axs[2, 1].set_title('Right PSM: Forward and Backward Factors', 
 							fontsize=13, fontweight='bold', pad=15)
 		axs[2, 1].set_xlabel('Frame Index', fontsize=11)
-		axs[2, 1].set_ylabel('Theta (degrees)', fontsize=11)
+		axs[2, 1].set_ylabel('Factor Value', fontsize=11)
 		axs[2, 1].legend(loc='best', frameon=True, fancybox=True, shadow=True)
 		axs[2, 1].grid(True, alpha=0.2, linestyle='--')
 		axs[2, 1].set_facecolor('#f8f9fa')
 		
-		avg_thetaR = np.mean(thetaR)
-		axs[2, 1].axhline(y=avg_thetaR, color=color_right, linestyle=':', alpha=0.6, linewidth=2)
-		axs[2, 1].text(0.02, 0.98, f'Avg: {avg_thetaR:.2f}°\nMin: {np.min(thetaR):.2f}°\nMax: {np.max(thetaR):.2f}°',
-					   transform=axs[2, 1].transAxes, verticalalignment='top', fontsize=10,
-					   bbox=dict(boxstyle='round', facecolor='#ecf0f1', alpha=0.8, edgecolor='#95a5a6'))
-		
-		# 7. PSMs距离数据
-		axs[3, 0].plot(timestamps, psms_distance_data, color='#f39c12', alpha=0.8, 
-					   linewidth=2.5, label='Distance Between PSMs')
-		axs[3, 0].fill_between(timestamps, psms_distance_data, alpha=0.15, color='#f39c12')
-		axs[3, 0].set_title('Distance Between Left and Right PSM', 
+		# 7. [3,0] Theta 数据 - 左右手
+		axs[3, 0].plot(timestamps, thetaL, color=color_left, alpha=0.8, 
+					   linewidth=2.5, label='Left PSM Theta')
+		axs[3, 0].plot(timestamps, thetaR, color=color_right, alpha=0.8, 
+					   linewidth=2.5, label='Right PSM Theta')
+		axs[3, 0].fill_between(timestamps, thetaL, alpha=0.1, color=color_left)
+		axs[3, 0].fill_between(timestamps, thetaR, alpha=0.1, color=color_right)
+		axs[3, 0].set_title('Angle Between Velocity and Gaze Direction (Both PSMs)', 
 							fontsize=13, fontweight='bold', pad=15)
 		axs[3, 0].set_xlabel('Frame Index', fontsize=11)
-		axs[3, 0].set_ylabel('Distance (meters)', fontsize=11)
+		axs[3, 0].set_ylabel('Theta (degrees)', fontsize=11)
 		axs[3, 0].legend(loc='best', frameon=True, fancybox=True, shadow=True)
 		axs[3, 0].grid(True, alpha=0.2, linestyle='--')
 		axs[3, 0].set_facecolor('#f8f9fa')
 		
-		avg_psms_dist = np.mean(psms_distance_data)
-		min_psms_dist = np.min(psms_distance_data)
-		max_psms_dist = np.max(psms_distance_data)
-		axs[3, 0].axhline(y=avg_psms_dist, color='#f39c12', linestyle=':', alpha=0.6, linewidth=2)
-		axs[3, 0].text(0.02, 0.98, f'Avg: {avg_psms_dist:.4f}m\nMin: {min_psms_dist:.4f}m\nMax: {max_psms_dist:.4f}m',
+		avg_thetaL = np.mean(thetaL)
+		avg_thetaR = np.mean(thetaR)
+		axs[3, 0].axhline(y=avg_thetaL, color=color_left, linestyle=':', alpha=0.6, linewidth=2)
+		axs[3, 0].axhline(y=avg_thetaR, color=color_right, linestyle=':', alpha=0.6, linewidth=2)
+		axs[3, 0].text(0.02, 0.98, f'Left Avg: {avg_thetaL:.2f}°\nRight Avg: {avg_thetaR:.2f}°',
 					   transform=axs[3, 0].transAxes, verticalalignment='top', fontsize=10,
 					   bbox=dict(boxstyle='round', facecolor='#ecf0f1', alpha=0.8, edgecolor='#95a5a6'))
 		
-		# 8. Scale数据
+		# 8. [3,1] Scale数据
 		axs[3, 1].plot(timestamps, left_scales, color=color_left, alpha=0.8, 
 					   linewidth=2.5, label='Left Hand Scale')
 		axs[3, 1].plot(timestamps, right_scales, color=color_right, alpha=0.8, 
@@ -349,6 +428,7 @@ def visualize_data(data_dir=None, save_statistics=True):
 		axs[3, 1].set_ylabel('Scale Factor', fontsize=11)
 		axs[3, 1].legend(loc='best', frameon=True, fancybox=True, shadow=True)
 		axs[3, 1].grid(True, alpha=0.2, linestyle='--')
+		axs[3, 1].set_facecolor('#f8f9fa')
 		
 		avg_scale_left = np.mean(left_scales)
 		avg_scale_right = np.mean(right_scales)

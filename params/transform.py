@@ -1,14 +1,27 @@
 import json
-
+import os
 # JSON 数据
-data = {"target": 83.63687608926733, "params": {"W_d": 0.20714375522588313, "W_dp": 0.5347289313727411, "W_dv": 1.906408808850459, "W_p": 0.23330603251763002, "W_pv": 0.37588053440469194, "W_v": 0.8703180460798396, "Y_base": 0.06099321852596262, "tau_d": 0.8090221786759244, "tau_p": 0.8914474669753404, "tau_v": 0.7960409400325988}, "datetime": {"datetime": "2025-07-11 16:08:48", "elapsed": 217.658285, "delta": 79.215168}}
+data = {"target": 83.63687608926733, "params": {
+    'K_g': 10.0,
+    'K_p': 1.0,
+    'C_base': 9.0,
 
+    'A_theta': 10,
+    'A_gp': 2.0,
+    'A_pp': 3.5,
+    'A_v': 4.3,
+    'A_ipa': 2.0,
 
+	'fixed_scale': 1.0,  
+	'AFflag': 0 # 0-adaptive, 1-fixed
+}}
 # 提取 params 并转换为 txt 格式
 params_txt = "\n".join([f"{key}={value}" for key, value in data["params"].items()])
 
 # 保存到文件
-output_path = "/home/lambda/SurRoL/Project/params/params.txt"
+current_file_path = os.path.abspath(__file__)
+current_dir = os.path.dirname(current_file_path)
+output_path = os.path.join(current_dir, 'params.txt')
 with open(output_path, "w") as file:
     file.write(params_txt)
 

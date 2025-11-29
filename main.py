@@ -98,12 +98,18 @@ Rpsm_velocity_filtered_list = []
 ipaL_data_filtered_list = []
 ipaR_data_filtered_list = []
 
+# Forward/backward factor lists
+Lforward_factor_list = []
+Lbackward_factor_list = []
+Rforward_factor_list = []
+Rbackward_factor_list = []
+
 velocity_deque_L = deque(maxlen=8)
 velocity_deque_R = deque(maxlen=8)
 
 # High frequency velocity queues for real-time filtering
-HF_Lpsm_velocity_queue = deque(maxlen=30)
-HF_Rpsm_velocity_queue = deque(maxlen=30)
+HF_Lpsm_velocity_queue = deque(maxlen=config.velocity_queue_length)
+HF_Rpsm_velocity_queue = deque(maxlen=config.velocity_queue_length)
 
 pupilL = deque(maxlen=128)
 pupilR = deque(maxlen=128)
@@ -793,8 +799,10 @@ class DataCollector:
 
 		# Initialize attention heatmap generator
 
-		self.linear_velocity_filter = RealTimeSavitzkyGolay()
-		self.ipa_filter = RealTimeSavitzkyGolay()
+		self.Lpsm_linear_velocity_filter = RealTimeSavitzkyGolay(window_length=config.velocity_window_length, polyorder=config.velocity_polyorder)
+		self.Rpsm_linear_velocity_filter = RealTimeSavitzkyGolay(window_length=config.velocity_window_length, polyorder=config.velocity_polyorder)
+		self.Lipa_filter = RealTimeSavitzkyGolay(window_length=config.ipa_window_length, polyorder=config.ipa_polyorder)
+		self.Ripa_filter = RealTimeSavitzkyGolay(window_length=config.ipa_window_length, polyorder=config.ipa_polyorder)
 		
 		self.attention_heatmap_generator = AttentionHeatmapGenerator(screen_width=resolution_x, screen_height=resolution_y, heatmap_size=(config.gaze_filter_params['heatmap_size_x'], config.gaze_filter_params['heatmap_size_y']))
 		# --- KEYBOARD LISTENER INTEGRATION START ---
@@ -811,6 +819,7 @@ class DataCollector:
 		global GP_distance_list, psms_distance_list, ipaL_data_list, ipaR_data_list
 		global pupilL_list, pupilR_list, scale_list, LYON_right_direction_list, Lpsm_direction_list, Rpsm_direction_list, theta_list
 		global Lpsm_velocity_filtered_list, Rpsm_velocity_filtered_list, ipaL_data_filtered_list, ipaR_data_filtered_list
+		global Lforward_factor_list, Lbackward_factor_list, Rforward_factor_list, Rbackward_factor_list
 		global velocity_deque_L, velocity_deque_R, HF_Lpsm_velocity_queue, HF_Rpsm_velocity_queue, pupilL, pupilR
 		global gazePoint, scale, velocity_deque
 		global psmPosePre, psmPosePreL, psmPosePreR, flag
@@ -852,6 +861,12 @@ class DataCollector:
 		Rpsm_velocity_filtered_list = []
 		ipaL_data_filtered_list = []
 		ipaR_data_filtered_list = []
+		
+		# Reset forward/backward factor lists
+		Lforward_factor_list = []
+		Lbackward_factor_list = []
+		Rforward_factor_list = []
+		Rbackward_factor_list = []
 		
 		# Reset deques
 		velocity_deque_L = deque(maxlen=8)
@@ -1093,10 +1108,10 @@ class DataCollector:
 			ipaL_data = 1
 			ipaR_data = 1
 
-		Lpsm_linear_velocity_filtered = self.linear_velocity_filter.update(Lpsm_linear_velocity)
-		Rpsm_linear_velocity_filtered = self.linear_velocity_filter.update(Rpsm_linear_velocity)
-		ipaL_data_filtered = self.ipa_filter.update(ipaL_data)
-		ipaR_data_filtered = self.ipa_filter.update(ipaR_data)
+		Lpsm_linear_velocity_filtered = self.Lpsm_linear_velocity_filter.update(Lpsm_linear_velocity)
+		Rpsm_linear_velocity_filtered = self.Rpsm_linear_velocity_filter.update(Rpsm_linear_velocity)
+		ipaL_data_filtered = self.Lipa_filter.update(ipaL_data)
+		ipaR_data_filtered = self.Ripa_filter.update(ipaR_data)
 
 		# direction
 		Lpsm_v_average = np.mean(HF_Lpsm_velocity_queue, axis=0)
@@ -1151,6 +1166,8 @@ class DataCollector:
 			print(f"{'Rpsm velocity3d':<25}: [{Rpsm_velocity6[0]:.3f}, {Rpsm_velocity6[1]:.3f}, {Rpsm_velocity6[2]:.3f}]")
 			print(f"{'PSM Left Direction':<25}: [{Lpsm_v_direction[0]:.3f}, {Lpsm_v_direction[1]:.3f}]")
 			print(f"{'PSM Right Direction':<25}: [{Rpsm_v_direction[0]:.3f}, {Rpsm_v_direction[1]:.3f}]")
+			print(f"{'Theta Left':<25}: {thetaL:.3f}")
+			print(f"{'Theta Right':<25}: {thetaR:.3f}")
 			print("=" * 50)
 			print("\n")
 
@@ -1217,27 +1234,28 @@ class DataCollector:
 		N_vR = normalize(psm_velocity[1], config.feature_bound['v_min'], config.feature_bound['v_max'], 1)
 		N_d_pp = normalize(distance_psms, config.feature_bound['s_min'], config.feature_bound['s_max'], 1) 
 
+		forward_factorL = self.thetaFunc(theta[0]) * self.expFunc(N_d_gpL, self.params['A_gp']) 
+		backward_factorL = (1 - self.thetaFunc(theta[0])) * (self.expFunc(N_d_pp, self.params['A_pp'])*self.expFunc(N_vL, self.params['A_v'])*self.expFunc(N_ipa, self.params['A_ipa']))**(1/3)
+		forward_factorR = self.thetaFunc(theta[1]) * self.expFunc(N_d_gpR, self.params['A_gp']) 
+		backward_factorR = (1 - self.thetaFunc(theta[1])) * (self.expFunc(N_d_pp, self.params['A_pp'])*self.expFunc(N_vR, self.params['A_v'])*self.expFunc(N_ipa, self.params['A_ipa']))**(1/3)
 
+		Lforward_factor_list.append(forward_factorL)
+		Lbackward_factor_list.append(backward_factorL)
+		Rforward_factor_list.append(forward_factorR)
+		Rbackward_factor_list.append(backward_factorR)
 
-		output_L = self.params['K_g'] * (self.thetaFunc(theta[0]) * self.expFunc(N_d_gpL, self.params['A_gp']) + \
-					self.params['K_p'] * (1 - self.thetaFunc(theta[0])) * (self.expFunc(N_d_pp, self.params['A_pp'])*self.expFunc(N_vL, self.params['A_v'])*self.expFunc(N_ipa, self.params['A_ipa']))**(1/3) ) + \
-					self.params['C_base']
-
-		output_R = self.params['K_g'] * (self.thetaFunc(theta[1]) * self.expFunc(N_d_gpR, self.params['A_gp']) + \
-					self.params['K_p'] * (1 - self.thetaFunc(theta[1])) * (self.expFunc(N_d_pp, self.params['A_pp'])*self.expFunc(N_vR, self.params['A_v'])*self.expFunc(N_ipa, self.params['A_ipa']))**(1/3) ) + \
-					self.params['C_base']
-
+		output_L = self.params['K_g'] * (forward_factorL + backward_factorL) + self.params['C_base']
+		output_R = self.params['K_g'] * (forward_factorR + backward_factorR) + self.params['C_base']
 		scaleArray.data = [np.clip(output_L, 0.1, 25), np.clip(output_R, 0.1, 25)]
-
-		self.attention_heatmap_generator.prev_scale_factor = scaleArray.data.copy()
-
 		return scaleArray
+
+
 
 	def thetaFunc(self, theta):
 		return 1 - 1 / (1 + np.exp(-self.params['A_theta'] * (theta - np.pi/2)))
 
 	def expFunc(self, x, alpha):
-		return np.exp(-(alpha * x)**2)
+		return 1-np.exp(-(alpha * x)**2)
 
 
 	def get_position(self,pose):
@@ -1810,6 +1828,7 @@ def save_data_cb():
 	"""
 	global Lpsm_direction_list, Rpsm_direction_list, theta_list
 	global Lpsm_velocity_filtered_list, Rpsm_velocity_filtered_list, ipaL_data_filtered_list, ipaR_data_filtered_list
+	global Lforward_factor_list, Lbackward_factor_list, Rforward_factor_list, Rbackward_factor_list
 	current_file_path = os.path.abspath(__file__)
 	
 	current_dir = os.path.dirname(current_file_path)
@@ -1835,6 +1854,12 @@ def save_data_cb():
 	np.save(join(latest_dir, 'Rpsm_velocity_filtered.npy'), Rpsm_velocity_filtered_list)
 	np.save(join(latest_dir, 'ipaL_data_filtered.npy'), ipaL_data_filtered_list)
 	np.save(join(latest_dir, 'ipaR_data_filtered.npy'), ipaR_data_filtered_list)
+	
+	# Save forward/backward factor data
+	np.save(join(latest_dir, 'Lforward_factor.npy'), Lforward_factor_list)
+	np.save(join(latest_dir, 'Lbackward_factor.npy'), Lbackward_factor_list)
+	np.save(join(latest_dir, 'Rforward_factor.npy'), Rforward_factor_list)
+	np.save(join(latest_dir, 'Rbackward_factor.npy'), Rbackward_factor_list)
 	  
 	np.save(join(latest_dir, 'clutch_times.npy'), clutch_times_list)
 	np.save(join(latest_dir, 'total_distance.npy'), total_distance_list)
@@ -1858,8 +1883,8 @@ def save_data_cb():
 	np.save(join(latest_dir, 'Rpsm_direction.npy'), np.array(Rpsm_direction_list))
 	np.save(join(latest_dir, 'theta.npy'), np.array(theta_list))
 
-	plot_psm_velocity_directions(latest_dir)
-	plot_theta_over_time(latest_dir)
+	# plot_psm_velocity_directions(latest_dir)
+	# plot_theta_over_time(latest_dir)
 	print("done saving...")
 
 

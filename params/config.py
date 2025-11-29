@@ -4,12 +4,34 @@ resolution_y = 540
 
 # the parameters in the scaling calculation formula
 feature_bound = {
-    'd_min': 0.00, 'd_max': 0.08,
+    'd_min': 0.015, 'd_max': 0.065,
 	'p_min': 0.95, 'p_max': 1,
-	'v_min': 0, 'v_max': 0.08,
-    's_min': 0.01, 's_max': 0.1,
+	'v_min': 0.001, 'v_max': 0.10,
+    's_min': 0.01, 's_max': 0.06,
 }
 
+# the initial params for the optimization
+init_params = {
+    'K_g': 10.0,
+    'K_p': 1.0,
+    'C_base': 9.0,
+
+    'A_theta': 10,
+    'A_gp': 2.0,
+    'A_pp': 3.5,
+    'A_v': 4.3,
+    'A_ipa': 2.0,
+
+	'fixed_scale': 1.0,  
+	'AFflag': 0 # 0-adaptive, 1-fixed
+}
+
+# feature filter params
+velocity_queue_length = 14
+ipa_window_length = 31
+ipa_polyorder = 3
+velocity_window_length = 15
+velocity_polyorder = 3
 
 optimization_range = {
     'K_g': (8.0, 12.0),
@@ -47,22 +69,6 @@ exflag = 1
 adaptive = {"W_d": 0.6557110261229989, "W_dp": 1.5489982389822312, "W_dv": 1.661834391297523, "W_p": 1.0, "W_pv": 1.340468616420758, "W_v": 0.4538660096723739, "Y_base": 0.03331922812540701, "tau_d": 0.7, "tau_p": 0.7, "tau_v": 1.0}
 
 fixed = {"fixed_scale": 0.35, "AFflag": 1}
-
-# the initial params for the optimization
-init_params = {
-    'K_g': 10.0,
-    'K_p': 1.0,
-    'C_base': 9.0,
-
-    'A_theta': 4.6,
-    'A_gp': 6.0,
-    'A_pp': 3.5,
-    'A_v': 2.0,
-    'A_ipa': 2.0,
-
-	'fixed_scale': 1.0,  
-	'AFflag': 0 # 0-adaptive, 1-fixed
-}
 
 # the params for the gaze filter
 gaze_filter_params = {
