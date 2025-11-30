@@ -48,6 +48,7 @@ from gracefulness import get_latest_data_dir
 from bayesian_optimization_GUI import BayesianOptimizationGUI
 from visualization import visualize_data
 from featureFilter import RealTimeSavitzkyGolay
+from screen_recorder import ScreenRecorder
 
 import params.config as config
 
@@ -771,6 +772,9 @@ class DataCollector:
 		self.collecting = False
 		self.collection_complete = False
 		self.params = None
+		
+		# Screen recorder initialization
+		self.screen_recorder = None
 
 		# Initialize ROS
 		rospy.init_node('main', anonymous=True)
@@ -946,6 +950,34 @@ class DataCollector:
 		self.collecting = True
 		self.collection_complete = False
 		print("started collecting PSM 1&2 baselink, stereo image, and segmentation image ...")
+		
+		# Start screen recording
+		if config.enable_screen_recording:
+			try:
+				# Get recording parameters from config
+				x = config.screen_recording_params.get('x', 0)
+				y = config.screen_recording_params.get('y', 0)
+				width = config.screen_recording_params.get('width', 1920)
+				height = config.screen_recording_params.get('height', 1080)
+				fps = config.screen_recording_params.get('fps', 15)
+				
+				# Use the same file naming and path logic as screen_recorder.py
+				current_file_path = os.path.abspath(__file__)
+				current_dir = os.path.dirname(current_file_path)
+				data_path = os.path.join(current_dir, 'data')
+				num_dirs = sum(1 for name in os.listdir(data_path) if os.path.isdir(os.path.join(data_path, name)))
+				video_dir = config.screen_recording_params.get('output_dir', '/home/lambda/Videos/train')
+				os.makedirs(video_dir, exist_ok=True)
+				
+				output_file = os.path.join(video_dir, f"{num_dirs}_NeedlePassing_demo.mp4")
+				
+				self.screen_recorder = ScreenRecorder(x, y, width, height, fps, output_file)
+				self.screen_recorder.start()
+				print(f"Screen recording started, will save to: {output_file}")
+			except Exception as e:
+				print(f"Failed to start screen recording: {e}")
+				self.screen_recorder = None
+		
 		# --- MODIFICATION START ---
 		# Modify the prompt message to inform the user of the new key
 		print("data collecting... (press 's' to stop)")
@@ -958,6 +990,14 @@ class DataCollector:
 			print("collecting task stopped.")
 			self.collecting = False
 			self.collection_complete = True
+			
+			# Stop screen recording
+			if self.screen_recorder is not None:
+				try:
+					self.screen_recorder.stop()
+					print("Screen recording stopped.")
+				except Exception as e:
+					print(f"Error stopping screen recording: {e}")
 
 			
 	def wait_for_completion(self):
@@ -1341,7 +1381,7 @@ class DataCollector:
 		return params
 
 	def create_save_dir(self):
-		path = './data'
+
 		current_file_path = os.path.abspath(__file__)
 		current_dir = os.path.dirname(current_file_path)
 		path = os.path.join(current_dir, 'data')

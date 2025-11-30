@@ -112,7 +112,7 @@ def visualize_data(data_dir=None, save_statistics=True):
 		thetaL = np.degrees(theta_array[:, 0]) if theta_array.ndim > 1 else np.degrees(theta_array)
 		thetaR = np.degrees(theta_array[:, 1]) if theta_array.ndim > 1 else np.zeros_like(thetaL)
 		
-		# 加载 forward/backward factor 数据
+		# 加载 Codirectional/Antiparallel factor 数据
 		try:
 			Lforward_factor = np.load(os.path.join(data_dir, 'Lforward_factor.npy'), allow_pickle=True)
 			Lbackward_factor = np.load(os.path.join(data_dir, 'Lbackward_factor.npy'), allow_pickle=True)
@@ -126,7 +126,7 @@ def visualize_data(data_dir=None, save_statistics=True):
 			Rbackward_factor = None
 			has_factors = False
 			if save_statistics:
-				print("  Forward/backward factor data not found")
+				print("  Codirectional/Antiparallel factor data not found")
 		
 		# 找到实验开始的索引
 		start_idx = find_experiment_start(ipaL_data, ipaR_data) + 2
@@ -156,7 +156,7 @@ def visualize_data(data_dir=None, save_statistics=True):
 			thetaL = thetaL[start_idx:end_idx]
 			thetaR = thetaR[start_idx:end_idx]
 			
-			# 截取 forward/backward factor 数据
+			# 截取 Codirectional/Antiparallel factor 数据
 			if has_factors:
 				Lforward_factor = Lforward_factor[start_idx:end_idx]
 				Lbackward_factor = Lbackward_factor[start_idx:end_idx]
@@ -207,7 +207,7 @@ def visualize_data(data_dir=None, save_statistics=True):
 			ipaL_data_filtered = ipaL_data_filtered[:min_length]
 			ipaR_data_filtered = ipaR_data_filtered[:min_length]
 		
-		# 截取 forward/backward factor 数据
+		# 截取 Codirectional/Antiparallel factor 数据
 		if has_factors:
 			Lforward_factor = Lforward_factor[:min_length]
 			Lbackward_factor = Lbackward_factor[:min_length]
@@ -337,12 +337,12 @@ def visualize_data(data_dir=None, save_statistics=True):
 		axs[1, 1].axhline(y=avg_vel_left, color=color_left, linestyle=':', alpha=0.6, linewidth=2)
 		axs[1, 1].axhline(y=avg_vel_right, color=color_right, linestyle=':', alpha=0.6, linewidth=2)
 		
-		# 5. [2,0] 左手 Forward/Backward Factors
+		# 5. [2,0] 左手 Codirectional/Antiparallel Factors
 		if has_factors:
 			axs[2, 0].plot(timestamps, Lforward_factor, color='#2ecc71', alpha=0.9, 
-						   linewidth=2.5, label='Forward Factor')
+						   linewidth=2.5, label='Codirectional Factor')
 			axs[2, 0].plot(timestamps, Lbackward_factor, color='#e67e22', alpha=0.9, 
-						   linewidth=2.5, label='Backward Factor')
+						   linewidth=2.5, label='Antiparallel Factor')
 			axs[2, 0].fill_between(timestamps, Lforward_factor, alpha=0.1, color='#2ecc71')
 			axs[2, 0].fill_between(timestamps, Lbackward_factor, alpha=0.1, color='#e67e22')
 			
@@ -351,14 +351,14 @@ def visualize_data(data_dir=None, save_statistics=True):
 			axs[2, 0].axhline(y=avg_lforward, color='#2ecc71', linestyle=':', alpha=0.6, linewidth=2)
 			axs[2, 0].axhline(y=avg_lbackward, color='#e67e22', linestyle=':', alpha=0.6, linewidth=2)
 			
-			axs[2, 0].text(0.02, 0.98, f'Forward Avg: {avg_lforward:.3f}\nBackward Avg: {avg_lbackward:.3f}',
+			axs[2, 0].text(0.02, 0.98, f'Codirectional Avg: {avg_lforward:.3f}\nAntiparallel Avg: {avg_lbackward:.3f}',
 						   transform=axs[2, 0].transAxes, verticalalignment='top', fontsize=10,
 						   bbox=dict(boxstyle='round', facecolor='#ecf0f1', alpha=0.8, edgecolor='#95a5a6'))
 		else:
 			axs[2, 0].text(0.5, 0.5, 'No factor data available', 
 						   transform=axs[2, 0].transAxes, ha='center', va='center', fontsize=12)
 		
-		axs[2, 0].set_title('Left PSM: Forward and Backward Factors', 
+		axs[2, 0].set_title('Left PSM: Codirectional and Antiparallel Factors', 
 							fontsize=13, fontweight='bold', pad=15)
 		axs[2, 0].set_xlabel('Frame Index', fontsize=11)
 		axs[2, 0].set_ylabel('Factor Value', fontsize=11)
@@ -366,12 +366,12 @@ def visualize_data(data_dir=None, save_statistics=True):
 		axs[2, 0].grid(True, alpha=0.2, linestyle='--')
 		axs[2, 0].set_facecolor('#f8f9fa')
 		
-		# 6. [2,1] 右手 Forward/Backward Factors
+		# 6. [2,1] 右手 Codirectional/Antiparallel Factors
 		if has_factors:
 			axs[2, 1].plot(timestamps, Rforward_factor, color='#2ecc71', alpha=0.9, 
-						   linewidth=2.5, label='Forward Factor')
+						   linewidth=2.5, label='Codirectional Factor')
 			axs[2, 1].plot(timestamps, Rbackward_factor, color='#e67e22', alpha=0.9, 
-						   linewidth=2.5, label='Backward Factor')
+						   linewidth=2.5, label='Antiparallel Factor')
 			axs[2, 1].fill_between(timestamps, Rforward_factor, alpha=0.1, color='#2ecc71')
 			axs[2, 1].fill_between(timestamps, Rbackward_factor, alpha=0.1, color='#e67e22')
 			
@@ -380,14 +380,14 @@ def visualize_data(data_dir=None, save_statistics=True):
 			axs[2, 1].axhline(y=avg_rforward, color='#2ecc71', linestyle=':', alpha=0.6, linewidth=2)
 			axs[2, 1].axhline(y=avg_rbackward, color='#e67e22', linestyle=':', alpha=0.6, linewidth=2)
 			
-			axs[2, 1].text(0.02, 0.98, f'Forward Avg: {avg_rforward:.3f}\nBackward Avg: {avg_rbackward:.3f}',
+			axs[2, 1].text(0.02, 0.98, f'Codirectional Avg: {avg_rforward:.3f}\nAntiparallel Avg: {avg_rbackward:.3f}',
 						   transform=axs[2, 1].transAxes, verticalalignment='top', fontsize=10,
 						   bbox=dict(boxstyle='round', facecolor='#ecf0f1', alpha=0.8, edgecolor='#95a5a6'))
 		else:
 			axs[2, 1].text(0.5, 0.5, 'No factor data available', 
 						   transform=axs[2, 1].transAxes, ha='center', va='center', fontsize=12)
 		
-		axs[2, 1].set_title('Right PSM: Forward and Backward Factors', 
+		axs[2, 1].set_title('Right PSM: Codirectional and Antiparallel Factors', 
 							fontsize=13, fontweight='bold', pad=15)
 		axs[2, 1].set_xlabel('Frame Index', fontsize=11)
 		axs[2, 1].set_ylabel('Factor Value', fontsize=11)

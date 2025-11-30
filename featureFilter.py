@@ -92,6 +92,10 @@ class RealTimeSavitzkyGolay:
         Returns the raw sample until the buffer is full.
         """
         self.buffer.append(sample)
+
+        if len(self.buffer) <= self.polyorder + 1:
+            return sample
+
         if len(self.buffer) < self.window_length:
             if len(self.buffer) % 2 == 1:
                 window_length = len(self.buffer)

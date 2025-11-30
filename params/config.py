@@ -45,6 +45,19 @@ optimization_range = {
     'A_ipa': (1.0, 10.0),
 }
 
+# Screen recording parameters
+enable_screen_recording = True  # Set to False to disable screen recording
+
+screen_recording_params = {
+    'x': 0,                                     # Left-top corner X coordinate
+    'y': 0,                                     # Left-top corner Y coordinate
+    'width': 1920,                              # Recording width
+    'height': 1080,                             # Recording height
+    'fps': 15,                                  # Frames per second
+    'output_dir': '/home/lambda/Videos/train', # Video output directory
+}
+
+
 # parameters in the score calculation formula
 scoreParams_bound = {
     'gracefulness_max': 5,
@@ -102,4 +115,6 @@ gaze_filter_params = {
     'temporal_exponent_decay': 0.8,
 
 }
+
+
 
