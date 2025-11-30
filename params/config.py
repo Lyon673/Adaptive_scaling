@@ -28,7 +28,7 @@ init_params = {
 
 # feature filter params
 velocity_queue_length = 14
-ipa_window_length = 31
+ipa_window_length = 63
 ipa_polyorder = 3
 velocity_window_length = 15
 velocity_polyorder = 3

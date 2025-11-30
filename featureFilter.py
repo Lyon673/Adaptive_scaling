@@ -9,8 +9,8 @@ def load_ipa_series(data_dir):
     """Load left/right IPA arrays just like visualization.py."""
     # ipa_left = np.load(os.path.join(data_dir, 'ipaL_data.npy'), allow_pickle=True)
     # ipa_right = np.load(os.path.join(data_dir, 'ipaR_data.npy'), allow_pickle=True)
-    ipa_left = np.load(os.path.join(data_dir, 'Lpsm_velocity.npy'), allow_pickle=True)
-    ipa_right = np.load(os.path.join(data_dir, 'Rpsm_velocity.npy'), allow_pickle=True)
+    ipa_left = np.load(os.path.join(data_dir, 'ipaL_data.npy'), allow_pickle=True)
+    ipa_right = np.load(os.path.join(data_dir, 'ipaR_data.npy'), allow_pickle=True)
     return np.asarray(ipa_left).ravel(), np.asarray(ipa_right).ravel()
 
 
@@ -51,7 +51,7 @@ def kalman_filter_1d(measurements, process_var=1e-3, measurement_var=1e-2, initi
 
 
 
-def savgol_filter_ipa(measurements, window_length=15, polyorder=5):
+def savgol_filter_ipa(measurements, window_length=63, polyorder=3):
     """
     Apply Savitzky-Golay smoothing to IPA data.
 
@@ -93,10 +93,17 @@ class RealTimeSavitzkyGolay:
         """
         self.buffer.append(sample)
         if len(self.buffer) < self.window_length:
-            return sample
+            if len(self.buffer) % 2 == 1:
+                window_length = len(self.buffer)
+            else:
+                window_length = len(self.buffer) - 1
+
+        else:
+            window_length = self.window_length
+
         filtered_window = savgol_filter(
             np.array(self.buffer),
-            window_length=self.window_length,
+            window_length=window_length,
             polyorder=self.polyorder,
             mode='interp',
         )
