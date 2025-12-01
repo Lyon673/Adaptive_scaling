@@ -38,11 +38,11 @@ optimization_range = {
     'K_p': (0.8, 1.2),
     'C_base': (6.0, 15.0),
 
-    'A_theta': (2.5, 8.0),
-    'A_gp': (1.0, 10.0),
-    'A_pp': (1.0, 10.0),
-    'A_v': (1.0, 10.0),
-    'A_ipa': (1.0, 10.0),
+    'A_theta': (8.0, 12.0),
+    'A_gp': (1.0, 4.0),
+    'A_pp': (1.0, 4.0),
+    'A_v': (2.0, 6.0),
+    'A_ipa': (1.0, 3.0),
 }
 
 # Screen recording parameters
@@ -62,11 +62,11 @@ screen_recording_params = {
 scoreParams_bound = {
     'gracefulness_max': 5,
     'gracefulness_min': 1.5,
-	'smoothness_max': 8,
-    'smoothness_min': 4,
-    'clutch_times_max': 10,
+	'smoothness_max': 6,
+    'smoothness_min': 3,
+    'clutch_times_max': 6,
     'total_distance_max': 0.6,
-    'total_time_max': 120
+    'total_time_max': 60
 }
 
 # the optimization params set history

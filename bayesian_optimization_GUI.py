@@ -397,7 +397,7 @@ class BayesianOptimizationGUI:
 		# Calculate individual scores
 		gracefulness_score =  5 * np.clip((self.gracefulness_max - gracefulness) / (self.gracefulness_max - self.gracefulness_min), 0, 1)
 		smoothness_score = 5 * np.clip((self.smoothness_max - smoothness) / (self.smoothness_max - self.smoothness_min), 0, 1)
-		clutch_times_score = 7.5 * np.clip((self.clutch_times_max - clutch_times[0] + 1) / self.clutch_times_max, 0, 1) + 7.5 * np.clip((self.clutch_times_max - clutch_times[1] + 1) / self.clutch_times_max, 0, 1)
+		clutch_times_score = 7.5 * np.clip((self.clutch_times_max - clutch_times[0] - clutch_times[1]) / self.clutch_times_max, 0, 1) 
 		total_distance_score = 15 * np.clip((self.total_distance_max - total_distance[0]) / self.total_distance_max, 0, 1)
 		total_time_score = 10 * np.clip((self.total_time_max - total_time) / self.total_time_max, 0, 1)
 		

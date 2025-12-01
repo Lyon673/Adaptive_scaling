@@ -1,20 +1,7 @@
 import json
 import os
 # JSON 数据
-data = {"target": 83.63687608926733, "params": {
-    'K_g': 10.0,
-    'K_p': 1.0,
-    'C_base': 9.0,
-
-    'A_theta': 10,
-    'A_gp': 2.0,
-    'A_pp': 3.5,
-    'A_v': 4.3,
-    'A_ipa': 2.0,
-
-	'fixed_scale': 1.0,  
-	'AFflag': 0 # 0-adaptive, 1-fixed
-}}
+data = {"target": 83.63687608926733, "params": {"A_gp": 1.224963017405465, "A_ipa": 1.3985440853709183, "A_pp": 2.950066579949716, "A_theta": 11.90522164789582, "A_v": 5.844552386514674, "C_base": 14.966792790891242, "K_g": 11.921821047619085, "K_p": 0.9763159840958847}}
 # 提取 params 并转换为 txt 格式
 params_txt = "\n".join([f"{key}={value}" for key, value in data["params"].items()])
 

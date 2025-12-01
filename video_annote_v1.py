@@ -28,7 +28,7 @@ class VideoPhaseAnnotator:
         self.annotations = []
         self.current_label = ""
         # self.labels = []  # 用户定义的标签类别
-        self.labels = [0, 1, 2, 3, 4]  # 用户定义的标签类别
+        self.labels = [0, 1, 2, 3, 4, 5]  # 用户定义的标签类别
 
 
         self.new_video = 0
@@ -507,12 +507,12 @@ class VideoPhaseAnnotator:
 if __name__ == "__main__":
     # ========== 配置区域 ==========
     # 设置打开视频时的初始文件夹（None 或不设置则使用当前工作目录）
+    current_dir = os.path.dirname(os.path.abspath(__file__))
     INITIAL_VIDEO_DIR = "/home/lambda/Videos/train"
-    # 示例：INITIAL_VIDEO_DIR = "/home/lambda/surgical_robotics_challenge/scripts/surgical_robotics_challenge/Project/videos"
     
     # 设置JSON标注文件的导出目录（None 或不设置则保存在视频同目录）
-    ANNOTATION_OUTPUT_DIR = "/home/lambda/surgical_robotics_challenge/scripts/surgical_robotics_challenge/Project/train/label"
-    # 示例：ANNOTATION_OUTPUT_DIR = "/home/lambda/surgical_robotics_challenge/scripts/surgical_robotics_challenge/Project/annotations"
+    ANNOTATION_OUTPUT_DIR = os.path.join(current_dir, 'train', 'label')
+
     # ==============================
     
     root = tk.Tk()
