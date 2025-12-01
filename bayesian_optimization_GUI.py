@@ -392,91 +392,89 @@ class BayesianOptimizationGUI:
 
 	def save_and_display_metrics(self, sub_score):
 		"""Calculates and displays performance metrics and scores."""
-		try:
-			gracefulness, smoothness, clutch_times, total_distance, total_time = self.calculate_metrics()
-			# Calculate individual scores
-			gracefulness_score =  5 * np.clip((self.gracefulness_max - gracefulness) / (self.gracefulness_max - self.gracefulness_min), 0, 1)
-			smoothness_score = 5 * np.clip((self.smoothness_max - smoothness) / (self.smoothness_max - self.smoothness_min), 0, 1)
-			clutch_times_score = 15 * np.clip((self.clutch_times_max - clutch_times + 1) / self.clutch_times_max, 0, 1)
-			total_distance_score = 15 * np.clip((self.total_distance_max - total_distance) / self.total_distance_max, 0, 1)
-			total_time_score = 10 * np.clip((self.total_time_max - total_time) / self.total_time_max, 0, 1)
-			
-			# Calculate the total score
-			total_score = 0.5 * sub_score + gracefulness_score + smoothness_score + clutch_times_score + total_distance_score + total_time_score
+		
+		gracefulness, smoothness, clutch_times, total_distance, total_time = self.calculate_metrics()
+		# Calculate individual scores
+		gracefulness_score =  5 * np.clip((self.gracefulness_max - gracefulness) / (self.gracefulness_max - self.gracefulness_min), 0, 1)
+		smoothness_score = 5 * np.clip((self.smoothness_max - smoothness) / (self.smoothness_max - self.smoothness_min), 0, 1)
+		clutch_times_score = 7.5 * np.clip((self.clutch_times_max - clutch_times[0] + 1) / self.clutch_times_max, 0, 1) + 7.5 * np.clip((self.clutch_times_max - clutch_times[1] + 1) / self.clutch_times_max, 0, 1)
+		total_distance_score = 15 * np.clip((self.total_distance_max - total_distance[0]) / self.total_distance_max, 0, 1)
+		total_time_score = 10 * np.clip((self.total_time_max - total_time) / self.total_time_max, 0, 1)
+		
+		# Calculate the total score
+		total_score = 0.5 * sub_score + gracefulness_score + smoothness_score + clutch_times_score + total_distance_score + total_time_score
 
-			current_file_path = os.path.abspath(__file__)
-			current_dir = os.path.dirname(current_file_path)
-			output_json_path = os.path.join(current_dir, 'BayesianLog',config.scorefilename)
+		current_file_path = os.path.abspath(__file__)
+		current_dir = os.path.dirname(current_file_path)
+		output_json_path = os.path.join(current_dir, 'BayesianLog',config.scorefilename)
 
-			new_entry = {
-				"AFflag": float(self.AFflag),
-				"subscore": float(sub_score),
-				"gracefulness": float(gracefulness),
-				"smoothness": float(smoothness),
-				"clutch_times": float(clutch_times),
-				"total_distance": float(total_distance),
-				"total_time": float(total_time),
-				"gracefulness_score": float(gracefulness_score),
-				"smoothness_score": float(smoothness_score),
-				"clutch_times_score": float(clutch_times_score),
-				"total_distance_score": float(total_distance_score),
-				"total_time_score": float(total_time_score),
-				"total_score": float(total_score),
-				"fixed_scale": float(config.fixed["fixed_scale"]) if mode == 3 else None,
-			}
-			
-			existing_data = []
-			if os.path.exists(output_json_path):
-				try:
-					with open(output_json_path, 'r', encoding='utf-8') as f:
-						existing_data = json.load(f)
-				except json.JSONDecodeError:
-					
-					existing_data = []
-				except Exception as e:
-					print(f"JSON error: {e}")
-					existing_data = []
-
-			existing_data.append(new_entry)
-
+		new_entry = {
+			"AFflag": float(self.AFflag),
+			"subscore": float(sub_score),
+			"gracefulness": float(gracefulness),
+			"smoothness": float(smoothness),
+			"Lclutch_times": float(clutch_times[0]),
+			"Rclutch_times": float(clutch_times[1]),
+			"total_distance": float(total_distance),
+			"total_time": float(total_time),
+			"gracefulness_score": float(gracefulness_score),
+			"smoothness_score": float(smoothness_score),
+			"clutch_times_score": float(clutch_times_score),
+			"total_distance_score": float(total_distance_score),
+			"total_time_score": float(total_time_score),
+			"total_score": float(total_score),
+			"fixed_scale": float(config.fixed["fixed_scale"]) if mode == 3 else None,
+		}
+		
+		existing_data = []
+		if os.path.exists(output_json_path):
 			try:
-				with open(output_json_path, 'w', encoding='utf-8') as f:
-					json.dump(existing_data, f, ensure_ascii=False, indent=4)
-				print(f"scores are saved in : {output_json_path}")
+				with open(output_json_path, 'r', encoding='utf-8') as f:
+					existing_data = json.load(f)
+			except json.JSONDecodeError:
+				
+				existing_data = []
 			except Exception as e:
 				print(f"JSON error: {e}")
-        
+				existing_data = []
 
-			# Update the UI display
-			self.gracefulness_value.config(text=f"{gracefulness:.4f}")
-			self.smoothness_value.config(text=f"{smoothness:.4f}")
-			self.clutch_times_value.config(text=f"{clutch_times:.4f}")
-			self.total_distance_value.config(text=f"{total_distance:.4f}")
-			self.total_time_value.config(text=f"{total_time:.4f}")
-			
-			self.gracefulness_score.config(text=f"{gracefulness_score:.4f}")
-			self.smoothness_score.config(text=f"{smoothness_score:.4f}")
-			self.clutch_times_score.config(text=f"{clutch_times_score:.4f}")
-			self.total_distance_score.config(text=f"{total_distance_score:.4f}")
-			self.total_time_score.config(text=f"{total_time_score:.4f}")
-			self.total_score.config(text=f"{total_score:.4f}")
-			
-			if mode != 3:
-				# Register the result with the optimizer
-				self.optimizer.register(params=self.next_point, target=total_score)
-			
-				# If there are more iterations, enable the "Next" button
-				if self.current_iteration < self.max_iterations:
-					self.next_button.config(state=tk.NORMAL)
-				else:
-					self.show_best_result()
-					self.next_button.config(state=tk.DISABLED)
-					self.stop_button.config(state=tk.DISABLED)
-					self.start_button.config(state=tk.NORMAL)
-				
+		existing_data.append(new_entry)
+
+		try:
+			with open(output_json_path, 'w', encoding='utf-8') as f:
+				json.dump(existing_data, f, ensure_ascii=False, indent=4)
+			print(f"scores are saved in : {output_json_path}")
 		except Exception as e:
-			messagebox.showerror("Error", f"Error calculating performance metrics: {str(e)}")
+			print(f"JSON error: {e}")
 	
+
+		# Update the UI display
+		self.gracefulness_value.config(text=f"{gracefulness:.4f}")
+		self.smoothness_value.config(text=f"{smoothness:.4f}")
+		self.clutch_times_value.config(text=f"{clutch_times[0]:.4f},{clutch_times[1]:.4f}")
+		self.total_distance_value.config(text=f"{total_distance[0]:.4f}")
+		self.total_time_value.config(text=f"{total_time:.4f}")
+		
+		self.gracefulness_score.config(text=f"{gracefulness_score:.4f}")
+		self.smoothness_score.config(text=f"{smoothness_score:.4f}")
+		self.clutch_times_score.config(text=f"{clutch_times_score:.4f}")
+		self.total_distance_score.config(text=f"{total_distance_score:.4f}")
+		self.total_time_score.config(text=f"{total_time_score:.4f}")
+		self.total_score.config(text=f"{total_score:.4f}")
+		
+		if mode != 3:
+			# Register the result with the optimizer
+			self.optimizer.register(params=self.next_point, target=total_score)
+		
+			# If there are more iterations, enable the "Next" button
+			if self.current_iteration < self.max_iterations:
+				self.next_button.config(state=tk.NORMAL)
+			else:
+				self.show_best_result()
+				self.next_button.config(state=tk.DISABLED)
+				self.stop_button.config(state=tk.DISABLED)
+				self.start_button.config(state=tk.NORMAL)
+
 	def show_best_result(self):
 		"""Displays the best result of the optimization."""
 		self.best_results_text.config(state=tk.NORMAL)
