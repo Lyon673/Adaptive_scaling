@@ -1,0 +1,45 @@
+{
+  "video_path": "E:/train/44_NeedlePassing_demo.mp4",
+  "total_frames": 289,
+  "fps": 15.0,
+  "labels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "annotations": [
+    {
+      "label": "0",
+      "start": 14,
+      "end": 40
+    },
+    {
+      "label": "1",
+      "start": 41,
+      "end": 102
+    },
+    {
+      "label": "2",
+      "start": 103,
+      "end": 165
+    },
+    {
+      "label": "3",
+      "start": 166,
+      "end": 201
+    },
+    {
+      "label": "4",
+      "start": 202,
+      "end": 238
+    },
+    {
+      "label": "5",
+      "start": 239,
+      "end": 271
+    }
+  ]
+}

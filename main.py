@@ -1225,6 +1225,7 @@ class DataCollector:
 			Rmtm_pose_list.append(np.hstack((Rmtm_position3, Rmtm_orientation4)))
 			Lgripper_state_list.append(1.0 if Lgripper_edge_list[-1] == 1 else 0)
 			Rgripper_state_list.append(1.0 if Rgripper_edge_list[-1] == 1 else 0)
+			
 			Lpsm_direction_list.append(Lpsm_v_direction[:2].copy())
 			Rpsm_direction_list.append(Rpsm_v_direction[:2].copy())
 			theta_list.append(theta)
@@ -1896,6 +1897,9 @@ def save_data_cb():
 	np.save(join(latest_dir, 'ipaR_data_filtered.npy'), ipaR_data_filtered_list)
 	
 	# Save forward/backward factor data
+
+
+	
 	np.save(join(latest_dir, 'Lforward_factor.npy'), Lforward_factor_list)
 	np.save(join(latest_dir, 'Lbackward_factor.npy'), Lbackward_factor_list)
 	np.save(join(latest_dir, 'Rforward_factor.npy'), Rforward_factor_list)
