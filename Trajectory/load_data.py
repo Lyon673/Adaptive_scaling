@@ -8,7 +8,13 @@ from scipy.interpolate import interp1d
 from scipy.spatial.transform import Rotation as R
 from scipy.spatial.transform import Slerp
 
-demo_id_list = np.arange(30)
+# ==================== 数据集划分配置 ====================
+# 设置随机种子以确保可重复性
+RANDOM_SEED = 42
+np.random.seed(RANDOM_SEED)
+
+# 生成并shuffle demo ID列表
+demo_id_list = np.arange(65)
 demo_id_list = np.random.permutation(demo_id_list)
 
 ratio = 0.9
@@ -34,9 +40,11 @@ def generate_frame_label_map(dir_path, demo_id):
     return a list of labels for each frame , whose length is the same as the total number of frames
     """
     label_path = os.path.join(dir_path, 'label', f'{demo_id}_NeedlePassing_demo_annotations.json')
-    kine_path = os.path.join(dir_path, 'state', f'{demo_id}.txt')
-    with open(kine_path, 'r') as f:
-        kine_frames = len(f.readlines())
+    # kine_path = os.path.join(dir_path, 'state', f'{demo_id}.txt')
+    # with open(kine_path, 'r') as f:
+    #     kine_frames = len(f.readlines())
+    states = load_demonstrations_state()
+    kine_frames = len(states[demo_id])
     annotation_data = load_annotations(label_path)
     frame_map = []
     for i in range(kine_frames):
@@ -76,76 +84,7 @@ def read_demo_kinematics_state(dir_path, demo_id):
 
     return np.hstack((left_state, right_state))
 
-
-def resample_spatially(trajectory, step_size=0.5):
-    """
-    对轨迹进行空间等距离重采样。
-    """
-    # 1. 提取时间和空间坐标
-    coords = trajectory
-
-    # 2. 计算相邻点之间的距
-    # diffs[i] 是点 i 和点 i+1 之间的向量
-    diffs = np.diff(coords, axis=0) 
-    # dists[i] 是点 i 和点 i+1 之间的标量距离
-    dists = np.linalg.norm(diffs, axis=1)
-
-    # 3. 计算累积距离 (Cumulative Arc Length)
-    # 在最前面补0，因为第一个点的累积距离是0
-    cum_dist = np.r_[0, np.cumsum(dists)]
-
-    # 4. 生成新的等间距距离网格
-    total_dist = cum_dist[-1]
-    target_dists = np.arange(0, total_dist, step_size)
-    
-    # 防止最后一点丢失，如果余数很小可以忽略，或者强制加上终点
-    if total_dist - target_dists[-1] > 1e-6:
-        target_dists = np.append(target_dists, total_dist)
-
-    # 5. 执行插值 (关键步骤)
-    # np.interp(x_new, x_old, y_old)
-    Left_px = np.interp(target_dists, cum_dist, coords[:, 0])
-    Left_py = np.interp(target_dists, cum_dist, coords[:, 1])
-    Left_pz = np.interp(target_dists, cum_dist, coords[:, 2])
-    Left_ox = np.interp(target_dists, cum_dist, coords[:, 3])
-    Left_oy = np.interp(target_dists, cum_dist, coords[:, 4])
-    Left_oz = np.interp(target_dists, cum_dist, coords[:, 5])
-    Left_ow = np.interp(target_dists, cum_dist, coords[:, 6])
-    Left_grasp = np.interp(target_dists, cum_dist, coords[:, 7])
-    Right_px = np.interp(target_dists, cum_dist, coords[:, 8])
-    Right_py = np.interp(target_dists, cum_dist, coords[:, 9])
-    Right_pz = np.interp(target_dists, cum_dist, coords[:, 10])
-    Right_ox = np.interp(target_dists, cum_dist, coords[:, 10])
-    Right_oy = np.interp(target_dists, cum_dist, coords[:, 12])
-    Right_oz = np.interp(target_dists, cum_dist, coords[:, 13])
-    Right_ow = np.interp(target_dists, cum_dist, coords[:, 14])
-    Right_grasp = np.interp(target_dists, cum_dist, coords[:, 15])
-    
-    return np.column_stack((Left_px, Left_py, Left_pz, Left_ox, Left_oy, Left_oz, Left_ow, Left_grasp, Right_px, Right_py, Right_pz, Right_ox, Right_oy, Right_oz, Right_ow, Right_grasp))
-
-
-
-def resample_bimanual_trajectory(data, step_size=0.5):
-    """
-    对双臂16维轨迹进行空间重采样。
-    
-    参数:
-        data: numpy array, shape (N, 17). 
-              Col 0: Time
-              Col 1-3: L_Pos (x,y,z)
-              Col 4-7: L_Quat (qx,qy,qz,qw) *注意scipy默认顺序是xyzw，需确认你的数据顺序*
-              Col 8:   L_Gripper
-              Col 9-11: R_Pos
-              Col 12-15: R_Quat
-              Col 16:   R_Gripper
-        step_size: float, 重采样的空间步长 (mm)
-        
-    返回:
-        resampled_data: shape (M, 18). 增加了 delta_t 列。
-    """
-    # --- 1. 数据切片 ---
-    # 假设输入四元数顺序是 [w, x, y, z] (常见ROS顺序)，但Scipy需要 [x, y, z, w]
-    # 这里需要你根据实际数据调整。下面代码假设输入已经是 [x, y, z, w]
+def resample_bimanual_trajectory(data, step_size=0.0015):
     
     # 左手
     l_pos = data[:, :3]
@@ -163,69 +102,61 @@ def resample_bimanual_trajectory(data, step_size=0.5):
     deltas = np.diff(combined_traj, axis=0)
     
     # axis=1 求范数，相当于 sqrt(dx_L^2 + ... + dz_R^2)
-    # 这就是比简单相加更科学的“联合距离”
+    # 这就是比简单相加更科学的"联合距离"
     dists = np.linalg.norm(deltas, axis=1)
     
     # 3. 计算累计进度 (Progress Variable)
     s_cumulative = np.concatenate(([0], np.cumsum(dists)))
     total_dist = s_cumulative[-1]
     
-    # 4. 生成新的均匀进度网格
-    s_new = np.linspace(0, total_dist, step_size)
+    # 3.5 处理重复值问题：Slerp要求严格递增
+    # 找出唯一值的索引（保持顺序）
+    _, unique_indices = np.unique(s_cumulative, return_index=True)
+    unique_indices = np.sort(unique_indices)  # 确保顺序
     
-    # 5. 分别对左手和右手进行插值
-    # 注意：这里我们用同一个 s_new 对两只手进行插值，
-    # 保证了它们在新的时间步上是严格“同步”的。
+    # 如果有重复值，使用唯一值创建插值
+    s_unique = s_cumulative[unique_indices]
+    l_pos_unique = l_pos[unique_indices]
+    r_pos_unique = r_pos[unique_indices]
+    l_quat_unique = l_quat[unique_indices]
+    r_quat_unique = r_quat[unique_indices]
+    l_grip_unique = l_grip[unique_indices]
+    r_grip_unique = r_grip[unique_indices]
+    
+    # 4. 生成新的均匀进度网格
+    s_new = np.arange(0, total_dist, step_size)
+    if total_dist - s_new[-1] > 1e-6:
+        s_new = np.append(s_new, total_dist)
+    
+    # 如果数据点太少，直接返回原始数据
+    if len(s_unique) < 2:
+        print("Warning: Not enough unique points for interpolation")
+        return data
     
     # 左手插值函数
-    f_left = interp1d(s_cumulative, left_traj, axis=0, kind='cubic')
-    left_resampled = f_left(s_new)
+    f_left = interp1d(s_unique, l_pos_unique, axis=0, bounds_error=False, fill_value='extrapolate')
+    new_l_pos = f_left(s_new)
     
     # 右手插值函数
-    f_right = interp1d(s_cumulative, right_traj, axis=0, kind='cubic')
-    right_resampled = f_right(s_new)
+    f_right = interp1d(s_unique, r_pos_unique, axis=0, bounds_error=False, fill_value='extrapolate')
+    new_r_pos = f_right(s_new)
 
-    # --- 2. 计算混合累积距离 (The Driver) ---
-    # 计算左手位移
-    l_dist = np.linalg.norm(np.diff(l_pos, axis=0), axis=1)
-    # 计算右手位移
-    r_dist = np.linalg.norm(np.diff(r_pos, axis=0), axis=1)
-    
-    # 混合距离：两手位移之和 (或者取最大值 np.maximum)
-    combined_step = l_dist + r_dist
-    cum_dist = np.r_[0, np.cumsum(combined_step)]
-    
-    # 生成目标距离网格
-    total_dist = cum_dist[-1]
-    target_dists = np.arange(0, total_dist, step_size)
-    
-    # --- 3. 分组插值 ---
-    
-    # A. 时间 & 夹爪 (标量，线性或最近邻)
-    # 对于夹爪，我们用 interpolate 之后 > 0.5 判决，或者直接用 nearest
-    # 这里演示通用线性插值后取整
-    new_l_grip = np.round(np.interp(target_dists, cum_dist, l_grip)) # 0或1
-    new_r_grip = np.round(np.interp(target_dists, cum_dist, r_grip))
-    
-    # B. 位置 (线性插值)
-    new_l_pos = np.zeros((len(target_dists), 3))
-    new_r_pos = np.zeros((len(target_dists), 3))
-    for i in range(3):
-        new_l_pos[:, i] = np.interp(target_dists, cum_dist, l_pos[:, i])
-        new_r_pos[:, i] = np.interp(target_dists, cum_dist, r_pos[:, i])
-        
-    # C. 旋转 (SLERP) - 关键部分
-    # Scipy 的 Slerp 需要以 "key_times" (这里是 cum_dist) 初始化
-    
     # 左手旋转插值
-    l_rot_obj = R.from_quat(l_quat)
-    l_slerp = Slerp(cum_dist, l_rot_obj)
-    new_l_quat = l_slerp(target_dists).as_quat() # 返回插值后的四元数
+    l_rot_obj = R.from_quat(l_quat_unique)
+    l_slerp = Slerp(s_unique, l_rot_obj)
+    new_l_quat = l_slerp(s_new).as_quat() # 返回插值后的四元数
     
     # 右手旋转插值
-    r_rot_obj = R.from_quat(r_quat)
-    r_slerp = Slerp(cum_dist, r_rot_obj)
-    new_r_quat = r_slerp(target_dists).as_quat()
+    r_rot_obj = R.from_quat(r_quat_unique)
+    r_slerp = Slerp(s_unique, r_rot_obj)
+    new_r_quat = r_slerp(s_new).as_quat()
+
+    # Gripper插值（最近邻，适合离散的0/1值）
+    f_l_grip = interp1d(s_unique, l_grip_unique, kind='nearest', fill_value='extrapolate')
+    new_l_grip = f_l_grip(s_new)
+    
+    f_r_grip = interp1d(s_unique, r_grip_unique, kind='nearest', fill_value='extrapolate')
+    new_r_grip = f_r_grip(s_new)
 
 
 
@@ -242,12 +173,12 @@ def load_demonstrations_state():
     demo_states = []
     for demo_id in demo_id_list:
         state = read_demo_kinematics_state(needle_dir_path, demo_id)
-        #state = resample_spatially(state)
-        if state.shape[0] <= 350:
-            demo_states.append(state)
-        else:
-            continue
-        #demo_states.append(state)
+        state = resample_bimanual_trajectory(state)
+        # if state.shape[0] <= 350:
+        #     demo_states.append(state)
+        # else:
+        #     continue
+        demo_states.append(state)
 
     
     return demo_states
@@ -278,13 +209,13 @@ def load_test_state():
 
 def load_demonstrations_label():
     demo_labels = []
-    for demo_id in demo_id_list:
+    for demo_id in range(len(demo_id_list)):
         label = generate_frame_label_map(needle_dir_path, demo_id)
-        if len(label) <= 350:
-            demo_labels.append(label)
-        else:
-            continue
-        # demo_labels.append(label)
+        # if len(label) <= 350:
+        #     demo_labels.append(label)
+        # else:
+        #     continue
+        demo_labels.append(label)
     return demo_labels
 
 
@@ -409,11 +340,11 @@ def load_test_demonstration():
 # 使用示例
 if __name__ == '__main__':
     # demo_id_list = []
-    # demonstrations_state = load_demonstrations_state()
-    # print(demonstrations_state[0].shape)  # Example output: (number_of_frames, 14)
-    demo_lengths = visualize_demo_lengths()
-    # train_demo = demonstrations_state[:138]
-    # label_data = load_demonstrations_label()
+    demonstrations_state = load_demonstrations_state()
+    print(demonstrations_state[0].shape)  # Example output: (number_of_frames, 14)
+    #demo_lengths = visualize_demo_lengths()
+    label_data = load_demonstrations_label()
+    print(len(label_data[0]))
     # train_label = label_data[:138]
     # average_transition_time, std_transition_time = cal_transition_time()
     # print(average_transition_time)
