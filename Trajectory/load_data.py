@@ -43,8 +43,10 @@ def generate_frame_label_map(dir_path, demo_id):
     # kine_path = os.path.join(dir_path, 'state', f'{demo_id}.txt')
     # with open(kine_path, 'r') as f:
     #     kine_frames = len(f.readlines())
-    states = load_demonstrations_state()
-    kine_frames = len(states[demo_id])
+    # states = load_demonstrations_state()
+    # kine_frames = len(states[demo_id])
+    demo_lengths = np.load(os.path.join(needle_dir_path, 'demo_lengths.npy'))
+    kine_frames = int(demo_lengths[demo_id])
     annotation_data = load_annotations(label_path)
     frame_map = []
     for i in range(kine_frames):
@@ -171,6 +173,7 @@ def resample_bimanual_trajectory(data, step_size=0.0015):
 
 def load_demonstrations_state():
     demo_states = []
+    demo_lengths = np.zeros(len(demo_id_list))
     for demo_id in demo_id_list:
         state = read_demo_kinematics_state(needle_dir_path, demo_id)
         state = resample_bimanual_trajectory(state)
@@ -179,6 +182,10 @@ def load_demonstrations_state():
         # else:
         #     continue
         demo_states.append(state)
+        demo_lengths[demo_id] = state.shape[0]
+
+
+    np.save(os.path.join(needle_dir_path, 'demo_lengths.npy'), demo_lengths)
 
     
     return demo_states
@@ -209,7 +216,7 @@ def load_test_state():
 
 def load_demonstrations_label():
     demo_labels = []
-    for demo_id in range(len(demo_id_list)):
+    for demo_id in demo_id_list:
         label = generate_frame_label_map(needle_dir_path, demo_id)
         # if len(label) <= 350:
         #     demo_labels.append(label)

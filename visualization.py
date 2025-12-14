@@ -129,8 +129,9 @@ def visualize_data(data_dir=None, save_statistics=True):
 				print("  Codirectional/Antiparallel factor data not found")
 		
 		# 找到实验开始的索引
-		start_idx = find_experiment_start(ipaL_data, ipaR_data) + 2
-		end_idx = 700
+		#start_idx = find_experiment_start(ipaL_data, ipaR_data)
+		start_idx = 0
+		end_idx = -1
 
 		# for i in range(len(left_scales)):
 		# 	if left_scales[i] > 2:
@@ -484,7 +485,7 @@ def visualize_data(data_dir=None, save_statistics=True):
 # 如果直接运行此脚本，使用最新数据生成可视化
 if __name__ == '__main__':
 	print("Generating visualization...")
-	result = visualize_data(save_statistics=True)
+	result = visualize_data(data_dir='data/9_data_12-01')
 	if result:
 		print(f"\nSuccess! Visualization saved to: {result}")
 	else:

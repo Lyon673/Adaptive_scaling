@@ -45,19 +45,13 @@
 import sys
 import os
 
-# 1. 获取当前文件(main.py)的绝对路径
+# Ensure repository root (containing surgical_robotics_challenge package) is on sys.path
 current_file_path = os.path.abspath(__file__)
-
-# 2. 获取当前文件所在的目录 (sub_app/)
-current_dir = os.path.dirname(current_file_path)
-
-# 3. 获取上一级目录 (my_project/)
-parent_dir = os.path.dirname(current_dir)
-
-# 4. 将上一级目录添加到 sys.path
-#    （把它放在列表的开头，以便优先搜索）
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
+current_dir = os.path.dirname(current_file_path)          # .../Project
+pkg_dir = os.path.dirname(current_dir)                    # .../surgical_robotics_challenge
+repo_root = os.path.dirname(pkg_dir)                      # .../scripts
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
 
 from surgical_robotics_challenge.simulation_manager import SimulationManager
 from surgical_robotics_challenge.ecm_arm import ECM
@@ -88,8 +82,17 @@ class ControllerInterface:
         self.Rcmd_xyz = self.Rpsm.T_t_b_home.p
         self.Lleader_prev_rpy = None
         self.Rleader_prev_rpy = None
-        self.LM_p_c = self.Lleader.measured_cp().M
-        self.RM_p_c = self.Rleader.measured_cp().M
+        self.LM_p_c = Rotation(
+            0.962078,   0.0947959,    -0.25577,   # 第一列
+            -0.115721,     0.99095,  -0.0680087,    # 第二列
+             0.247008,   0.0950277,    0.964341     # 第三列
+        )   
+
+        self.RM_p_c =  Rotation(
+            0.916405,   -0.298916,    0.265974,   # 第一列
+            0.301608,    0.952849,   0.0316798,    # 第二列
+            -0.262917,   0.0511911,    0.963404     # 第三列
+        )
 
         self.initial_Lcmd_xyz = self.Lpsm.T_t_b_home.p
         self.initial_Rcmd_xyz = self.Rpsm.T_t_b_home.p
@@ -137,20 +140,18 @@ class ControllerInterface:
             self.Lcmd_xyz = self.Lcmd_xyz + delta_t
             self.Lpsm.T_t_b_home.p = self.Lcmd_xyz
 
-            if self.Lleader_prev_rpy is not None:
+
+        if self.Lleader_prev_rpy is not None:
                 delta_rpy = self.Lleader_prev_rpy.Inverse() * self.Lleader.measured_cp().M
                 self.LM_p_c = self.LM_p_c * delta_rpy
                 self.Lcmd_rpy = self._LT_c_b.M * self.LM_p_c* Rotation.RPY(3.14, 0, 3.14 / 2)
                 self.Lleader_prev_rpy = self.Lleader.measured_cp().M
-            else:
-                self.Lleader_prev_rpy = self.Lleader.measured_cp().M
-                self.Lcmd_rpy = self._LT_c_b.M * self.LM_p_c * Rotation.RPY(3.14, 0, 3.14 / 2)
         else:
             self.Lleader_prev_rpy = self.Lleader.measured_cp().M
             self.Lcmd_rpy = self._LT_c_b.M * self.LM_p_c * Rotation.RPY(3.14, 0, 3.14 / 2)
 
         if self.Lleader.double_press_gripper:
-            self.LM_p_c = self.Lleader.measured_cp().M
+            #self.LM_p_c = self.Lleader.measured_cp().M
             self.Lleader.double_press_gripper = False
 
         self.LT_IK = Frame(self.Lcmd_rpy, self.Lcmd_xyz)
@@ -166,36 +167,21 @@ class ControllerInterface:
             self.Rcmd_xyz = self.Rcmd_xyz + delta_t
             self.Rpsm.T_t_b_home.p = self.Rcmd_xyz
 
-            if self.Rleader_prev_rpy is not None:
-                delta_rpy = self.Rleader_prev_rpy.Inverse() * self.Rleader.measured_cp().M
-                self.RM_p_c = self.RM_p_c * delta_rpy
-                self.Rcmd_rpy = self._RT_c_b.M * self.RM_p_c* Rotation.RPY(3.14, 0, 3.14 / 2)
-                self.Rleader_prev_rpy = self.Rleader.measured_cp().M
-            else:
-                self.Rleader_prev_rpy = self.Rleader.measured_cp().M
-                self.Rcmd_rpy = self._RT_c_b.M * self.RM_p_c * Rotation.RPY(3.14, 0, 3.14 / 2)
+            
+        if self.Rleader_prev_rpy is not None:
+            delta_rpy = self.Rleader_prev_rpy.Inverse() * self.Rleader.measured_cp().M
+            self.RM_p_c = self.RM_p_c * delta_rpy
+            self.Rcmd_rpy = self._RT_c_b.M * self.RM_p_c* Rotation.RPY(3.14, 0, 3.14 / 2)
+            self.Rleader_prev_rpy = self.Rleader.measured_cp().M
         else:
             self.Rleader_prev_rpy = self.Rleader.measured_cp().M
             self.Rcmd_rpy = self._RT_c_b.M * self.RM_p_c * Rotation.RPY(3.14, 0, 3.14 / 2)
 
+
         if self.Rleader.double_press_gripper:
-            self.RM_p_c = self.Rleader.measured_cp().M
+            #self.RM_p_c = self.Rleader.measured_cp().M
             self.Rleader.double_press_gripper = False
 
-        # if self.Rleader.double_press_gripper or self.Lleader.double_press_gripper:
-        #     self.Lcmd_xyz = self.initial_Lcmd_xyz
-        #     self.Rcmd_xyz = self.initial_Rcmd_xyz
-        #     self.Lpsm.T_t_b_home.p = self.Lcmd_xyz
-        #     self.Rpsm.T_t_b_home.p = self.Rcmd_xyz
-        #     self.Lleader_prev_rpy = None
-        #     self.Rleader_prev_rpy = None
-        #     self.LM_p_c = self.initial_LM_p_c
-        #     self.RM_p_c = self.initial_RM_p_c
-            
-        #     self.Rleader.double_press_gripper = False
-        #     self.Lleader.double_press_gripper = False
-
-        # If clutch is pressed, Rcmd_rpy remains unchanged (rotation is locked)
         self.RT_IK = Frame(self.Rcmd_rpy, self.Rcmd_xyz)
         self.Rpsm.servo_cp(self.RT_IK)
         self.Rpsm.set_jaw_angle(self.Rleader.get_jaw_angle())
@@ -263,8 +249,10 @@ if __name__ == "__main__":
         psm = PSM(simulation_manager, arm_name, add_joint_errors=False)
         if psm.is_present():
             T_psmtip_c = coordinate_frames.PSM2.T_tip_cam
+            #print(f"<LYON> PSM2 Tip Cam{T_psmtip_c}")
             T_psmtip_b = psm.get_T_w_b() * cam.get_T_c_w() * T_psmtip_c
             psm.set_home_pose(T_psmtip_b)
+            #print(f"<LYON> PSM2 Home Pose{T_psmtip_b}")
             psm_arms.append(psm)
 
     if parsed_args.run_psm_three is True:
