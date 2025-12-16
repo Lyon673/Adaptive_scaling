@@ -10,7 +10,7 @@ from scipy.spatial.transform import Slerp
 
 # ==================== 数据集划分配置 ====================
 # 设置随机种子以确保可重复性
-RANDOM_SEED = 42
+RANDOM_SEED = 35
 np.random.seed(RANDOM_SEED)
 
 # 生成并shuffle demo ID列表
@@ -86,7 +86,7 @@ def read_demo_kinematics_state(dir_path, demo_id):
 
     return np.hstack((left_state, right_state))
 
-def resample_bimanual_trajectory(data, step_size=0.0015):
+def resample_bimanual_trajectory(data, step_size=0.0015, target_length=None):
     
     # 左手
     l_pos = data[:, :3]
@@ -126,6 +126,8 @@ def resample_bimanual_trajectory(data, step_size=0.0015):
     r_grip_unique = r_grip[unique_indices]
     
     # 4. 生成新的均匀进度网格
+    if target_length is not None:
+        step_size = total_dist/target_length
     s_new = np.arange(0, total_dist, step_size)
     if total_dist - s_new[-1] > 1e-6:
         s_new = np.append(s_new, total_dist)
@@ -171,19 +173,23 @@ def resample_bimanual_trajectory(data, step_size=0.0015):
     
     return resampled
 
-def load_demonstrations_state():
+def load_demonstrations_state(shuffle=True):
+    demo_id_list = np.arange(65)
+    if shuffle:
+        demo_id_list = np.random.permutation(demo_id_list)
     demo_states = []
     demo_lengths = np.zeros(len(demo_id_list))
     for demo_id in demo_id_list:
         state = read_demo_kinematics_state(needle_dir_path, demo_id)
-        state = resample_bimanual_trajectory(state)
-        # if state.shape[0] <= 350:
-        #     demo_states.append(state)
-        # else:
-        #     continue
-        demo_states.append(state)
+        # state = resample_bimanual_trajectory(state)
+        if state.shape[0] <= 350:
+            demo_states.append(state)
+        else:
+            print(f"too long demo idx:{demo_id}")
+            continue
+        #demo_states.append(state)
         demo_lengths[demo_id] = state.shape[0]
-
+    print(f"last demo id: {demo_id_list[-1]}")
 
     np.save(os.path.join(needle_dir_path, 'demo_lengths.npy'), demo_lengths)
 
@@ -214,15 +220,18 @@ def load_test_state():
     return scaled_demos
 
 
-def load_demonstrations_label():
+def load_demonstrations_label(shuffle=True):
+    demo_id_list = np.arange(65)
+    if shuffle:
+        demo_id_list = np.random.permutation(demo_id_list)
     demo_labels = []
     for demo_id in demo_id_list:
         label = generate_frame_label_map(needle_dir_path, demo_id)
-        # if len(label) <= 350:
-        #     demo_labels.append(label)
-        # else:
-        #     continue
-        demo_labels.append(label)
+        if len(label) <= 350 and len(label) > 0:
+            demo_labels.append(label)
+        else:
+            continue
+        #demo_labels.append(label)
     return demo_labels
 
 
@@ -346,12 +355,14 @@ def load_test_demonstration():
 
 # 使用示例
 if __name__ == '__main__':
+    #visualize_demo_lengths()
     # demo_id_list = []
     demonstrations_state = load_demonstrations_state()
     print(demonstrations_state[0].shape)  # Example output: (number_of_frames, 14)
     #demo_lengths = visualize_demo_lengths()
     label_data = load_demonstrations_label()
     print(len(label_data[0]))
+    print(len(demonstrations_state), len(label_data))
     # train_label = label_data[:138]
     # average_transition_time, std_transition_time = cal_transition_time()
     # print(average_transition_time)

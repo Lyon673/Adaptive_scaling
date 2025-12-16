@@ -28,7 +28,7 @@ def load_model(filepath, device='cpu'):
     # 检查模型类型并创建相应的模型实例
     # 如果状态字典包含CRF相关的键，则使用CRF模型
     if any(key.startswith('crf.') for key in checkpoint['model_state_dict'].keys()):
-        print("检测到CRF模型，使用 SequenceLabelingLSTM_CRF")
+        print("CRF model detected, using SequenceLabelingLSTM_CRF")
         model = SequenceLabelingLSTM_CRF(
             input_size=model_config['input_size'],
             hidden_size=model_config['hidden_size'],
@@ -36,7 +36,7 @@ def load_model(filepath, device='cpu'):
             num_classes=model_config['num_classes']
         )
     else:
-        print("检测到标准LSTM模型，使用 SequenceLabelingLSTM")
+        print("standard LSTM model detected, using SequenceLabelingLSTM")
         model = SequenceLabelingLSTM(
             input_size=model_config['input_size'],
             hidden_size=model_config['hidden_size'],
@@ -53,10 +53,10 @@ def load_model(filepath, device='cpu'):
     # 设置评估模式
     model.eval()
     
-    print(f"模型已从 {filepath} 加载")
-    print(f"模型配置: {model_config}")
+    print(f"model loaded from {filepath}")
+    print(f"model configuration: {model_config}")
     if 'training_info' in checkpoint:
-        print(f"训练信息: {checkpoint['training_info']}")
+        print(f"training information: {checkpoint['training_info']}")
     
     return model
 
@@ -123,7 +123,7 @@ def evaluate_model(model, dataloader, device):
 
     # --- 4. 计算并打印评估指标 ---
     if not all_labels:
-        print("没有找到任何有效的标签进行评估。")
+        print("could not find any valid labels for evaluation")
         return
 
     # 定义标签名称（可选，但能让报告更易读）
@@ -131,7 +131,7 @@ def evaluate_model(model, dataloader, device):
     # 例如：{ "准备": 0, "执行": 1, ... }
     target_names = [f'Class {i}' for i in range(NUM_CLASSES)]
 
-    print("\n--- 模型评估报告 ---")
+    print("\n--- model evaluation report ---")
     print(classification_report(all_labels, all_preds, target_names=target_names, digits=4))
     
     # 也可以单独计算总体准确率
@@ -165,10 +165,10 @@ def evaluate_model_CRF(model, dataloader, device):
     
     # --- 计算指标部分 (保持不变) ---
     if not all_labels:
-        print("没有找到任何有效的标签进行评估。")
+        print("could not find any valid labels for evaluation")
         return
     target_names = [f'Class {i}' for i in range(NUM_CLASSES)]
-    print("\n--- 模型评估报告 ---")
+    print("\n--- model evaluation report ---")
     print(classification_report(all_labels, all_preds, target_names=target_names, digits=4))
     accuracy = accuracy_score(all_labels, all_preds)
     print(f"Overall Accuracy: {accuracy:.4f}")
@@ -254,7 +254,7 @@ def evaluate_model_real_time_simulation(model, test_dataset, device):
 
     # --- 计算并打印评估指标 (这部分与您之前的代码完全相同) ---
     if not all_labels:
-        print("没有找到任何有效的标签进行评估。")
+        print("could not find any valid labels for evaluation")
         return
 
     target_names = [f'Class {i}' for i in range(NUM_CLASSES)]

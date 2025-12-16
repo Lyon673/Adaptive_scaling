@@ -23,6 +23,7 @@ class TestDataset:
         demonstrations_state = load_test_state()
         demonstrations_label = load_test_label()
         
+        
         self.samples = []
         for state_seq, label_seq in zip(demonstrations_state, demonstrations_label):
             state_tensor = torch.tensor(state_seq, dtype=torch.float32)
@@ -446,6 +447,13 @@ def main():
     # 创建保存目录
     save_dir = os.path.join(dir_path, "LSTM_visualization_results")  
     os.makedirs(save_dir, exist_ok=True)
+
+    print("\n生成粗大/精细操作概率可视化...")
+    visualize_predicted_class_probabilities(
+        model, test_dataset, device,
+        seq_idx=0,
+        save_path=os.path.join(save_dir, "coarse_fine_probabilities.png")
+    )
     
     # 1. 可视化序列预测对比
     print("\n生成序列预测对比图...")
@@ -478,7 +486,146 @@ def main():
         save_path=os.path.join(save_dir, "feature_analysis.png")
     )
     
+
+    
     print(f"\n所有可视化完成！结果保存在 {save_dir} 目录中")
+
+def visualize_predicted_class_probabilities(model, test_dataset, device, seq_idx=0, save_path=None):
+    """
+    Visualize coarse vs fine operation probabilities over time
+    
+    Coarse operations: classes 0, 1, 3, 5
+    Fine operations: classes 2, 4
+    
+    Args:
+        model: Trained model
+        test_dataset: Test dataset
+        device: Device
+        seq_idx: Sequence index to visualize
+        save_path: Path to save figure, if None then show
+    """
+    model.eval()
+    
+    # Get sequence data
+    sequence, true_labels = test_dataset[seq_idx]
+    sequence = sequence.to(device)
+    lengths = [sequence.shape[0]]
+    
+    with torch.no_grad():
+        if hasattr(model, 'crf'):
+            print("Warning: CRF model does not provide per-step probabilities. Skipping visualization.")
+            return
+        
+        # Get logits and probabilities
+        logits = model(sequence.unsqueeze(0), lengths)  # (1, seq_len, num_classes)
+        probs = torch.softmax(logits, dim=2).squeeze(0).cpu().numpy()  # (seq_len, num_classes)
+    
+    # Define operation categories
+    coarse_classes = [0, 1, 3, 5]  # Coarse operations
+    fine_classes = [2, 4]           # Fine operations
+    
+    # Calculate probabilities for each category
+    coarse_prob = probs[:, coarse_classes].sum(axis=1)
+    fine_prob = probs[:, fine_classes].sum(axis=1)
+    
+    seq_len = len(coarse_prob)
+    time_steps = np.arange(seq_len)
+    true_labels_np = true_labels.numpy()
+    
+    # Create figure with subplots
+    fig, axes = plt.subplots(3, 1, figsize=(15, 10))
+    
+    # ========== Subplot 1: Probability curves ==========
+    ax1 = axes[0]
+    ax1.plot(time_steps, coarse_prob, label='Coarse Operations (0,1,3,5)', 
+             color='#3498db', linewidth=2, alpha=0.8)
+    ax1.plot(time_steps, fine_prob, label='Fine Operations (2,4)', 
+             color='#e74c3c', linewidth=2, alpha=0.8)
+    ax1.fill_between(time_steps, 0, coarse_prob, alpha=0.2, color='#3498db')
+    ax1.fill_between(time_steps, 0, fine_prob, alpha=0.2, color='#e74c3c')
+    
+    ax1.set_ylabel('Probability', fontsize=12)
+    ax1.set_title(f'Sequence {seq_idx}: Coarse vs Fine Operation Probabilities', 
+                  fontsize=14, fontweight='bold')
+    ax1.legend(loc='upper right', fontsize=11)
+    ax1.grid(True, alpha=0.3)
+    ax1.set_xlim(-1, seq_len)
+    ax1.set_ylim(-0.05, 1.05)
+    
+    # ========== Subplot 2: True labels background ==========
+    ax2 = axes[1]
+    
+    # Draw background colors for true labels
+    for i in range(seq_len):
+        if true_labels_np[i] == -1:
+            color = '#D3D3D3'  # Gray for unlabeled
+            label_type = 'Unlabeled'
+        elif true_labels_np[i] in coarse_classes:
+            color = '#AED6F1'  # Light blue for coarse
+            label_type = 'Coarse'
+        elif true_labels_np[i] in fine_classes:
+            color = '#F5B7B1'  # Light red for fine
+            label_type = 'Fine'
+        else:
+            color = '#E8E8E8'
+            label_type = 'Unknown'
+        
+        ax2.axvspan(i-0.5, i+0.5, alpha=0.6, color=color)
+    
+    # Plot probability difference (coarse - fine)
+    prob_diff = coarse_prob - fine_prob
+    ax2.plot(time_steps, prob_diff, color='#2C3E50', linewidth=2, label='Prob(Coarse) - Prob(Fine)')
+    ax2.axhline(y=0, color='black', linestyle='--', linewidth=1, alpha=0.5)
+    
+    ax2.set_ylabel('Probability Difference', fontsize=12)
+    ax2.set_title('Probability Difference (Coarse - Fine) with True Label Background', 
+                  fontsize=13, fontweight='bold')
+    ax2.legend(loc='upper right', fontsize=11)
+    ax2.grid(True, alpha=0.3)
+    ax2.set_xlim(-1, seq_len)
+    ax2.set_ylim(-1.05, 1.05)
+    
+    # ========== Subplot 3: Stacked area chart ==========
+    ax3 = axes[2]
+    
+    # Show individual class probabilities as stacked areas
+    class_colors_fine = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA15E']
+    
+    # Reorder: coarse first, then fine
+    class_order = coarse_classes + fine_classes
+    prob_stacked = probs[:, class_order].T  # (6, seq_len)
+    
+    ax3.stackplot(time_steps, prob_stacked, 
+                  labels=[f'Class {c}' for c in class_order],
+                  colors=[class_colors_fine[c] for c in class_order],
+                  alpha=0.7)
+    
+    # Add separator line between coarse and fine
+    coarse_cumsum = probs[:, coarse_classes].sum(axis=1)
+    ax3.plot(time_steps, coarse_cumsum, 'k--', linewidth=2, alpha=0.8, 
+             label='Coarse/Fine Boundary')
+    
+    ax3.set_xlabel('Time Step', fontsize=12)
+    ax3.set_ylabel('Cumulative Probability', fontsize=12)
+    ax3.set_title('Individual Class Probability Distribution (Stacked)', 
+                  fontsize=13, fontweight='bold')
+    ax3.legend(loc='upper left', fontsize=9, ncol=2)
+    ax3.grid(True, alpha=0.3)
+    ax3.set_xlim(-1, seq_len)
+    ax3.set_ylim(0, 1.0)
+    
+    # Overall title
+    fig.suptitle(f'Operation Type Probability Analysis - Sequence {seq_idx}', 
+                 fontsize=16, fontweight='bold', y=0.995)
+
+    plt.show()
+    
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"Probability visualization saved to {save_path}")
+
 
 
 if __name__ == "__main__":
