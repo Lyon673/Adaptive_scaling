@@ -13,21 +13,20 @@ feature_bound = {
 # the initial params for the optimization
 init_params = {
     'K_g': 10.0,
-    'K_p': 1.0,
+    'K_p': 2.0,
     'C_base': 9.0,
 
-    'A_theta': 10,
+    'A_theta': 2,
     'A_gp': 2.0,
-    'A_pp': 3.5,
     'A_v': 4.3,
-    'A_ipa': 2.0,
+    'B_safety': 1.0,
 
 	'fixed_scale': 1.0,  
 	'AFflag': 0 # 0-adaptive, 1-fixed
 }
 
 # feature filter params
-velocity_queue_length = 14
+velocity_queue_length = 14 # direction
 ipa_window_length = 63
 ipa_polyorder = 3
 velocity_window_length = 15
@@ -35,14 +34,13 @@ velocity_polyorder = 3
 
 optimization_range = {
     'K_g': (8.0, 12.0),
-    'K_p': (0.8, 1.2),
+    'K_p': (0.8, 3.0),
     'C_base': (6.0, 15.0),
 
-    'A_theta': (8.0, 12.0),
+    'A_theta': (1.0, 4.0),
     'A_gp': (1.0, 4.0),
-    'A_pp': (1.0, 4.0),
-    'A_v': (2.0, 6.0),
-    'A_ipa': (1.0, 3.0),
+    'A_v': (3.0, 5.5),
+    'B_safety': (0.8, 1.2),
 }
 
 # Screen recording parameters
@@ -61,12 +59,12 @@ screen_recording_params = {
 # parameters in the score calculation formula
 scoreParams_bound = {
     'gracefulness_max': 5,
-    'gracefulness_min': 1.5,
+    'gracefulness_min': 2,
 	'smoothness_max': 6,
-    'smoothness_min': 3,
+    'smoothness_min': 2,
     'clutch_times_max': 6,
-    'total_distance_max': 0.6,
-    'total_time_max': 60
+    'total_distance_max': 0.4,
+    'total_time_max': 50
 }
 
 # the optimization params set history

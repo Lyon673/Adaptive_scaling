@@ -896,7 +896,7 @@ if __name__ == "__main__":
     #   use_position_only=False: 使用位置+姿态 (14D)
     #   demo_group='all'/'group1'/'group2'
 
-    use_position_only = False
+    use_position_only = True
 
     demos = load_trajectories(use_position_only=use_position_only, demo_group='group2')
     

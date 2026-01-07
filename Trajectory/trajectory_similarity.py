@@ -286,6 +286,7 @@ class TrajectoryGroupComparison:
     def analyze_all_methods(self):
         """对所有相似度方法进行分析"""
         self.load_trajectories()
+        use_position_only = False
         
         methods = {
             'DTW': self.calculator.dtw_distance,
@@ -296,8 +297,8 @@ class TrajectoryGroupComparison:
         
         results = {}
 
-        standard_traj1 = get_standard_trajectory('group1', use_position_only=True)
-        standard_traj2 = get_standard_trajectory('group2', use_position_only=True)
+        standard_traj1 = get_standard_trajectory('group1', use_position_only=use_position_only)
+        standard_traj2 = get_standard_trajectory('group2', use_position_only=use_position_only)
         for method_name, distance_func in methods.items():
             print(f"\n{'='*60}")
             print(f"Analyzing method: {method_name}")
@@ -308,14 +309,14 @@ class TrajectoryGroupComparison:
             # group1_distances = self.compute_pairwise_distances(
             #     self.group1_indices, distance_func, method_name)
             group1_distances = self.compute_standard_distance(
-                self.group1_indices, distance_func, standard_traj1, use_position_only=True)
+                self.group1_indices, distance_func, standard_traj1, use_position_only=use_position_only)
             
             # 计算组2的距离
             print(f"Group 2 (demos 28-49 + 55-59):")
             # group2_distances = self.compute_pairwise_distances(
             #     self.group2_indices, distance_func, method_name)
             group2_distances = self.compute_standard_distance(
-                self.group2_indices, distance_func, standard_traj2, use_position_only=True)
+                self.group2_indices, distance_func, standard_traj2, use_position_only=use_position_only)
             
             # 统计检验
             stat_results = self.statistical_tests(group1_distances, group2_distances)

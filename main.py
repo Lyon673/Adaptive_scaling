@@ -1174,7 +1174,7 @@ class DataCollector:
 		theta = [thetaL, thetaR]
 		ipa = [ipaL_data_filtered, ipaR_data_filtered]
 
-		scale = self.calculate_scale(GP_distance, psm_velocity, ipa, distance_psms, theta)	
+		scale = self.calculate_scale(GP_distance, psm_velocity, distance_psms, theta)	
 		
 		try:  
 			self.scale_pub.publish(scale)
@@ -1260,43 +1260,41 @@ class DataCollector:
 
 	# 	return normalized
 
-	def calculate_scale(self, weighted_dist, psm_velocity, IPA, distance_psms, theta):
+	def calculate_scale(self, weighted_dist, psm_velocity, distance_psms, theta, phase_p=1):
 		scaleArray = Float32MultiArray()
 		
 		weighted_dist_L = weighted_dist[0]
 		weighted_dist_R = weighted_dist[1]
 
-		IPA_m = (IPA[0] + IPA[1]) / 2
-
 		N_d_gpL = normalize(weighted_dist_L, config.feature_bound['d_min'], config.feature_bound['d_max'], 1)
 		N_d_gpR = normalize(weighted_dist_R, config.feature_bound['d_min'], config.feature_bound['d_max'], 1)
-		N_ipa = normalize(IPA_m, config.feature_bound['p_min'], config.feature_bound['p_max'], 1)
 		N_vL = normalize(psm_velocity[0], config.feature_bound['v_min'], config.feature_bound['v_max'], 1)
 		N_vR = normalize(psm_velocity[1], config.feature_bound['v_min'], config.feature_bound['v_max'], 1)
 		N_d_pp = normalize(distance_psms, config.feature_bound['s_min'], config.feature_bound['s_max'], 1) 
 
+		safety_factor = self.expFunc(N_d_pp, 20, self.params['B_safety'])
 		forward_factorL = self.thetaFunc(theta[0]) * self.expFunc(N_d_gpL, self.params['A_gp']) 
-		backward_factorL = (1 - self.thetaFunc(theta[0])) * (self.expFunc(N_d_pp, self.params['A_pp'])*self.expFunc(N_vL, self.params['A_v'])*self.expFunc(N_ipa, self.params['A_ipa']))**(1/3)
+		backward_factorL = (1 - self.thetaFunc(theta[0])) * self.expFunc(N_vL, self.params['A_v'])
 		forward_factorR = self.thetaFunc(theta[1]) * self.expFunc(N_d_gpR, self.params['A_gp']) 
-		backward_factorR = (1 - self.thetaFunc(theta[1])) * (self.expFunc(N_d_pp, self.params['A_pp'])*self.expFunc(N_vR, self.params['A_v'])*self.expFunc(N_ipa, self.params['A_ipa']))**(1/3)
+		backward_factorR = (1 - self.thetaFunc(theta[1])) * self.expFunc(N_vR, self.params['A_v'])
 
 		Lforward_factor_list.append(forward_factorL)
 		Lbackward_factor_list.append(backward_factorL)
 		Rforward_factor_list.append(forward_factorR)
 		Rbackward_factor_list.append(backward_factorR)
 
-		output_L = self.params['K_g'] * (forward_factorL + backward_factorL) + self.params['C_base']
-		output_R = self.params['K_g'] * (forward_factorR + backward_factorR) + self.params['C_base']
+		output_L = self.params['K_g'] * (forward_factorL + self.params['K_p'] * backward_factorL) * safety_factor + self.params['C_base']
+		output_R = self.params['K_g'] * (forward_factorR + self.params['K_p'] * backward_factorR) * safety_factor + self.params['C_base']
 		scaleArray.data = [np.clip(output_L, 0.1, 25), np.clip(output_R, 0.1, 25)]
 		return scaleArray
 
 
 
 	def thetaFunc(self, theta):
-		return 1 - 1 / (1 + np.exp(-self.params['A_theta'] * (theta - np.pi/2)))
+		return 1 - 1 / (1 + np.exp(-self.params['A_theta'] * (theta - np.pi/2)**3))
 
-	def expFunc(self, x, alpha):
-		return 1-np.exp(-(alpha * x)**2)
+	def expFunc(self, x, alpha, beta=2):
+		return 1-np.exp(-alpha**2 * x**beta)
 
 
 	def get_position(self,pose):

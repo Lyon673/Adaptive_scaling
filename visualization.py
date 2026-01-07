@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import os
 import sys
 from scipy.ndimage import gaussian_filter1d
+import params.config as config
 
 def get_latest_data_dir(data_base_dir):
 	"""获取data文件夹下最新的数据目录"""
@@ -263,24 +264,25 @@ def visualize_data(data_dir=None, save_statistics=True):
 		# axs[0, 0].grid(True, alpha=0.2, linestyle='--')
 		# axs[0, 0].set_facecolor('#f8f9fa')
 		
-		# 1. [0,0] 平均IPA数据 - 显示原始和滤波后的数据
-		axs[0, 0].scatter(timestamps, ipa_average, c='#9b59b6', alpha=0.3, s=10, 
-						  edgecolors='none', label='Raw Average')
-		axs[0, 0].plot(timestamps, ipa_average_smoothed, color='#9b59b6', alpha=0.9, 
-					   linewidth=2.5, label=f'Filtered Average')
-		axs[0, 0].set_title(f'Average IPA ({filter_method})', 
+		axs[0, 0].plot(timestamps, psms_distance_data, color='#f39c12', alpha=0.8, 
+					   linewidth=2.5, label='Distance Between PSMs')
+		axs[0, 0].fill_between(timestamps, psms_distance_data, alpha=0.15, color='#f39c12')
+		axs[0, 0].set_title('Distance Between Left and Right PSM', 
 							fontsize=13, fontweight='bold', pad=15)
 		axs[0, 0].set_xlabel('Frame Index', fontsize=11)
-		axs[0, 0].set_ylabel('Average IPA Value', fontsize=11)
+		axs[0, 0].set_ylabel('Distance (meters)', fontsize=11)
 		axs[0, 0].legend(loc='best', frameon=True, fancybox=True, shadow=True)
 		axs[0, 0].grid(True, alpha=0.2, linestyle='--')
 		axs[0, 0].set_facecolor('#f8f9fa')
+
 		
-		# 2. [0,1] PSMs距离数据
-		axs[0, 1].plot(timestamps, psms_distance_data, color='#f39c12', alpha=0.8, 
-					   linewidth=2.5, label='Distance Between PSMs')
-		axs[0, 1].fill_between(timestamps, psms_distance_data, alpha=0.15, color='#f39c12')
-		axs[0, 1].set_title('Distance Between Left and Right PSM', 
+		axs[0, 1].plot(timestamps, left_distances, color=color_left, alpha=0.8, 
+					   linewidth=2.5, label='Left Hand Distance')
+		axs[0, 1].plot(timestamps, right_distances, color=color_right, alpha=0.8, 
+					   linewidth=2.5, label='Right Hand Distance')
+		axs[0, 1].fill_between(timestamps, left_distances, alpha=0.15, color=color_left)
+		axs[0, 1].fill_between(timestamps, right_distances, alpha=0.15, color=color_right)
+		axs[0, 1].set_title('3D Distance Between Hands and Gaze Point', 
 							fontsize=13, fontweight='bold', pad=15)
 		axs[0, 1].set_xlabel('Frame Index', fontsize=11)
 		axs[0, 1].set_ylabel('Distance (meters)', fontsize=11)
@@ -288,45 +290,47 @@ def visualize_data(data_dir=None, save_statistics=True):
 		axs[0, 1].grid(True, alpha=0.2, linestyle='--')
 		axs[0, 1].set_facecolor('#f8f9fa')
 		
-		avg_psms_dist_01 = np.mean(psms_distance_data)
-		min_psms_dist_01 = np.min(psms_distance_data)
-		max_psms_dist_01 = np.max(psms_distance_data)
-		axs[0, 1].axhline(y=avg_psms_dist_01, color='#f39c12', linestyle=':', alpha=0.6, linewidth=2)
-		axs[0, 1].text(0.02, 0.98, f'Avg: {avg_psms_dist_01:.4f}m\nMin: {min_psms_dist_01:.4f}m\nMax: {max_psms_dist_01:.4f}m',
-					   transform=axs[0, 1].transAxes, verticalalignment='top', fontsize=10,
-					   bbox=dict(boxstyle='round', facecolor='#ecf0f1', alpha=0.8, edgecolor='#95a5a6'))
-		
-		# 3. GP距离数据
-		axs[1, 0].plot(timestamps, left_distances, color=color_left, alpha=0.8, 
-					   linewidth=2.5, label='Left Hand Distance')
-		axs[1, 0].plot(timestamps, right_distances, color=color_right, alpha=0.8, 
-					   linewidth=2.5, label='Right Hand Distance')
-		axs[1, 0].fill_between(timestamps, left_distances, alpha=0.15, color=color_left)
-		axs[1, 0].fill_between(timestamps, right_distances, alpha=0.15, color=color_right)
-		axs[1, 0].set_title('3D Distance Between Hands and Gaze Point', 
+		avg_dist_left = np.mean(left_distances)
+		avg_dist_right = np.mean(right_distances)
+		axs[0, 1].axhline(y=avg_dist_left, color=color_left, linestyle=':', alpha=0.6, linewidth=2)
+		axs[0, 1].axhline(y=avg_dist_right, color=color_right, linestyle=':', alpha=0.6, linewidth=2)
+
+		security_factor = 1-np.exp(-20**2 * psms_distance_data**config.init_params['B_safety'])
+		axs[1, 0].plot(timestamps, security_factor, color='#9b59b6', alpha=0.9, 
+					   linewidth=2.5, label=f'Security Factor')
+		axs[1, 0].set_title(f'Security Factor', 
 							fontsize=13, fontweight='bold', pad=15)
 		axs[1, 0].set_xlabel('Frame Index', fontsize=11)
-		axs[1, 0].set_ylabel('Distance (meters)', fontsize=11)
+		axs[1, 0].set_ylabel('Security Factor', fontsize=11)
 		axs[1, 0].legend(loc='best', frameon=True, fancybox=True, shadow=True)
 		axs[1, 0].grid(True, alpha=0.2, linestyle='--')
 		axs[1, 0].set_facecolor('#f8f9fa')
-		
-		avg_dist_left = np.mean(left_distances)
-		avg_dist_right = np.mean(right_distances)
-		axs[1, 0].axhline(y=avg_dist_left, color=color_left, linestyle=':', alpha=0.6, linewidth=2)
-		axs[1, 0].axhline(y=avg_dist_right, color=color_right, linestyle=':', alpha=0.6, linewidth=2)
 		
 		# 4. 速度数据 - 显示原始和滤波后的数据
 		axs[1, 1].plot(timestamps, Lpsm_velocity_magnitude, color=color_left_light, 
 					   alpha=0.3, linewidth=1.5, label='Left Raw')
 		axs[1, 1].plot(timestamps, Rpsm_velocity_magnitude, color=color_right_light,
 					   alpha=0.3, linewidth=1.5, label='Right Raw')
+		Lpsm_velocity_smoothed = np.where(Lpsm_velocity_smoothed < 0, 0, Lpsm_velocity_smoothed)
+		Rpsm_velocity_smoothed = np.where(Rpsm_velocity_smoothed < 0, 0, Rpsm_velocity_smoothed)
 		axs[1, 1].plot(timestamps, Lpsm_velocity_smoothed, color=color_left, 
 					   alpha=0.9, linewidth=2.5, label='Left Filtered')
 		axs[1, 1].plot(timestamps, Rpsm_velocity_smoothed, color=color_right, 
 					   alpha=0.9, linewidth=2.5, label='Right Filtered')
 		axs[1, 1].set_title(f'PSM Linear Velocity ({filter_method})', 
 							fontsize=13, fontweight='bold', pad=15)
+		# axs[1, 1].plot(timestamps, Lmtm_velocity_magnitude, color=color_left_light, 
+		# 			   alpha=0.3, linewidth=1.5, label='Left Raw')
+		# axs[1, 1].plot(timestamps, Rmtm_velocity_magnitude, color=color_right_light,
+		# 			   alpha=0.3, linewidth=1.5, label='Right Raw')
+		# Lmtm_velocity_smoothed = np.where(Lmtm_velocity_smoothed < 0, 0, Lmtm_velocity_smoothed)
+		# Rmtm_velocity_smoothed = np.where(Rmtm_velocity_smoothed < 0, 0, Rmtm_velocity_smoothed)
+		# axs[1, 1].plot(timestamps, Lmtm_velocity_smoothed, color=color_left, 
+		# 			   alpha=0.9, linewidth=2.5, label='Left Filtered')
+		# axs[1, 1].plot(timestamps, Rmtm_velocity_smoothed, color=color_right, 
+		# 			   alpha=0.9, linewidth=2.5, label='Right Filtered')
+		# axs[1, 1].set_title(f'MTM Linear Velocity ({filter_method})', 
+		# 					fontsize=13, fontweight='bold', pad=15)
 		axs[1, 1].set_xlabel('Frame Index', fontsize=11)
 		axs[1, 1].set_ylabel('Velocity (m/s)', fontsize=11)
 		axs[1, 1].legend(loc='best', frameon=True, fancybox=True, shadow=True, fontsize=9)
@@ -397,32 +401,57 @@ def visualize_data(data_dir=None, save_statistics=True):
 		axs[2, 1].set_facecolor('#f8f9fa')
 		
 		# 7. [3,0] Theta 数据 - 左右手
-		axs[3, 0].plot(timestamps, thetaL, color=color_left, alpha=0.8, 
-					   linewidth=2.5, label='Left PSM Theta')
-		axs[3, 0].plot(timestamps, thetaR, color=color_right, alpha=0.8, 
-					   linewidth=2.5, label='Right PSM Theta')
-		axs[3, 0].fill_between(timestamps, thetaL, alpha=0.1, color=color_left)
-		axs[3, 0].fill_between(timestamps, thetaR, alpha=0.1, color=color_right)
-		axs[3, 0].set_title('Angle Between Velocity and Gaze Direction (Both PSMs)', 
+		# axs[3, 0].plot(timestamps, thetaL, color=color_left, alpha=0.8, 
+		# 			   linewidth=2.5, label='Left PSM Theta')
+		# axs[3, 0].plot(timestamps, thetaR, color=color_right, alpha=0.8, 
+		# 			   linewidth=2.5, label='Right PSM Theta')
+		# axs[3, 0].fill_between(timestamps, thetaL, alpha=0.1, color=color_left)
+		# axs[3, 0].fill_between(timestamps, thetaR, alpha=0.1, color=color_right)
+		# axs[3, 0].set_title('Angle Between Velocity and Gaze Direction (Both PSMs)', 
+		# 					fontsize=13, fontweight='bold', pad=15)
+		# axs[3, 0].set_xlabel('Frame Index', fontsize=11)
+		# axs[3, 0].set_ylabel('Theta (degrees)', fontsize=11)
+		# axs[3, 0].legend(loc='best', frameon=True, fancybox=True, shadow=True)
+		# axs[3, 0].grid(True, alpha=0.2, linestyle='--')
+		# axs[3, 0].set_facecolor('#f8f9fa')
+		# avg_thetaL = np.mean(thetaL)
+		# avg_thetaR = np.mean(thetaR)
+		# axs[3, 0].axhline(y=avg_thetaL, color=color_left, linestyle=':', alpha=0.6, linewidth=2)
+		# axs[3, 0].axhline(y=avg_thetaR, color=color_right, linestyle=':', alpha=0.6, linewidth=2)
+		# axs[3, 0].text(0.02, 0.98, f'Left Avg: {avg_thetaL:.2f}°\nRight Avg: {avg_thetaR:.2f}°',
+		# 			   transform=axs[3, 0].transAxes, verticalalignment='top', fontsize=10,
+		# 			   bbox=dict(boxstyle='round', facecolor='#ecf0f1', alpha=0.8, edgecolor='#95a5a6'))
+
+		theta_factorL = 1 - 1 / (1 + np.exp(-2 * (np.deg2rad(thetaL) - np.pi/2)**3))
+		theta_factorR = 1 - 1 / (1 + np.exp(-2 * (np.deg2rad(thetaR) - np.pi/2)**3))
+		axs[3, 0].plot(timestamps, theta_factorL, color=color_left, alpha=0.8, 
+					   linewidth=2.5, label='Left PSM Theta Factor')
+		axs[3, 0].plot(timestamps, theta_factorR, color=color_right, alpha=0.8, 
+					   linewidth=2.5, label='Right PSM Theta Factor')
+		axs[3, 0].fill_between(timestamps, theta_factorL, alpha=0.1, color=color_left)
+		axs[3, 0].fill_between(timestamps, theta_factorR, alpha=0.1, color=color_right)
+		axs[3, 0].set_title('Theta Factor', 
 							fontsize=13, fontweight='bold', pad=15)
 		axs[3, 0].set_xlabel('Frame Index', fontsize=11)
-		axs[3, 0].set_ylabel('Theta (degrees)', fontsize=11)
+		axs[3, 0].set_ylabel('Theta Factor', fontsize=11)
 		axs[3, 0].legend(loc='best', frameon=True, fancybox=True, shadow=True)
 		axs[3, 0].grid(True, alpha=0.2, linestyle='--')
 		axs[3, 0].set_facecolor('#f8f9fa')
+
+		avg_thetaL = np.mean(theta_factorL)
+		avg_thetaR = np.mean(theta_factorR)
 		
-		avg_thetaL = np.mean(thetaL)
-		avg_thetaR = np.mean(thetaR)
+		
 		axs[3, 0].axhline(y=avg_thetaL, color=color_left, linestyle=':', alpha=0.6, linewidth=2)
 		axs[3, 0].axhline(y=avg_thetaR, color=color_right, linestyle=':', alpha=0.6, linewidth=2)
-		axs[3, 0].text(0.02, 0.98, f'Left Avg: {avg_thetaL:.2f}°\nRight Avg: {avg_thetaR:.2f}°',
+		axs[3, 0].text(0.02, 0.98, f'Left Avg: {avg_thetaL:.2f}\nRight Avg: {avg_thetaR:.2f}',
 					   transform=axs[3, 0].transAxes, verticalalignment='top', fontsize=10,
 					   bbox=dict(boxstyle='round', facecolor='#ecf0f1', alpha=0.8, edgecolor='#95a5a6'))
 		
 		# 8. [3,1] Scale数据
-		axs[3, 1].plot(timestamps, left_scales, color=color_left, alpha=0.8, 
+		axs[3, 1].plot(timestamps, left_scales*0.1, color=color_left, alpha=0.8, 
 					   linewidth=2.5, label='Left Hand Scale')
-		axs[3, 1].plot(timestamps, right_scales, color=color_right, alpha=0.8, 
+		axs[3, 1].plot(timestamps, right_scales*0.1, color=color_right, alpha=0.8, 
 					   linewidth=2.5, label='Right Hand Scale')
 		axs[3, 1].set_title('Adaptive Scaling Factors', fontsize=13, fontweight='bold', pad=15)
 		axs[3, 1].set_xlabel('Frame Index', fontsize=11)
@@ -485,7 +514,7 @@ def visualize_data(data_dir=None, save_statistics=True):
 # 如果直接运行此脚本，使用最新数据生成可视化
 if __name__ == '__main__':
 	print("Generating visualization...")
-	result = visualize_data(data_dir='data/9_data_12-01')
+	result = visualize_data(data_dir='data/78_data_01-04')
 	if result:
 		print(f"\nSuccess! Visualization saved to: {result}")
 	else:

@@ -1,0 +1,274 @@
+================================================================================
+SPARC-BASED PHASE ANALYSIS
+Slow Group vs Fast Group
+================================================================================
+
+Metrics:
+  SPARC: Spectral Arc Length (more negative = smoother)
+  G: Gracefulness = median(log10(curvature))
+  LDLJ: Log Dimensionless Jerk (more negative = smoother)
+
+
+============================================================
+Left PSM
+============================================================
+
+Phase 0:
+--------------------------------------------------
+
+  SPARC:
+    Slow:  Mean=-3.1488 ± 1.2563
+    Fast:  Mean=-4.3736 ± 1.3286
+    p-value: 1.1196e-01, effect size: -0.4568
+    Significance: ns
+
+  G:
+    Slow:  Mean=6.0833 ± 1.0252
+    Fast:  Mean=5.5711 ± 0.6547
+    p-value: 2.5100e-01, effect size: -0.3333
+    Significance: ns
+
+  LDLJ:
+    Slow:  Mean=-10.2974 ± 1.4321
+    Fast:  Mean=-10.0290 ± 1.0190
+    p-value: 3.7722e-01, effect size: 0.2593
+    Significance: ns
+
+Phase 1:
+--------------------------------------------------
+
+  SPARC:
+    Slow:  Mean=-4.5492 ± 1.5956
+    Fast:  Mean=-3.5441 ± 1.5289
+    p-value: 2.1637e-01, effect size: 0.3580
+    Significance: ns
+
+  G:
+    Slow:  Mean=6.4607 ± 1.2962
+    Fast:  Mean=5.8294 ± 0.9955
+    p-value: 6.5884e-01, effect size: -0.1358
+    Significance: ns
+
+  LDLJ:
+    Slow:  Mean=-11.3012 ± 1.5690
+    Fast:  Mean=-10.1462 ± 1.9836
+    p-value: 3.3139e-01, effect size: 0.2840
+    Significance: ns
+
+Phase 2:
+--------------------------------------------------
+
+  SPARC:
+    Slow:  Mean=-5.4649 ± 3.1920
+    Fast:  Mean=-5.9508 ± 3.2774
+    p-value: 5.9624e-01, effect size: -0.1605
+    Significance: ns
+
+  G:
+    Slow:  Mean=6.4960 ± 0.8936
+    Fast:  Mean=5.8307 ± 0.4299
+    p-value: 1.3332e-01, effect size: -0.4321
+    Significance: ns
+
+  LDLJ:
+    Slow:  Mean=-13.4868 ± 0.6577
+    Fast:  Mean=-13.0493 ± 1.7107
+    p-value: 7.9108e-01, effect size: 0.0864
+    Significance: ns
+
+Phase 3:
+--------------------------------------------------
+
+  SPARC:
+    Slow:  Mean=-2.1621 ± 0.3462
+    Fast:  Mean=-2.7063 ± 1.3025
+    p-value: 4.2678e-01, effect size: -0.2346
+    Significance: ns
+
+  G:
+    Slow:  Mean=4.0214 ± 1.6012
+    Fast:  Mean=3.7652 ± 1.2840
+    p-value: 5.3650e-01, effect size: -0.1852
+    Significance: ns
+
+  LDLJ:
+    Slow:  Mean=-7.6070 ± 0.9669
+    Fast:  Mean=-8.2464 ± 1.6289
+    p-value: 3.3139e-01, effect size: -0.2840
+    Significance: ns
+
+Phase 4:
+--------------------------------------------------
+
+  SPARC:
+    Slow:  Mean=-3.7856 ± 0.9986
+    Fast:  Mean=-3.7012 ± 1.2441
+    p-value: 5.9624e-01, effect size: 0.1605
+    Significance: ns
+
+  G:
+    Slow:  Mean=2.6371 ± 0.2063
+    Fast:  Mean=2.7869 ± 0.3734
+    p-value: 5.3650e-01, effect size: 0.1852
+    Significance: ns
+
+  LDLJ:
+    Slow:  Mean=-9.3341 ± 1.4702
+    Fast:  Mean=-8.1769 ± 0.7393
+    p-value: 9.3398e-02, effect size: 0.4815
+    Significance: ns
+
+Phase 5:
+--------------------------------------------------
+
+  SPARC:
+    Slow:  Mean=-3.1945 ± 0.9287
+    Fast:  Mean=-2.6920 ± 0.4708
+    p-value: 1.1196e-01, effect size: 0.4568
+    Significance: ns
+
+  G:
+    Slow:  Mean=2.3141 ± 0.2211
+    Fast:  Mean=2.1793 ± 0.2083
+    p-value: 2.8931e-01, effect size: -0.3086
+    Significance: ns
+
+  LDLJ:
+    Slow:  Mean=-8.2585 ± 0.7805
+    Fast:  Mean=-8.3141 ± 1.2570
+    p-value: 6.5884e-01, effect size: -0.1358
+    Significance: ns
+
+============================================================
+Right PSM
+============================================================
+
+Phase 0:
+--------------------------------------------------
+
+  SPARC:
+    Slow:  Mean=-2.4715 ± 0.5668
+    Fast:  Mean=-2.6400 ± 0.6020
+    p-value: 5.9624e-01, effect size: -0.1605
+    Significance: ns
+
+  G:
+    Slow:  Mean=2.5349 ± 0.4879
+    Fast:  Mean=2.5624 ± 0.9752
+    p-value: 3.3139e-01, effect size: -0.2840
+    Significance: ns
+
+  LDLJ:
+    Slow:  Mean=-8.5029 ± 1.3205
+    Fast:  Mean=-8.1891 ± 1.3114
+    p-value: 8.5982e-01, effect size: 0.0617
+    Significance: ns
+
+Phase 1:
+--------------------------------------------------
+
+  SPARC:
+    Slow:  Mean=-3.0307 ± 0.9847
+    Fast:  Mean=-2.5891 ± 1.1954
+    p-value: 2.8931e-01, effect size: 0.3086
+    Significance: ns
+
+  G:
+    Slow:  Mean=2.4881 ± 0.2386
+    Fast:  Mean=1.9837 ± 0.1738
+    p-value: 4.1229e-04, effect size: -1.0000
+    Significance: ***
+
+  LDLJ:
+    Slow:  Mean=-8.7164 ± 1.3064
+    Fast:  Mean=-8.8198 ± 1.1333
+    p-value: 1.0000e+00, effect size: -0.0123
+    Significance: ns
+
+Phase 2:
+--------------------------------------------------
+
+  SPARC:
+    Slow:  Mean=-6.3627 ± 2.8837
+    Fast:  Mean=-3.9042 ± 1.3233
+    p-value: 1.7118e-02, effect size: 0.6790
+    Significance: *
+
+  G:
+    Slow:  Mean=2.6743 ± 0.1958
+    Fast:  Mean=2.7086 ± 0.1331
+    p-value: 8.5982e-01, effect size: 0.0617
+    Significance: ns
+
+  LDLJ:
+    Slow:  Mean=-12.4543 ± 1.2425
+    Fast:  Mean=-11.6585 ± 1.3731
+    p-value: 4.7993e-01, effect size: 0.2099
+    Significance: ns
+
+Phase 3:
+--------------------------------------------------
+
+  SPARC:
+    Slow:  Mean=-3.3594 ± 0.7860
+    Fast:  Mean=-3.5931 ± 2.4807
+    p-value: 3.3139e-01, effect size: 0.2840
+    Significance: ns
+
+  G:
+    Slow:  Mean=3.7783 ± 0.3813
+    Fast:  Mean=3.6347 ± 0.8819
+    p-value: 7.9108e-01, effect size: -0.0864
+    Significance: ns
+
+  LDLJ:
+    Slow:  Mean=-9.1790 ± 1.2168
+    Fast:  Mean=-8.1788 ± 1.0475
+    p-value: 1.3332e-01, effect size: 0.4321
+    Significance: ns
+
+Phase 4:
+--------------------------------------------------
+
+  SPARC:
+    Slow:  Mean=-2.3666 ± 0.3674
+    Fast:  Mean=-3.0553 ± 1.1193
+    p-value: 1.5770e-01, effect size: -0.4074
+    Significance: ns
+
+  G:
+    Slow:  Mean=3.6789 ± 0.4709
+    Fast:  Mean=3.5498 ± 0.5740
+    p-value: 5.3650e-01, effect size: -0.1852
+    Significance: ns
+
+  LDLJ:
+    Slow:  Mean=-9.7592 ± 1.4493
+    Fast:  Mean=-8.2203 ± 1.3114
+    p-value: 6.3690e-02, effect size: 0.5309
+    Significance: ns
+
+Phase 5:
+--------------------------------------------------
+
+  SPARC:
+    Slow:  Mean=-2.5059 ± 0.4925
+    Fast:  Mean=-2.7555 ± 0.8135
+    p-value: 5.9624e-01, effect size: -0.1605
+    Significance: ns
+
+  G:
+    Slow:  Mean=3.5859 ± 0.5591
+    Fast:  Mean=3.1710 ± 0.6792
+    p-value: 1.8533e-01, effect size: -0.3827
+    Significance: ns
+
+  LDLJ:
+    Slow:  Mean=-7.6056 ± 1.1843
+    Fast:  Mean=-7.6891 ± 1.0444
+    p-value: 8.5982e-01, effect size: 0.0617
+    Significance: ns
+
+================================================================================
+Legend: *** p<0.001, ** p<0.01, * p<0.05, ns: not significant
+================================================================================

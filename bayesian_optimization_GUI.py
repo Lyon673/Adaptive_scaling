@@ -38,10 +38,11 @@ class BayesianOptimizationGUI:
 		self.next_point = None
 		self.mental_demand = tk.DoubleVar(value=10)
 		self.physical_demand = tk.DoubleVar(value=10)
+		self.controllability = tk.DoubleVar(value=10)
 		self.temporal_demand = tk.DoubleVar(value=10)
 		self.performance = tk.DoubleVar(value=10)
 		self.effort = tk.DoubleVar(value=10)
-		
+		self.frustration = tk.DoubleVar(value=10)
 		# Create file path
 		current_dir = os.path.dirname(os.path.abspath(__file__))
 		self.params_file = os.path.join(current_dir, 'params', 'params.txt')
@@ -166,11 +167,15 @@ class BayesianOptimizationGUI:
 		ttk.Label(nasa_frame, text=instr_text, font=self.title_font).pack(anchor=tk.W, pady=(5, 15))
 		
 		# Rating scales
-		self._create_scale(nasa_frame, "1. Mental Demand (0=low, 20=high):", self.mental_demand)
-		self._create_scale(nasa_frame, "2. Physical Demand (0=low, 20=high):", self.physical_demand)
-		self._create_scale(nasa_frame, "3. Temporal Demand (0=low, 20=high):", self.temporal_demand)
-		self._create_scale(nasa_frame, "4. Performance (0=good, 20=poor):", self.performance)
-		self._create_scale(nasa_frame, "5. Effort (0=low, 20=high):", self.effort)
+		
+		self._create_scale(nasa_frame, "1. Physical Demand (0=easy, 10=difficult):", self.physical_demand)
+		self._create_scale(nasa_frame, "2. Temporal Demand (0=easy, 10=difficult):", self.temporal_demand)
+		self._create_scale(nasa_frame, "3. Controllability (0=good, 10=poor):", self.controllability)
+		self._create_scale(nasa_frame, "4. Performance (0=good, 10=poor):", self.performance)
+
+		self._create_scale(nasa_frame, "5. Mental Demand (0=easy, 10=difficult):", self.mental_demand)
+		self._create_scale(nasa_frame, "6. Effort (0=easy, 10=difficult):", self.effort)
+		self._create_scale(nasa_frame, "7. Frustration/Distractions (0=low, 10=high):", self.frustration)
 		
 		# Submit button
 		submit_button = ttk.Button(nasa_frame, text="Submit Ratings", command=self.submit_scores)
@@ -197,7 +202,7 @@ class BayesianOptimizationGUI:
 		label = ttk.Label(frame, text=label_text, width=50, anchor="w")  
 		label.grid(row=0, column=0, sticky="w")
 
-		scale = ttk.Scale(frame, from_=0, to=20, orient=tk.HORIZONTAL, variable=variable, length=700)
+		scale = ttk.Scale(frame, from_=0, to=10, orient=tk.HORIZONTAL, variable=variable, length=700)
 		scale.grid(row=0, column=1, padx=10, sticky="ew")
 
 		value_label = ttk.Label(frame, text="10.0", width=6, anchor="e")
@@ -357,14 +362,15 @@ class BayesianOptimizationGUI:
 	def submit_scores(self):
 		"""Submits NASA-TLX scores and calculates the target value."""
 		# Calculate subjective score
-		mental_demand = self.mental_demand.get()
-		physical_demand = self.physical_demand.get()
-		temporal_demand = self.temporal_demand.get()
-		performance = self.performance.get()
-		effort = self.effort.get()
+		mental_demand = 1-self.mental_demand.get()/10
+		physical_demand = 1-self.physical_demand.get()/10	
+		temporal_demand = 1-self.temporal_demand.get()/10
+		controllability = 1-self.controllability.get()/10
+		performance = 1-self.performance.get()/10
+		effort = 1-self.effort.get()/10
+		frustration = 1-self.frustration.get()/10
 		
-		raw_tlx = mental_demand + physical_demand + temporal_demand + performance + effort
-		sub_score = 100 - raw_tlx
+		sub_score = 15*physical_demand + 15*temporal_demand + 30*controllability + 30*performance + 3*mental_demand + 3*effort + 4*frustration
 		
 		# Switch to the results tab
 		self.tab_control.select(2)  # Select the 3rd tab (Results Display)
@@ -395,14 +401,20 @@ class BayesianOptimizationGUI:
 		
 		gracefulness, smoothness, clutch_times, total_distance, total_time = self.calculate_metrics()
 		# Calculate individual scores
-		gracefulness_score =  5 * np.clip((self.gracefulness_max - gracefulness) / (self.gracefulness_max - self.gracefulness_min), 0, 1)
-		smoothness_score = 5 * np.clip((self.smoothness_max - smoothness) / (self.smoothness_max - self.smoothness_min), 0, 1)
-		clutch_times_score = 7.5 * np.clip((self.clutch_times_max - clutch_times[0] - clutch_times[1]) / self.clutch_times_max, 0, 1) 
-		total_distance_score = 15 * np.clip((self.total_distance_max - total_distance[0]) / self.total_distance_max, 0, 1)
-		total_time_score = 10 * np.clip((self.total_time_max - total_time) / self.total_time_max, 0, 1)
+		# group1 G S
+		gracefulness_score =  10 * np.clip((self.gracefulness_max - gracefulness) / (self.gracefulness_max - self.gracefulness_min), 0, 1)
+		smoothness_score = 10 * np.clip((self.smoothness_max - smoothness) / (self.smoothness_max - self.smoothness_min), 0, 1)
+		# group2 fast
+		clutch_times_score = 30 * np.clip((self.clutch_times_max - clutch_times[0] - clutch_times[1]) / self.clutch_times_max, 0, 1) 
+		total_time_score = 20 * np.clip((self.total_time_max - total_time) / self.total_time_max, 0, 1)
+		#group3 slow
+		total_distance_score = 40 * np.clip((self.total_distance_max - total_distance[0]) / self.total_distance_max, 0, 1)
+		
+
+		obj_score = gracefulness_score + smoothness_score + clutch_times_score + total_distance_score + total_time_score
 		
 		# Calculate the total score
-		total_score = 0.5 * sub_score + gracefulness_score + smoothness_score + clutch_times_score + total_distance_score + total_time_score
+		total_score = 0.5 * obj_score + 0.5 * sub_score
 
 		current_file_path = os.path.abspath(__file__)
 		current_dir = os.path.dirname(current_file_path)

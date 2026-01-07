@@ -1,0 +1,49 @@
+================================================================================
+CURVATURE AND PHI DISTRIBUTION COMPARISON: SLOW VS FAST GROUPS
+================================================================================
+
+Groups:
+  Slow group: data 45-54
+  Fast group: data 55-64
+
+
+Curvature (κ):
+------------------------------------------------------------
+  Slow:  n= 2444, Mean=22131175372387.6680, Median= 105824.6561
+  Fast:  n= 1845, Mean=51001733576.1567, Median=  93539.9410
+  K-S test:        D=0.1062, p=8.7015e-11
+  Mann-Whitney U:  U=2349135.00, p=1.8534e-02, r=-0.0419
+  Significance: ***
+
+Log Curvature (G):
+------------------------------------------------------------
+  Slow:  n= 2444, Mean=      4.9542, Median=      5.0246
+  Fast:  n= 1845, Mean=      4.7745, Median=      4.9710
+  K-S test:        D=0.1062, p=8.7015e-11
+  Mann-Whitney U:  U=2349135.00, p=1.8534e-02, r=-0.0419
+  Significance: ***
+
+Phi (φ):
+------------------------------------------------------------
+  Slow:  n= 2444, Mean=  59740.8281, Median=      1.2181
+  Fast:  n= 1845, Mean=   8815.4059, Median=      0.1017
+  K-S test:        D=0.1787, p=8.4857e-30
+  Mann-Whitney U:  U=2566858.00, p=7.3972e-15, r=-0.1385
+  Significance: ***
+
+Log Phi (S):
+------------------------------------------------------------
+  Slow:  n= 2444, Mean=     -0.1674, Median=      0.0857
+  Fast:  n= 1845, Mean=     -0.4198, Median=     -0.9929
+  K-S test:        D=0.1787, p=8.4857e-30
+  Mann-Whitney U:  U=2566858.00, p=7.3972e-15, r=-0.1385
+  Significance: ***
+
+================================================================================
+Legend:
+  *** : p < 0.001 (highly significant)
+  **  : p < 0.01  (very significant)
+  *   : p < 0.05  (significant)
+  ns  : not significant
+  r   : effect size (rank-biserial correlation)
+================================================================================

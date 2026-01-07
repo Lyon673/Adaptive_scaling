@@ -1,0 +1,131 @@
+================================================================================
+                    STATISTICAL ANALYSIS REPORT
+================================================================================
+
+Groups:
+  Slow group:   data 45-54
+  Medium group: data 0-29
+  Fast group:   data 55-64
+
+================================================================================
+DESCRIPTIVE STATISTICS
+================================================================================
+
+total_time:
+Group          N       Mean         SD     Median        IQR
+------------------------------------------------------------
+Slow          10    26.4650     4.7056    24.6975     3.6551
+Medium        10    24.2061     3.0744    23.5636     4.1023
+Fast          10    19.3187     2.4934    19.3582     3.3079
+
+total_distance:
+Group          N       Mean         SD     Median        IQR
+------------------------------------------------------------
+Slow          10     0.2109     0.0207     0.2023     0.0185
+Medium        10     0.2203     0.0191     0.2167     0.0118
+Fast          10     0.2289     0.0206     0.2283     0.0276
+
+clutch_times:
+Group          N       Mean         SD     Median        IQR
+------------------------------------------------------------
+Slow          10     3.3000     0.6749     3.0000     0.0000
+Medium        10     2.8000     1.1353     3.0000     1.0000
+Fast          10     1.8000     0.4216     2.0000     0.0000
+
+ipa:
+Group          N       Mean         SD     Median        IQR
+------------------------------------------------------------
+Slow          10     0.9901     0.0077     0.9901     0.0090
+Medium        10     0.9907     0.0083     0.9907     0.0120
+Fast          10     0.9876     0.0071     0.9887     0.0081
+
+gracefulness:
+Group          N       Mean         SD     Median        IQR
+------------------------------------------------------------
+Slow          10     4.2179     0.4127     4.1103     0.3249
+Medium        10     4.1088     0.1118     4.1441     0.1894
+Fast          10     3.9514     0.1749     3.9315     0.2312
+
+smoothness:
+Group          N       Mean         SD     Median        IQR
+------------------------------------------------------------
+Slow          10     5.2126     0.6126     5.0638     0.8188
+Medium        10     4.9616     0.2404     4.9744     0.2879
+Fast          10     4.4280     0.3718     4.4463     0.2735
+
+================================================================================
+STATISTICAL TESTS
+================================================================================
+
+total_time:
+  ANOVA:          F=10.5867, p=0.0004
+  Kruskal-Wallis: H=17.4142, p=0.0002
+  Significance: *** (p < 0.001)
+
+total_distance:
+  ANOVA:          F=2.0114, p=0.1534
+  Kruskal-Wallis: H=3.8426, p=0.1464
+  Significance: ns (not significant)
+
+clutch_times:
+  ANOVA:          F=9.1040, p=0.0010
+  Kruskal-Wallis: H=15.6773, p=0.0004
+  Significance: *** (p < 0.001)
+
+ipa:
+  ANOVA:          F=0.4569, p=0.6380
+  Kruskal-Wallis: H=1.5200, p=0.4677
+  Significance: ns (not significant)
+
+gracefulness:
+  ANOVA:          F=2.5245, p=0.0988
+  Kruskal-Wallis: H=4.4697, p=0.1070
+  Significance: ns (not significant)
+
+smoothness:
+  ANOVA:          F=8.4309, p=0.0014
+  Kruskal-Wallis: H=14.0929, p=0.0009
+  Significance: ** (p < 0.01)
+
+================================================================================
+POST-HOC TESTS (Mann-Whitney U, Bonferroni corrected)
+================================================================================
+
+total_time:
+  Slow vs Medium           : U=66.00, p=0.2413, r=-0.320
+  Slow vs Fast             : U=100.00, p=0.0002, r=-1.000
+  Medium vs Fast           : U=92.00, p=0.0017, r=-0.840
+
+total_distance:
+  Slow vs Medium           : U=33.00, p=0.2123, r=0.340
+  Slow vs Fast             : U=27.00, p=0.0890, r=0.460
+  Medium vs Fast           : U=36.00, p=0.3075, r=0.280
+
+clutch_times:
+  Slow vs Medium           : U=66.00, p=0.1847, r=-0.320
+  Slow vs Fast             : U=100.00, p=0.0001, r=-1.000
+  Medium vs Fast           : U=79.00, p=0.0176, r=-0.580
+
+ipa:
+  Slow vs Medium           : U=50.00, p=1.0000, r=0.000
+  Slow vs Fast             : U=65.00, p=0.2730, r=-0.300
+  Medium vs Fast           : U=63.00, p=0.3447, r=-0.260
+
+gracefulness:
+  Slow vs Medium           : U=50.00, p=1.0000, r=0.000
+  Slow vs Fast             : U=72.00, p=0.1041, r=-0.440
+  Medium vs Fast           : U=76.00, p=0.0539, r=-0.520
+
+smoothness:
+  Slow vs Medium           : U=58.00, p=0.5708, r=-0.160
+  Slow vs Fast             : U=91.00, p=0.0022, r=-0.820
+  Medium vs Fast           : U=94.00, p=0.0010, r=-0.880
+
+================================================================================
+Legend:
+  *** : p < 0.001 (highly significant)
+  **  : p < 0.01  (very significant)
+  *   : p < 0.05  (significant)
+  ns  : not significant
+  r   : effect size (rank-biserial correlation)
+================================================================================

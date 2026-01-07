@@ -3,21 +3,22 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence, pad_packed_sequence
 import numpy as np
-from load_data import load_train_state, load_train_label, load_test_state, load_test_label
+from load_data import load_train_state, load_train_label
 from sklearn.metrics import classification_report, accuracy_score
 from tqdm import tqdm # 引入tqdm来显示进度条，因为这个过程会慢很多
 import os
 from torchcrf import CRF
 from torch.utils.tensorboard import SummaryWriter   # 引入tensorboard
 import datetime
+from config import resample, without_quat
 
 # --- 1. 定义超参数 (Hyperparameters) ---
-INPUT_SIZE = 16      # 每个时间点的特征数 (14 kinematic variables from both arms)4
+INPUT_SIZE = 16  if not without_quat else 8    # 每个时间点的特征数 (14 kinematic variables from both arms)4
 HIDDEN_SIZE = 256     # LSTM 隐藏层的大小
 NUM_LAYERS = 5      # LSTM 层数
 NUM_CLASSES = 6      # 标签的类别数量 (0-5, total 6 different actions)
 BATCH_SIZE = 16
-NUM_EPOCHS = 1000
+NUM_EPOCHS = 800
 LEARNING_RATE = 0.001
 
 # 检查是否有可用的GPU
@@ -30,21 +31,31 @@ print(f"Using device: {device}")
 # 这里我们创建一个虚拟数据集来模拟变长序列
 
 class KinematicDataset(Dataset):
-    def __init__(self, num_samples=100):
+    def __init__(self, num_samples=100, is_train=True):
         self.samples = []
-        # for _ in range(num_samples):
-        #     # 随机生成不同长度的序列
-        #     seq_len = torch.randint(low=20, high=50, size=(1,)).item()
-        #     # 序列数据 (seq_len, input_size)
-        #     sequence_data = torch.randn(seq_len, INPUT_SIZE)
-        #     # 序列标签 (seq_len)
-        #     sequence_labels = torch.randint(low=0, high=NUM_CLASSES, size=(seq_len,))
-        #     self.samples.append((sequence_data, sequence_labels))
-        demonstrations_state = load_train_state()
-        demonstrations_label = load_train_label()
+        
+        # # 使用配对加载确保 state 和 label 完全匹配
+        # all_states, all_labels = load_demonstrations_paired(shuffle=True, without_quat=True)
+        
+        # # 划分训练集和测试集
+        # bound = round(ratio * len(all_states))
+        # if is_train:
+        #     demonstrations_state = all_states[:bound]
+        #     demonstrations_label = all_labels[:bound]
+        # else:
+        #     demonstrations_state = all_states[bound:]
+        #     demonstrations_label = all_labels[bound:]
+        
+        # # 标准化
+        # from sklearn.preprocessing import StandardScaler
+        # scaler = StandardScaler()
+        # all_data_stacked = np.vstack(demonstrations_state)
+        # scaler.fit(all_data_stacked)
+        # demonstrations_state = [scaler.transform(arr) for arr in demonstrations_state]
+        demonstrations_state = load_train_state(without_quat=without_quat, resample=resample)
+        demonstrations_label = load_train_label(resample=resample)
         
         # 确保每个演示都是一个序列（2D数组）
-
         for state_seq, label_seq in zip(demonstrations_state, demonstrations_label):
             # 转换为张量
             state_tensor = torch.tensor(state_seq, dtype=torch.float32)
@@ -79,7 +90,7 @@ def collate_fn(batch):
     return padded_sequences, padded_labels, lengths
 
 # 创建 Dataset 和 DataLoader 实例
-train_dataset = KinematicDataset(num_samples=200)
+train_dataset = KinematicDataset(num_samples=200, is_train=True)
 train_loader = DataLoader(
     dataset=train_dataset,
     batch_size=BATCH_SIZE,

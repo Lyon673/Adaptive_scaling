@@ -6,6 +6,7 @@ from sklearn.metrics import classification_report, accuracy_score
 from tqdm import tqdm # 引入tqdm来显示进度条，因为这个过程会慢很多
 import os
 from torchcrf import CRF
+from config import resample, without_quat
 
 # --- 模型加载功能 ---
 def load_model(filepath, device='cpu'):
@@ -63,8 +64,8 @@ def load_model(filepath, device='cpu'):
 
 class TestDataset(Dataset):
     def __init__(self):
-        demonstrations_state = load_test_state()
-        demonstrations_label = load_test_label()
+        demonstrations_state = load_test_state(without_quat=without_quat,resample=resample)
+        demonstrations_label = load_test_label(resample=resample)
         
         # 确保每个演示都是一个序列（2D数组）
         self.samples = []

@@ -22,3 +22,8 @@ TSC_model_path = "TSC_model.pkl"
 # main parameters
 state_probability_threshold = 0.4
 time_probability_threshold = 0.4
+
+# lstm
+resample = True
+without_quat = False
+resample_step = 0.0015 # 0.0015

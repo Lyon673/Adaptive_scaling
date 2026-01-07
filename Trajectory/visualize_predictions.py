@@ -13,15 +13,15 @@ from torch.utils.data import DataLoader
 from LSTM_seg_train import SequenceLabelingLSTM, SequenceLabelingLSTM_CRF, collate_fn
 from load_data import load_test_state, load_test_label
 import os
+from config import resample, without_quat
 
-# 设置中文字体
 plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans']
 plt.rcParams['axes.unicode_minus'] = False
 
 class TestDataset:
     def __init__(self):
-        demonstrations_state = load_test_state()
-        demonstrations_label = load_test_label()
+        demonstrations_state = load_test_state(without_quat=without_quat, resample=resample)
+        demonstrations_label = load_test_label(resample=resample)
         
         
         self.samples = []
@@ -195,6 +195,7 @@ def visualize_sequence_predictions(model, test_dataset, device, num_sequences=5,
         print(f"可视化结果已保存到: {save_path}")
     
     plt.show()
+    plt.close('all')  # 关闭所有图形，避免空白窗口
 
 
 def visualize_confusion_matrix(model, test_dataset, device, save_path=None):
@@ -363,6 +364,7 @@ def visualize_sequence_timeline(model, test_dataset, device, seq_idx=0, save_pat
         print(f"时间线可视化已保存到: {save_path}")
     
     plt.show()
+    plt.close(fig)  # 关闭图形，避免空白窗口
 
 
 def visualize_feature_importance(model, test_dataset, device, seq_idx=0, save_path=None):
@@ -420,6 +422,7 @@ def visualize_feature_importance(model, test_dataset, device, seq_idx=0, save_pa
         print(f"特征可视化已保存到: {save_path}")
     
     plt.show()
+    plt.close(fig)  # 关闭图形，避免空白窗口
 
 
 def main():
@@ -617,14 +620,15 @@ def visualize_predicted_class_probabilities(model, test_dataset, device, seq_idx
     # Overall title
     fig.suptitle(f'Operation Type Probability Analysis - Sequence {seq_idx}', 
                  fontsize=16, fontweight='bold', y=0.995)
-
-    plt.show()
     
     plt.tight_layout()
     
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         print(f"Probability visualization saved to {save_path}")
+    
+    plt.show()
+    plt.close(fig)  # 关闭图形，避免空白窗口
 
 
 
