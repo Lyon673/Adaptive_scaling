@@ -1262,6 +1262,9 @@ class DataCollector:
 
 	def calculate_scale(self, weighted_dist, psm_velocity, distance_psms, theta, phase_p=1):
 		scaleArray = Float32MultiArray()
+		if self.params['AFflag'] == 1:
+			scaleArray.data = [self.params['fixed_scale']*10, self.params['fixed_scale']*10]
+			return scaleArray
 		
 		weighted_dist_L = weighted_dist[0]
 		weighted_dist_R = weighted_dist[1]
@@ -1272,7 +1275,7 @@ class DataCollector:
 		N_vR = normalize(psm_velocity[1], config.feature_bound['v_min'], config.feature_bound['v_max'], 1)
 		N_d_pp = normalize(distance_psms, config.feature_bound['s_min'], config.feature_bound['s_max'], 1) 
 
-		safety_factor = self.expFunc(N_d_pp, 20, self.params['B_safety'])
+		safety_factor = self.expFunc(N_d_pp, 1000, self.params['B_safety'])
 		forward_factorL = self.thetaFunc(theta[0]) * self.expFunc(N_d_gpL, self.params['A_gp']) 
 		backward_factorL = (1 - self.thetaFunc(theta[0])) * self.expFunc(N_vL, self.params['A_v'])
 		forward_factorR = self.thetaFunc(theta[1]) * self.expFunc(N_d_gpR, self.params['A_gp']) 
@@ -1642,6 +1645,15 @@ if left gaze point and right are both available, we set gaze point as their medi
 def gaze_data_cb(gaze):
 	w = resolution_x
 	h = resolution_y
+	left_bound = 0
+
+	# height = 1
+	# ori_width = 1920/1080
+	# width = 1280/1024
+	# left_bound = (ori_width - width) / 2 * resolution_y
+	# w = width * resolution_y
+
+
 
 	gazedata = list(gaze.data)
 	gazedata[1] = np.clip(gazedata[1],0,1)
@@ -1656,14 +1668,14 @@ def gaze_data_cb(gaze):
 		return
 	if(gazedata[0] == True):
 		if(gazedata[3] == True):
-			gazePoint[0] = np.round(((gazedata[1]+gazedata[4])/2)*w).astype(int)
+			gazePoint[0] = np.round(((gazedata[1]+gazedata[4])/2)*w+left_bound).astype(int)
 			gazePoint[1] = h-np.round(((gazedata[2]+gazedata[5])/2)*h).astype(int)
 
 		else:
-			gazePoint[0] = np.round((gazedata[1])*w).astype(int)
+			gazePoint[0] = np.round((gazedata[1])*w+left_bound).astype(int)
 			gazePoint[1] = h-np.round((gazedata[2])*h).astype(int)
 	elif(gazedata[3] == True):
-		gazePoint[0] = np.round((gazedata[4])*w).astype(int)
+		gazePoint[0] = np.round((gazedata[4])*w+left_bound).astype(int)
 		gazePoint[1] = h-np.round((gazedata[5])*h).astype(int)
 	if (gazedata[6] != 0):
 		pupilL.append(ipa_t.Pupil(gazedata[6], gazedata[8]*1e-6))

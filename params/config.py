@@ -19,9 +19,9 @@ init_params = {
     'A_theta': 2,
     'A_gp': 2.0,
     'A_v': 4.3,
-    'B_safety': 1.0,
+    'B_safety': 3.8,
 
-	'fixed_scale': 1.0,  
+	'fixed_scale': 1.2,  
 	'AFflag': 0 # 0-adaptive, 1-fixed
 }
 
@@ -40,7 +40,7 @@ optimization_range = {
     'A_theta': (1.0, 4.0),
     'A_gp': (1.0, 4.0),
     'A_v': (3.0, 5.5),
-    'B_safety': (0.8, 1.2),
+    'B_safety': (3.6, 4.0),
 }
 
 # Screen recording parameters
@@ -55,6 +55,7 @@ screen_recording_params = {
     'output_dir': '/home/lambda/Videos/train', # Video output directory
 }
 
+iter_times = 15
 
 # parameters in the score calculation formula
 scoreParams_bound = {
@@ -77,9 +78,10 @@ scorefilename = 'scores.json'
 exflag = 1
 
 # the params of the best adaptive frame
-adaptive = {"W_d": 0.6557110261229989, "W_dp": 1.5489982389822312, "W_dv": 1.661834391297523, "W_p": 1.0, "W_pv": 1.340468616420758, "W_v": 0.4538660096723739, "Y_base": 0.03331922812540701, "tau_d": 0.7, "tau_p": 0.7, "tau_v": 1.0}
+adaptive = {"K_g":10.0, "K_p":2.0, "C_base":9.0, "A_theta":2, "A_gp":2.0, "A_v":4.3, "B_safety":1.0, "AFflag":0}
 
-fixed = {"fixed_scale": 0.35, "AFflag": 1}
+
+fixed = {"fixed_scale": 1.2, "AFflag": 1}
 
 # the params for the gaze filter
 gaze_filter_params = {

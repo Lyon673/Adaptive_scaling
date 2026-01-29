@@ -36,13 +36,13 @@ class BayesianOptimizationGUI:
 		self.max_iterations = 10
 		self.optimizer = None
 		self.next_point = None
-		self.mental_demand = tk.DoubleVar(value=10)
-		self.physical_demand = tk.DoubleVar(value=10)
-		self.controllability = tk.DoubleVar(value=10)
-		self.temporal_demand = tk.DoubleVar(value=10)
-		self.performance = tk.DoubleVar(value=10)
-		self.effort = tk.DoubleVar(value=10)
-		self.frustration = tk.DoubleVar(value=10)
+		self.mental_demand = tk.DoubleVar(value=5)
+		self.physical_demand = tk.DoubleVar(value=5)
+		self.controllability = tk.DoubleVar(value=5)
+		self.temporal_demand = tk.DoubleVar(value=5)
+		self.performance = tk.DoubleVar(value=5)
+		self.effort = tk.DoubleVar(value=5)
+		self.frustration = tk.DoubleVar(value=5)
 		# Create file path
 		current_dir = os.path.dirname(os.path.abspath(__file__))
 		self.params_file = os.path.join(current_dir, 'params', 'params.txt')
@@ -119,6 +119,7 @@ class BayesianOptimizationGUI:
 		self.start_button.pack(side=tk.RIGHT, padx=5)
 
 	def _create_optimization_tab(self, parent):
+		global mode
 		parent.columnconfigure(0, weight=1)
 
 		# Optimization settings UI
@@ -128,7 +129,10 @@ class BayesianOptimizationGUI:
 		# Number of iterations setting
 		ttk.Label(settings_frame, text="Number of Iterations:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
 		# set initial iteration times
-		self.iter_var = tk.IntVar(value=3)
+		if mode == 3:
+			self.iter_var = tk.IntVar(value=10)
+		else:
+			self.iter_var = tk.IntVar(value=config.iter_times)
 		iter_entry = ttk.Spinbox(settings_frame, from_=1, to=100, textvariable=self.iter_var, width=10, font=self.base_font)
 		iter_entry.grid(row=0, column=1, sticky=tk.W, padx=5, pady=5)
 		
@@ -205,7 +209,7 @@ class BayesianOptimizationGUI:
 		scale = ttk.Scale(frame, from_=0, to=10, orient=tk.HORIZONTAL, variable=variable, length=700)
 		scale.grid(row=0, column=1, padx=10, sticky="ew")
 
-		value_label = ttk.Label(frame, text="10.0", width=6, anchor="e")
+		value_label = ttk.Label(frame, text="5.0", width=6, anchor="e")
 		
 		# Update label text when variable changes
 		def update_label(*args):

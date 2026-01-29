@@ -295,7 +295,7 @@ def visualize_data(data_dir=None, save_statistics=True):
 		axs[0, 1].axhline(y=avg_dist_left, color=color_left, linestyle=':', alpha=0.6, linewidth=2)
 		axs[0, 1].axhline(y=avg_dist_right, color=color_right, linestyle=':', alpha=0.6, linewidth=2)
 
-		security_factor = 1-np.exp(-20**2 * psms_distance_data**config.init_params['B_safety'])
+		security_factor = 1-np.exp(-1000**2 * psms_distance_data**config.init_params['B_safety'])
 		axs[1, 0].plot(timestamps, security_factor, color='#9b59b6', alpha=0.9, 
 					   linewidth=2.5, label=f'Security Factor')
 		axs[1, 0].set_title(f'Security Factor', 
@@ -514,7 +514,7 @@ def visualize_data(data_dir=None, save_statistics=True):
 # 如果直接运行此脚本，使用最新数据生成可视化
 if __name__ == '__main__':
 	print("Generating visualization...")
-	result = visualize_data(data_dir='data/78_data_01-04')
+	result = visualize_data(data_dir='data/0_data_01-18')
 	if result:
 		print(f"\nSuccess! Visualization saved to: {result}")
 	else:
