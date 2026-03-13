@@ -16,7 +16,7 @@ from config import resample, without_quat
 INPUT_SIZE = 16  if not without_quat else 8    # 每个时间点的特征数 (14 kinematic variables from both arms)4
 HIDDEN_SIZE = 256     # LSTM 隐藏层的大小
 NUM_LAYERS = 5      # LSTM 层数
-NUM_CLASSES = 6      # 标签的类别数量 (0-5, total 6 different actions)
+NUM_CLASSES = 7      # 标签的类别数量 (0-6, total 7 different actions)
 BATCH_SIZE = 16
 NUM_EPOCHS = 800
 LEARNING_RATE = 0.001

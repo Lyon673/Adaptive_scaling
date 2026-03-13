@@ -1,8 +1,9 @@
 import json
+from random import shuffle
 import numpy as np
 import os
 import matplotlib.pyplot as plt
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from scipy.interpolate import interp1d
 
 from scipy.spatial.transform import Rotation as R
@@ -15,8 +16,10 @@ import config
 RANDOM_SEED = 35
 np.random.seed(RANDOM_SEED)
 
+demo_num = 148
+
 # 生成并shuffle demo ID列表
-demo_id_list = np.arange(65)
+demo_id_list = np.arange(demo_num)
 demo_id_list = np.random.permutation(demo_id_list)
 
 ratio = 0.9
@@ -31,9 +34,9 @@ def get_frame_label(annotation_data, frame_num):
     return the label of the frame, if the frame is not in the annotation, return -1
     """
     for ann in annotation_data['annotations']:
-        start = ann['start']
-        end = ann['end'] 
-        if start <= frame_num <= end + 1:
+        start = ann['kine_start']
+        end = ann['kine_end'] 
+        if start <= frame_num <= end:
             return int(ann['label'])
     return -1
 
@@ -41,7 +44,7 @@ def generate_frame_label_map(dir_path, demo_id):
     """
     return a list of labels for each frame , whose length is the same as the total number of frames
     """
-    label_path = os.path.join(dir_path, 'label', f'{demo_id}_NeedlePassing_demo_annotations.json')
+    label_path = os.path.join(dir_path, 'label', f'{demo_id}_output_annotations.json')
     # kine_path = os.path.join(dir_path, 'state', f'{demo_id}.txt')
     # with open(kine_path, 'r') as f:
     #     kine_frames = len(f.readlines())
@@ -52,8 +55,8 @@ def generate_frame_label_map(dir_path, demo_id):
     annotation_data = load_annotations(label_path)
     frame_map = []
     for i in range(kine_frames):
-        frame_num = i * annotation_data['total_frames'] / kine_frames
-        frame_map.append(get_frame_label(annotation_data, frame_num))
+        # frame_num = i * annotation_data['total_frames'] / kine_frames
+        frame_map.append(get_frame_label(annotation_data, i))
     return frame_map
 
 
@@ -83,10 +86,12 @@ def read_demo_kinematics_state(dir_path, demo_id):
     #     else:
     #         content[i, 13] = 1.0
 
-    left_state = content[:, :8]
-    right_state = content[:, 8:16]
+    # left: 3p 3v 1v 1g; right: 3p 3v 1v 1g
+    # left_state = content[:, :8]
+    # right_state = content[:, 8:16]
 
-    return np.hstack((left_state, right_state))
+    #return np.hstack((left_state, right_state))
+    return content
 
 def resample_bimanual_trajectory(data, step_size=config.resample_step, target_length=None, without_quat=False):
     
@@ -241,7 +246,7 @@ def resample_label(demo_id, step_size=config.resample_step, target_length=None):
 def get_shuffled_demo_ids(shuffle=True):
     """获取统一的demo ID顺序，确保state和label使用相同顺序"""
     np.random.seed(RANDOM_SEED)  # 每次重置种子确保一致性
-    demo_id_list = np.arange(65)
+    demo_id_list = np.arange(demo_num)
     if shuffle:
         demo_id_list = np.random.permutation(demo_id_list)
     return demo_id_list
@@ -262,11 +267,12 @@ def load_demonstrations_state(shuffle=True, without_quat=False, resample=False):
             state = resample_bimanual_trajectory(state, without_quat=without_quat)
             demo_states.append(state)
         else:
-            if state.shape[0] <= 350:
-                demo_states.append(state)
-            else:
-                print(f"too long demo idx:{demo_id}")
-                continue
+            # if state.shape[0] <= 350:
+            #     demo_states.append(state)
+            # else:
+            #     print(f"too long demo idx:{demo_id}")
+            demo_states.append(state)
+            continue
         
         
     print(f"last demo id: {demo_id_list[-1]}")
@@ -276,27 +282,113 @@ def load_demonstrations_state(shuffle=True, without_quat=False, resample=False):
     return demo_states
 
 
-def load_train_state(without_quat=False, resample=False):
-    demo_states_all = load_demonstrations_state(without_quat=without_quat, resample=resample)
-    bound = round(ratio*len(demo_states_all))
+GRIPPER_COLS    = [7, 15]              # 不参与任何归一化，原样保留
+VELSCALAR_COLS  = [6, 14]              # 速度模长 —— MinMaxScaler → [0, 1]
+VEL3_COL_GROUPS = [[3,4,5], [11,12,13]]  # 左/右手 velocity3 —— SharedStdScaler
+POS_COL_GROUPS  = [[0,1,2], [8,9,10]]    # 左/右手 position  —— SharedStdScaler
+
+
+class SharedStdScaler:
+    """
+    对一组列使用相同的标准差进行缩放，均值仍逐列去中心化。
+
+    这样 vx/vy/vz 三轴用同一把尺子缩放，轴间相对幅度比例完全保留，
+    避免独立 StandardScaler 将各轴强制拉到相同方差从而抹消方向差异。
+    """
+    def __init__(self):
+        self.means_ = None   # shape: (n_cols,)
+        self.shared_std_ = None   # scalar
+
+    def fit(self, X):
+        # X: (N, n_cols)
+        self.means_ = X.mean(axis=0)
+        # 用所有列的全部数值联合计算一个共享标准差
+        self.shared_std_ = (X - self.means_).std()
+        if self.shared_std_ == 0:
+            self.shared_std_ = 1.0
+        return self
+
+    def transform(self, X):
+        return (X - self.means_) / self.shared_std_
+
+    def fit_transform(self, X):
+        return self.fit(X).transform(X)
+
+
+def _scale_demos(demo_states):
+    """
+    四类列分别处理：
+      - GRIPPER_COLS    : 不变
+      - VELSCALAR_COLS  : MinMaxScaler  → [0, 1]
+      - POS_COL_GROUPS  : SharedStdScaler（逐组，均值逐列，共享标准差）
+      - VEL3_COL_GROUPS : SharedStdScaler（逐组，均值逐列，共享标准差）
+    返回 (scaled_demos, scalers_dict)
+    """
+    stacked = np.vstack(demo_states)
+
+    mm_scaler = MinMaxScaler()
+    mm_scaler.fit(stacked[:, VELSCALAR_COLS])
+
+    # position：左/右手各一个 SharedStdScaler
+    pos_scalers = []
+    for group in POS_COL_GROUPS:
+        sc = SharedStdScaler()
+        sc.fit(stacked[:, group])
+        pos_scalers.append(sc)
+
+    # velocity3：左/右手各一个 SharedStdScaler
+    vel3_scalers = []
+    for group in VEL3_COL_GROUPS:
+        sc = SharedStdScaler()
+        sc.fit(stacked[:, group])
+        vel3_scalers.append(sc)
+
+    scaled = []
+    for arr in demo_states:
+        out = arr.copy()
+        out[:, VELSCALAR_COLS] = mm_scaler.transform(arr[:, VELSCALAR_COLS])
+        for group, sc in zip(POS_COL_GROUPS, pos_scalers):
+            out[:, group] = sc.transform(arr[:, group])
+        for group, sc in zip(VEL3_COL_GROUPS, vel3_scalers):
+            out[:, group] = sc.transform(arr[:, group])
+        scaled.append(out)
+
+    scalers = {
+        'pos': pos_scalers,
+        'vel_scalar': mm_scaler,
+        'vel3': vel3_scalers,
+    }
+    return scaled, scalers
+
+def load_train_state(shuffle=True, without_quat=False, resample=False):
+    demo_states_all = load_demonstrations_state(shuffle=shuffle, without_quat=without_quat, resample=resample)
+    bound = round(ratio * len(demo_states_all))
     demo_states = demo_states_all[:bound]
-    scaler = StandardScaler()
-
-    all_data_stacked = np.vstack(demo_states)
-    scaler.fit(all_data_stacked)
-    scaled_demos = [scaler.transform(arr) for arr in demo_states]
+    scaled_demos, _ = _scale_demos(demo_states)
     return scaled_demos
 
-def load_test_state(without_quat=False, resample=False):
-    demo_states_all = load_demonstrations_state(without_quat=without_quat, resample=resample)
-    bound = round(ratio*len(demo_states_all))
-    demo_states = demo_states_all[bound:]
-    scaler = StandardScaler()
+def load_test_state(shuffle=True, without_quat=False, resample=False):
+    demo_states_all = load_demonstrations_state(shuffle=shuffle, without_quat=without_quat, resample=resample)
+    bound = round(ratio * len(demo_states_all))
+    train_states = demo_states_all[:bound]
+    test_states  = demo_states_all[bound:]
 
-    all_data_stacked = np.vstack(demo_states)
-    scaler.fit(all_data_stacked)
-    scaled_demos = [scaler.transform(arr) for arr in demo_states]
-    return scaled_demos
+    # 用训练集 fit 的 scalers 变换测试集，保证分布一致
+    _, scalers = _scale_demos(train_states)
+    pos_scalers  = scalers['pos']
+    mm_scaler    = scalers['vel_scalar']
+    vel3_scalers = scalers['vel3']
+
+    scaled = []
+    for arr in test_states:
+        out = arr.copy()
+        out[:, VELSCALAR_COLS] = mm_scaler.transform(arr[:, VELSCALAR_COLS])
+        for group, sc in zip(POS_COL_GROUPS, pos_scalers):
+            out[:, group] = sc.transform(arr[:, group])
+        for group, sc in zip(VEL3_COL_GROUPS, vel3_scalers):
+            out[:, group] = sc.transform(arr[:, group])
+        scaled.append(out)
+    return scaled
 
 
 def load_demonstrations_label(shuffle=True, resample=False):
@@ -309,11 +401,12 @@ def load_demonstrations_label(shuffle=True, resample=False):
      
         else:
             label = generate_frame_label_map(needle_dir_path, demo_id)
-            if len(label) <= 350 and len(label) > 0:
-                demo_labels.append(label)
-            else:
-                print(f"error demo label idx:{demo_id}")
-                continue
+            # if len(label) <= 350 and len(label) > 0:
+            #     demo_labels.append(label)
+            # else:
+            #     print(f"error demo label idx:{demo_id}")
+            #     continue
+            demo_labels.append(label)
         
     return demo_labels
 
@@ -334,6 +427,79 @@ def load_test_label(resample=False):
     bound = round(ratio*len(demo_labels_all))
     demo_labels = demo_labels_all[bound:]
     return demo_labels
+
+def load_specific_test_state(shuffle=True, without_quat=False, resample=False, demo_id_list=None):
+    demo_states_all = load_demonstrations_state(shuffle=shuffle, without_quat=without_quat, resample=resample)
+    bound = round(ratio * len(demo_states_all))
+    train_states = demo_states_all[:bound]
+
+    # 用训练集 fit 的 scalers 变换测试集，保证分布一致
+    _, scalers = _scale_demos(train_states)
+    pos_scalers  = scalers['pos']
+    mm_scaler    = scalers['vel_scalar']
+    vel3_scalers = scalers['vel3']
+
+    # 直接从文件读取指定 demo 的状态
+    test_states = []
+    if demo_id_list is not None:
+        for did in demo_id_list:
+            state = read_demo_kinematics_state(needle_dir_path, did)
+            if without_quat:
+                state = state[:, [0, 1, 2, 7, 8, 9, 10, 15]]
+            if resample:
+                state = resample_bimanual_trajectory(state, without_quat=without_quat)
+            test_states.append(state)
+    else:
+        for state in demo_states_all:
+            test_states.append(state)
+
+    
+    scaled = []
+    for arr in test_states:
+        out = arr.copy()
+        out[:, VELSCALAR_COLS] = mm_scaler.transform(arr[:, VELSCALAR_COLS])
+        for group, sc in zip(POS_COL_GROUPS, pos_scalers):
+            out[:, group] = sc.transform(arr[:, group])
+        for group, sc in zip(VEL3_COL_GROUPS, vel3_scalers):
+            out[:, group] = sc.transform(arr[:, group])
+        scaled.append(out)
+    return scaled
+
+def load_specific_test_label(demo_id_list):
+    """
+    按原始文件 ID 直接读取标注标签，不依赖文件内的其他函数。
+
+    参数:
+        demo_id_list: 可迭代的 demo 原始 ID，例如 [76, 77, 78, 79, 80]
+
+    返回:
+        list[list[int]]: 每个元素是对应 demo 的帧级标签列表，
+                         未被标注的帧返回 -1。
+    """
+    _base       = os.path.join(os.path.dirname(__file__), os.pardir, 'Dataset')
+    _label_dir  = os.path.join(_base, 'label')
+
+    all_labels = []
+    for did in demo_id_list:
+        label_path = os.path.join(_label_dir, f'{did}_output_annotations.json')
+        with open(label_path, 'r') as f:
+            data = json.load(f)
+
+        kine_frames   = int(data['kine_frames'])
+        annotations   = data['annotations']
+
+        frame_map = []
+        for frame_idx in range(kine_frames):
+            label = -1
+            for ann in annotations:
+                if ann['kine_start'] <= frame_idx <= ann['kine_end']:
+                    label = int(ann['label'])
+                    break
+            frame_map.append(label)
+
+        all_labels.append(frame_map)
+
+    return all_labels
 
 
 def visualize_demo_lengths():
@@ -440,13 +606,144 @@ def load_test_demonstration():
     test_label = load_demonstrations_label()
     return test_demo[122:], test_label[122:]
 
+def visualize_scaled_state(demo_idx=0, close_event=None):
+    """
+    可视化经过 StandardScaler 标准化后某条 demo 的各特征曲线，左右手分列展示。
+
+    列布局（16 列）：
+      左手: pos(0:3), vel3(3:6), vel_scalar(6), gripper(7)
+      右手: pos(8:11), vel3(11:14), vel_scalar(14), gripper(15)
+
+    close_event: threading.Event，外部置位后自动关闭图窗（线程模式用）。
+                 子进程模式下直接 terminate() 即可，无需传入。
+    """
+    import matplotlib
+    matplotlib.use('TkAgg')
+    scaled_demos = load_train_state(shuffle=False)
+
+    if demo_idx >= len(scaled_demos):
+        print(f"demo_idx {demo_idx} 超出范围，共 {len(scaled_demos)} 条训练数据")
+        return
+
+    data = scaled_demos[demo_idx]   # shape: (T, 16)
+    T = data.shape[0]
+    t = np.arange(T)
+
+    fig, axes = plt.subplots(4, 2, figsize=(10, 15))
+    fig.suptitle(
+        f'Scaled State Visualization (StandardScaler) — train demo #{demo_idx}',
+        fontsize=13, fontweight='bold'
+    )
+
+    # Row 0: Position
+    for col, label, color in zip([0, 1, 2], ['x', 'y', 'z'],
+                                 ['tab:red', 'tab:green', 'tab:blue']):
+        axes[0, 0].plot(t, data[:, col],     label=label, color=color, linewidth=0.8)
+        axes[0, 1].plot(t, data[:, 8 + col], label=label, color=color, linewidth=0.8)
+    for ax, title in zip(axes[0], ['Left Hand — Position (scaled)', 'Right Hand — Position (scaled)']):
+        ax.set_ylabel('Standardized value')
+        ax.set_title(title)
+        ax.legend(loc='upper right', fontsize=8)
+        ax.axhline(0, color='k', linewidth=0.4, linestyle='--')
+        ax.grid(True, alpha=0.3)
+
+    # Row 1: Velocity3
+    for col, label, color in zip([0, 1, 2], ['vx', 'vy', 'vz'],
+                                 ['tab:red', 'tab:green', 'tab:blue']):
+        axes[1, 0].plot(t, data[:, 3 + col],  label=label, color=color, linewidth=0.8)
+        axes[1, 1].plot(t, data[:, 11 + col], label=label, color=color, linewidth=0.8)
+    for ax, title in zip(axes[1], ['Left Hand — Velocity3 (scaled)', 'Right Hand — Velocity3 (scaled)']):
+        ax.set_ylabel('Standardized value')
+        ax.set_title(title)
+        ax.legend(loc='upper right', fontsize=8)
+        ax.axhline(0, color='k', linewidth=0.4, linestyle='--')
+        ax.grid(True, alpha=0.3)
+
+    # Row 2: Velocity scalar
+    axes[2, 0].plot(t, data[:, 6],  color='tab:purple', linewidth=0.8)
+    axes[2, 1].plot(t, data[:, 14], color='tab:orange', linewidth=0.8)
+    for ax, title in zip(axes[2], ['Left Hand — Velocity scalar (scaled)', 'Right Hand — Velocity scalar (scaled)']):
+        ax.set_ylabel('Standardized value')
+        ax.set_title(title)
+        ax.axhline(0, color='k', linewidth=0.4, linestyle='--')
+        ax.grid(True, alpha=0.3)
+
+    # Row 3: Gripper
+    axes[3, 0].plot(t, data[:, 7],  color='tab:brown', linewidth=0.8)
+    axes[3, 0].fill_between(t, data[:, 7],  alpha=0.25, color='tab:brown')
+    axes[3, 1].plot(t, data[:, 15], color='tab:cyan',  linewidth=0.8)
+    axes[3, 1].fill_between(t, data[:, 15], alpha=0.25, color='tab:cyan')
+
+    # 在 gripper 图角落标注 0↔1 突变时间戳
+    for ax, col, title in zip(axes[3], [7, 15],
+                              ['Left Hand — Gripper', 'Right Hand — Gripper']):
+        ax.set_ylabel('State (0/1)')
+        ax.set_title(title)
+        ax.set_xlabel('Frame')
+        ax.axhline(0, color='k', linewidth=0.4, linestyle='--')
+        ax.grid(True, alpha=0.3)
+
+        gripper = data[:, col]
+        diff = np.diff(gripper.astype(float), prepend=gripper[0])
+        rise_frames = t[diff  > 0.5]   # 0 → 1
+        fall_frames = t[diff  < -0.5]  # 1 → 0
+
+        # 竖线标注
+        for f in rise_frames:
+            ax.axvline(f, color='green', linewidth=0.8, linestyle='--', alpha=0.7)
+        for f in fall_frames:
+            ax.axvline(f, color='red', linewidth=0.8, linestyle='--', alpha=0.7)
+
+        # 角落文字汇总
+        lines = []
+        if len(rise_frames):
+            lines.append('0->(1):' + ', '.join(str(int(f)) for f in rise_frames))
+        if len(fall_frames):
+            lines.append('1->(0):' + ', '.join(str(int(f)) for f in fall_frames))
+        if lines:
+            ax.text(0.01, 0.97, '\n'.join(lines),
+                    transform=ax.transAxes,
+                    fontsize=7, verticalalignment='top',
+                    bbox=dict(boxstyle='round,pad=0.3', facecolor='lightyellow',
+                              edgecolor='gray', alpha=0.8))
+
+    plt.tight_layout()
+
+    save_dir = "/home/lambda/surgical_robotics_challenge/scripts/surgical_robotics_challenge/Project/Dataset/vis"
+    os.makedirs(save_dir, exist_ok=True)
+    save_path = os.path.join(save_dir, f'scaled_demo{demo_idx}.png')
+    plt.savefig(save_path, dpi=150)
+    print(f'图像已保存至: {save_path}')
+
+    mgr = plt.get_current_fig_manager()
+
+    # 设置窗口尺寸和位置（TkAgg）
+    try:
+        mgr.window.wm_geometry("+1800+100")
+    except Exception:
+        pass
+
+    plt.show(block=False)
+    plt.pause(0.1)
+
+    # 保持窗口直到：外部 close_event 置位，或用户手动关闭图窗
+    while plt.fignum_exists(fig.number):
+        if close_event is not None and close_event.is_set():
+            plt.close(fig)
+            return
+        plt.pause(0.3)
+
+
 # 使用示例
 if __name__ == '__main__':
-    #visualize_demo_lengths()
+    import sys as _sys
+    _demo_idx = int(_sys.argv[1]) if len(_sys.argv) > 1 else 0
+    
     # demo_id_list = []
     # demonstrations_state = load_demonstrations_state()
     # print(demonstrations_state[0].shape)  # Example output: (number_of_frames, 14)
-    demo_lengths = visualize_demo_lengths()
+    # demo_lengths = visualize_demo_lengths()
+    
     # label_data = load_demonstrations_label()
     # print(len(label_data[0]))
     # print(len(demonstrations_state), len(label_data))
@@ -455,6 +752,12 @@ if __name__ == '__main__':
     # print(average_transition_time)
     # print(std_transition_time)
     # print(demo_id_list[138:]) # [184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198]
+
+    # visualize_demo_lengths()
+    # visualize_scaled_state(demo_idx=21)
+
+    for i in range(109,148):
+        visualize_scaled_state(demo_idx=i)
     
 
 

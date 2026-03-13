@@ -29,8 +29,8 @@ init_params = {
 velocity_queue_length = 14 # direction
 ipa_window_length = 63
 ipa_polyorder = 3
-velocity_window_length = 15
-velocity_polyorder = 3
+velocity_window_length = 9
+velocity_polyorder = 5
 
 optimization_range = {
     'K_g': (8.0, 12.0),

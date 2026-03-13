@@ -11,7 +11,7 @@ from matplotlib.colors import ListedColormap
 import seaborn as sns
 from torch.utils.data import DataLoader
 from LSTM_seg_train import SequenceLabelingLSTM, SequenceLabelingLSTM_CRF, collate_fn
-from load_data import load_test_state, load_test_label
+from load_data import load_test_state, load_test_label, load_specific_test_state, load_specific_test_label
 import os
 from config import resample, without_quat
 
@@ -20,8 +20,10 @@ plt.rcParams['axes.unicode_minus'] = False
 
 class TestDataset:
     def __init__(self):
-        demonstrations_state = load_test_state(without_quat=without_quat, resample=resample)
-        demonstrations_label = load_test_label(resample=resample)
+        # demonstrations_state = load_test_state(without_quat=without_quat, resample=resample)
+        # demonstrations_label = load_test_label(resample=resample)
+        demonstrations_state = load_specific_test_state(shuffle=False, without_quat=without_quat, resample=resample, demo_id_list=[76,78,79,118,119,120,121])
+        demonstrations_label = load_specific_test_label(demo_id_list=[76,78,79,118,119,120,121])
         
         
         self.samples = []
@@ -91,7 +93,7 @@ def predict_sequence(model, sequence, device):
     return predictions
 
 
-def visualize_sequence_predictions(model, test_dataset, device, num_sequences=5, save_path=None):
+def visualize_sequence_predictions(model, test_dataset, device, num_sequences=7, save_path=None):
     """
     可视化序列预测结果
     
@@ -106,8 +108,8 @@ def visualize_sequence_predictions(model, test_dataset, device, num_sequences=5,
     """
     
     # 定义颜色和标签 (6个有效类 + 1个未标注类)
-    class_colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA15E', '#A9A9A9']
-    class_names = ['Class 0', 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Unlabeled']
+    class_colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA15E', '#A9A9A9', '#A9A2B5']
+    class_names = ['Class 0', 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'Unlabeled']
     
     # 创建图形
     fig, axes = plt.subplots(num_sequences, 1, figsize=(15, 3*num_sequences))
@@ -462,7 +464,7 @@ def main():
     print("\n生成序列预测对比图...")
     visualize_sequence_predictions(
         model, test_dataset, device, 
-        num_sequences=5, 
+        num_sequences=7, 
         save_path=os.path.join(save_dir, "sequence_predictions.png")
     )
     

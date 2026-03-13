@@ -483,5 +483,5 @@ def visualize_data(data_dir=None, save_statistics=False):
 # 如果直接运行此脚本，使用最新数据生成可视化
 if __name__ == '__main__':
 	print("Generating visualization...")
-	visualize_data(data_dir='data/13_data_12-01')
+	visualize_data(data_dir='data/43_data_01-18')
 

@@ -1,4 +1,4 @@
-test_demonstration_name = "190.txt"
+#test_demonstration_name = "190.txt"
 
 # TSC parameters
 
@@ -24,6 +24,6 @@ state_probability_threshold = 0.4
 time_probability_threshold = 0.4
 
 # lstm
-resample = True
+resample = False
 without_quat = False
 resample_step = 0.0015 # 0.0015

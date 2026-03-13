@@ -1,10 +1,12 @@
 import os
+import sys
 import cv2
 import json
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from tkinter import ttk
 from PIL import Image, ImageTk
+import numpy as np
 
 
 class VideoPhaseAnnotator:
@@ -25,13 +27,31 @@ class VideoPhaseAnnotator:
         self.video_width = 0
         self.video_height = 0
         self.playing = False
+        self._slider_updating = False   # 程序内部更新滑块时置 True，避免触发暂停
         self.annotations = []
         self.current_label = ""
         # self.labels = []  # 用户定义的标签类别
-        self.labels = [0, 1, 2, 3, 4, 5]  # 用户定义的标签类别
+        self.labels = [0, 1, 2, 3, 4, 5, 6]  # 用户定义的标签类别
 
 
         self.new_video = 0
+
+        # 路径（需最先初始化，后续变量依赖它）
+        self._project_dir = os.path.dirname(os.path.abspath(__file__))
+        self._demo_lengths_path = os.path.join(self._project_dir, 'Dataset', 'demo_lengths.npy')
+        # 数据流相关
+        self.demo_idx = -1
+        self.kine_frames = 0   # 当前 demo 的运动学数据帧数
+
+        # 时间校准：视频帧号对应数据流首/末的视频帧位置
+        # 视频侧校准帧号
+        self.calib_start = None   # 视频帧号：对应数据流 kine_calib_start
+        self.calib_end   = None   # 视频帧号：对应数据流 kine_calib_end
+        # 数据流侧校准帧号（用户输入，默认为 0 和 kine_frames-1）
+        self.kine_calib_start = 0
+        self.kine_calib_end   = 0   # 加载视频后更新为 kine_frames-1
+        # 映射: kine_idx = kine_calib_start + (video_frame - calib_start) /
+        #                  (calib_end - calib_start) * (kine_calib_end - kine_calib_start)
 
         # 创建GUI布局
         self.create_widgets()
@@ -71,12 +91,68 @@ class VideoPhaseAnnotator:
         nav_frame.pack(side=tk.TOP, padx=5, pady=5)
 
         self.frame_slider = tk.Scale(nav_frame, from_=0, to=0, orient=tk.HORIZONTAL,
-                                     command=self.on_slider_change, length=1800)
+                                     command=self.on_slider_change, length=1000)
         self.frame_slider.pack(side=tk.LEFT, padx=5)
 
         self.frame_entry = tk.Entry(nav_frame, width=6)
         self.frame_entry.pack(side=tk.LEFT, padx=5)
         self.frame_entry.bind("<Return>", self.on_frame_entry)
+
+        self.kine_label_var = tk.StringVar(value="数据帧: — / —")
+        self.kine_label = tk.Label(nav_frame, textvariable=self.kine_label_var,
+                                   font=("Helvetica", 10), fg="#0055aa")
+        self.kine_label.pack(side=tk.LEFT, padx=12)
+
+        # 时间校准区域
+        calib_frame = tk.LabelFrame(self.root, text="时间校准（视频↔数据流对齐）")
+        calib_frame.pack(side=tk.TOP, padx=5, pady=3, fill=tk.X)
+
+        # ── 第一行：视频帧标记按钮 ──
+        calib_row1 = tk.Frame(calib_frame)
+        calib_row1.pack(side=tk.TOP, fill=tk.X, pady=2)
+
+        self.calib_start_btn = tk.Button(calib_row1, text="设为视频起始帧",
+                                         command=self.set_calib_start, state=tk.DISABLED)
+        self.calib_start_btn.pack(side=tk.LEFT, padx=6)
+
+        self.calib_start_var = tk.StringVar(value="视频起始: —")
+        tk.Label(calib_row1, textvariable=self.calib_start_var, width=16, anchor='w').pack(side=tk.LEFT)
+
+        self.calib_end_btn = tk.Button(calib_row1, text="设为视频结束帧",
+                                       command=self.set_calib_end, state=tk.DISABLED)
+        self.calib_end_btn.pack(side=tk.LEFT, padx=6)
+
+        self.calib_end_var = tk.StringVar(value="视频结束: —")
+        tk.Label(calib_row1, textvariable=self.calib_end_var, width=16, anchor='w').pack(side=tk.LEFT)
+
+        self.calib_reset_btn = tk.Button(calib_row1, text="重置校准",
+                                         command=self.reset_calib, state=tk.DISABLED)
+        self.calib_reset_btn.pack(side=tk.LEFT, padx=6)
+
+        self.calib_status_var = tk.StringVar(value="未校准（使用总帧数等比映射）")
+        tk.Label(calib_row1, textvariable=self.calib_status_var,
+                 fg='gray', font=("Helvetica", 9)).pack(side=tk.LEFT, padx=10)
+
+        # ── 第二行：数据流起止索引输入 ──
+        calib_row2 = tk.Frame(calib_frame)
+        calib_row2.pack(side=tk.TOP, fill=tk.X, pady=2)
+
+        tk.Label(calib_row2, text="对应数据流起始帧:").pack(side=tk.LEFT, padx=6)
+        self.kine_start_entry = tk.Entry(calib_row2, width=8)
+        self.kine_start_entry.insert(0, '0')
+        self.kine_start_entry.pack(side=tk.LEFT)
+        self.kine_start_entry.bind('<Return>', lambda e: self._apply_kine_range())
+        self.kine_start_entry.bind('<FocusOut>', lambda e: self._apply_kine_range())
+
+        tk.Label(calib_row2, text="对应数据流结束帧:").pack(side=tk.LEFT, padx=(16, 6))
+        self.kine_end_entry = tk.Entry(calib_row2, width=8)
+        self.kine_end_entry.insert(0, '0')
+        self.kine_end_entry.pack(side=tk.LEFT)
+        self.kine_end_entry.bind('<Return>', lambda e: self._apply_kine_range())
+        self.kine_end_entry.bind('<FocusOut>', lambda e: self._apply_kine_range())
+
+        tk.Label(calib_row2, text="（输入后按 Enter 或移开焦点生效）",
+                 fg='gray', font=("Helvetica", 8)).pack(side=tk.LEFT, padx=8)
 
         # 标注控制区域
         annotate_frame = tk.Frame(self.root)
@@ -84,16 +160,16 @@ class VideoPhaseAnnotator:
 
         # 标签管理区域
         label_frame = tk.LabelFrame(self.root, text="标签管理")
-        label_frame.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.BOTH)
+        label_frame.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.BOTH, anchor='n')
 
-        self.label_entry = tk.Entry(label_frame, width=20)
-        self.label_entry.pack(side=tk.LEFT, padx=5)
+        self.label_entry = tk.Entry(label_frame, width=5)
+        self.label_entry.pack(side=tk.LEFT, padx=5, anchor='n')
 
         self.add_label_btn = tk.Button(label_frame, text="添加标签", command=self.add_label)
-        self.add_label_btn.pack(side=tk.LEFT, padx=5)
+        self.add_label_btn.pack(side=tk.LEFT, padx=5, anchor='n')
 
         self.label_combobox = ttk.Combobox(label_frame, state="readonly")
-        self.label_combobox.pack(side=tk.LEFT, padx=5)
+        self.label_combobox.pack(side=tk.LEFT, padx=5, anchor='n')
         self.label_combobox.bind("<<ComboboxSelected>>", self.on_label_select)
         
         # 初始化标签列表
@@ -117,7 +193,7 @@ class VideoPhaseAnnotator:
         annotation_frame = tk.LabelFrame(self.root, text="当前标注")
         annotation_frame.pack(side=tk.RIGHT, padx=5, pady=5, fill=tk.BOTH)
 
-        self.annotation_text = tk.Text(annotation_frame, height=10, width=40)
+        self.annotation_text = tk.Text(annotation_frame, height=10, width=30)
         self.annotation_text.pack(fill=tk.BOTH, expand=True)
 
         # 保存按钮
@@ -172,6 +248,45 @@ class VideoPhaseAnnotator:
             self.mark_end_btn.config(state=tk.NORMAL)
             self.clear_btn.config(state=tk.NORMAL)
             self.save_btn.config(state=tk.NORMAL)
+            self.calib_start_btn.config(state=tk.NORMAL)
+            self.calib_end_btn.config(state=tk.NORMAL)
+            self.calib_reset_btn.config(state=tk.NORMAL)
+
+            # 从文件名提取 demo_idx，如 "21_NeedlePassing_demo.mp4" → 21
+            try:
+                self.demo_idx = int(os.path.basename(file_path).split('_')[0])
+            except (ValueError, IndexError):
+                self.demo_idx = -1
+
+            # 加载运动学数据帧数
+            self.kine_frames = 0
+            if self.demo_idx >= 0 and os.path.exists(self._demo_lengths_path):
+                try:
+                    demo_lengths = np.load(self._demo_lengths_path)
+                    if self.demo_idx < len(demo_lengths):
+                        self.kine_frames = int(demo_lengths[self.demo_idx])
+                except Exception:
+                    pass
+
+            # 初始化数据流起止输入框
+            # 默认：右手 gripper 第一次 0→1 / 1→0 的时间戳；找不到时退回全段
+            ks_default, ke_default = self._detect_gripper_transitions(self.demo_idx)
+            if ks_default is None:
+                ks_default = 0
+            if ke_default is None:
+                ke_default = max(0, self.kine_frames - 1)
+            self.kine_calib_start = ks_default
+            self.kine_calib_end   = ke_default
+            self.kine_start_entry.delete(0, tk.END)
+            self.kine_start_entry.insert(0, str(self.kine_calib_start))
+            self.kine_end_entry.delete(0, tk.END)
+            self.kine_end_entry.insert(0, str(self.kine_calib_end))
+
+            # 重置校准
+            self.reset_calib()
+
+            # 同步更新数据帧标签
+            self._update_kine_label()
 
             # 加载已有标注文件
             self.load_annotations()
@@ -182,8 +297,110 @@ class VideoPhaseAnnotator:
             self.status_var.set(
                 f"已加载视频: {os.path.basename(file_path)} | 总帧数: {self.total_frames} | FPS: {self.fps:.2f}")
 
+
+
+
+    def frame_to_kine_idx(self, video_frame):
+        """将视频帧号映射到运动学数据流索引（已校准时使用线性拉伸）"""
+        if self.kine_frames <= 0:
+            return 0
+        cs = self.calib_start
+        ce = self.calib_end
+        ks = self.kine_calib_start
+        ke = self.kine_calib_end
+        if cs is not None and ce is not None and ce > cs:
+            ratio = (video_frame - cs) / (ce - cs)
+            kine_idx = ks + ratio * (ke - ks)
+        elif self.total_frames > 0:
+            ratio = video_frame / self.total_frames
+            kine_idx = ks + ratio * (ke - ks)
+        else:
+            return 0
+        return max(0, min(int(round(kine_idx)), self.kine_frames - 1))
+
+    def _detect_gripper_transitions(self, demo_idx):
+        """从 Dataset/state/{demo_idx}.txt 读取右手 gripper（第16列，列索引15），
+        返回 (第一次 0→1 的帧号, 第一次 1→0 的帧号)。
+        任一方向找不到时对应返回 None。"""
+        if demo_idx < 0:
+            return None, None
+        state_path = os.path.join(self._project_dir, 'Dataset', 'state', f'{demo_idx}.txt')
+        if not os.path.exists(state_path):
+            return None, None
+        try:
+            data = np.loadtxt(state_path)          # shape (T, 16)
+            gripper = data[:, 15].astype(float)
+            diff = np.diff(gripper, prepend=gripper[0])
+            rise = np.where(diff > 0.5)[0]   # 0 → 1
+            fall = np.where(diff < -0.5)[0]  # 1 → 0
+            ks = int(rise[0]) if len(rise) > 0 else None
+            ke = int(fall[0]) if len(fall) > 0 else None
+            return ks, ke
+        except Exception:
+            return None, None
+
+    def _apply_kine_range(self):
+        """读取输入框中的数据流起止索引并更新映射"""
+        try:
+            ks = int(self.kine_start_entry.get())
+            ke = int(self.kine_end_entry.get())
+            ks = max(0, min(ks, self.kine_frames - 1))
+            ke = max(0, min(ke, self.kine_frames - 1))
+            self.kine_calib_start = ks
+            self.kine_calib_end   = ke
+            self._refresh_calib_status()
+            self._update_kine_label()
+        except ValueError:
+            pass
+
+    def _update_kine_label(self):
+        """刷新 GUI 上的数据帧显示"""
+        if self.kine_frames > 0:
+            kine_idx = self.frame_to_kine_idx(self.current_frame)
+            self.kine_label_var.set(f"数据帧: {kine_idx} / {self.kine_frames - 1}")
+        else:
+            self.kine_label_var.set("数据帧: — / —")
+
+    def set_calib_start(self):
+        """将当前视频帧设为数据流 kine_calib_start 对应的视频帧"""
+        self.calib_start = self.current_frame
+        self.calib_start_var.set(f"视频起始: 第{self.current_frame}帧")
+        self._refresh_calib_status()
+        self._update_kine_label()
+
+    def set_calib_end(self):
+        """将当前视频帧设为数据流 kine_calib_end 对应的视频帧"""
+        self.calib_end = self.current_frame
+        self.calib_end_var.set(f"视频结束: 第{self.current_frame}帧")
+        self._refresh_calib_status()
+        self._update_kine_label()
+
+    def reset_calib(self):
+        """清除视频侧校准，恢复等比映射；数据流侧保留"""
+        self.calib_start = None
+        self.calib_end   = None
+        self.calib_start_var.set("视频起始: —")
+        self.calib_end_var.set("视频结束: —")
+        self._refresh_calib_status()
+        self._update_kine_label()
+
+    def _refresh_calib_status(self):
+        cs, ce = self.calib_start, self.calib_end
+        ks, ke = self.kine_calib_start, self.kine_calib_end
+        if cs is not None and ce is not None and ce > cs:
+            self.calib_status_var.set(
+                f"已校准  视频[{cs}→{ce}] ↔ 数据流[{ks}→{ke}]  视频跨度:{ce-cs}帧  数据跨度:{ke-ks}帧")
+        elif cs is not None or ce is not None:
+            self.calib_status_var.set("校准中…（请同时设置视频起始和结束帧）")
+        else:
+            self.calib_status_var.set(f"未校准  数据流范围:[{ks}→{ke}]（等比映射）")
+
     def load_annotations(self):
         """尝试加载同名的标注文件"""
+        # 导入新视频时先清空历史标注和显示
+        self.annotations = []
+        self.annotation_text.delete(1.0, tk.END)
+
         video_basename = os.path.basename(self.video_path)
         video_name = os.path.splitext(video_basename)[0]
         
@@ -203,6 +420,22 @@ class VideoPhaseAnnotator:
                     data = json.load(f)
                     self.annotations = data.get('annotations', [])
                     self.labels = data.get('labels', [])
+
+                    # 恢复校准参数
+                    self.calib_start      = data.get('calib_start',      None)
+                    self.calib_end        = data.get('calib_end',         None)
+                    self.kine_calib_start = data.get('kine_calib_start',  0)
+                    self.kine_calib_end   = data.get('kine_calib_end',
+                                                     max(0, self.kine_frames - 1))
+                    cs_txt = f"视频起始: 第{self.calib_start}帧" if self.calib_start is not None else "视频起始: —"
+                    ce_txt = f"视频结束: 第{self.calib_end}帧"   if self.calib_end   is not None else "视频结束: —"
+                    self.calib_start_var.set(cs_txt)
+                    self.calib_end_var.set(ce_txt)
+                    self.kine_start_entry.delete(0, tk.END)
+                    self.kine_start_entry.insert(0, str(self.kine_calib_start))
+                    self.kine_end_entry.delete(0, tk.END)
+                    self.kine_end_entry.insert(0, str(self.kine_calib_end))
+                    self._refresh_calib_status()
 
                     # 更新标签选择框
                     self.label_combobox['values'] = self.labels
@@ -243,10 +476,13 @@ class VideoPhaseAnnotator:
                     self.photo = ImageTk.PhotoImage(image=img)
                     self.canvas.create_image(canvas_width // 2, canvas_height // 2, image=self.photo, anchor=tk.CENTER)
 
-                # 更新UI显示
+                # 更新UI显示（用标志位防止滑块回调误触发暂停）
+                self._slider_updating = True
                 self.frame_slider.set(self.current_frame)
+                self._slider_updating = False
                 self.frame_entry.delete(0, tk.END)
                 self.frame_entry.insert(0, str(self.current_frame))
+                self._update_kine_label()
 
                 # 检查是否播放结束
                 if self.playing and self.current_frame >= self.total_frames - 1:
@@ -258,13 +494,56 @@ class VideoPhaseAnnotator:
         if self.cap is not None:
             self.playing = not self.playing
             self.play_btn.config(text="暂停" if self.playing else "播放")
-            self.play_video()
+            if self.playing:
+                # 确保 cap 从当前帧开始顺序读取
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, self.current_frame)
+                self.play_video()
 
     def play_video(self):
-        """播放视频"""
-        if self.playing and self.cap is not None:
-            self.next_frame()
-            self.root.after(int(1000 / self.fps), self.play_video)
+        """播放视频（独立读帧循环，不经过 next_frame/on_slider_change）"""
+        if not self.playing or self.cap is None:
+            return
+
+        # 读取下一帧（cap 内部指针已在正确位置，不需要 seek）
+        ret, frame = self.cap.read()
+        if not ret:
+            # 读帧失败（已到末尾或解码错误）
+            self.playing = False
+            self.play_btn.config(text="播放")
+            return
+
+        self.current_frame += 1
+
+        # 渲染帧
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        ann = self.get_annotation_for_frame(self.current_frame)
+        if ann:
+            cv2.putText(frame, f"Label: {ann['label']}", (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
+
+        cw = self.canvas.winfo_width()
+        ch = self.canvas.winfo_height()
+        if cw > 0 and ch > 0:
+            img = Image.fromarray(frame)
+            img.thumbnail((cw, ch), Image.LANCZOS)
+            self.photo = ImageTk.PhotoImage(image=img)
+            self.canvas.create_image(cw // 2, ch // 2, image=self.photo, anchor=tk.CENTER)
+
+        # 更新 UI（用标志位防止 slider command 回调误触发暂停）
+        self._slider_updating = True
+        self.frame_slider.set(self.current_frame)
+        self._slider_updating = False
+        self.frame_entry.delete(0, tk.END)
+        self.frame_entry.insert(0, str(self.current_frame))
+        self._update_kine_label()
+
+        # 到末尾则停止，否则继续调度
+        if self.current_frame >= self.total_frames - 1:
+            self.playing = False
+            self.play_btn.config(text="播放")
+        else:
+            delay = int(1000 / self.fps) if self.fps > 0 else 33
+            self.root.after(delay, self.play_video)
 
     def prev_frame(self):
         """跳转到上一帧"""
@@ -286,7 +565,10 @@ class VideoPhaseAnnotator:
     def on_slider_change(self, value):
         """滑块变化事件处理"""
         if self.cap is not None:
-            # 暂停播放（用户拖动滑块时）
+            # 程序内部更新滑块位置时不触发暂停
+            if self._slider_updating:
+                return
+            # 用户手动拖动滑块时暂停播放
             was_playing = self.playing
             if was_playing:
                 self.playing = False
@@ -347,17 +629,20 @@ class VideoPhaseAnnotator:
         # 查找是否已有相同标签的未结束的标注
         for i, ann in enumerate(self.annotations):
             if ann['label'] == self.current_label and ann['end'] == -1:
-                # 更新已有标注的起始帧
                 self.annotations[i]['start'] = self.current_frame
+                self.annotations[i]['kine_start'] = self.frame_to_kine_idx(self.current_frame)
                 self.update_annotation_display()
-                self.status_var.set(f"已更新标注起始帧: {self.current_frame} ({self.current_label})")
+                self.status_var.set(f"已更新标注起始帧: {self.current_frame} "
+                                    f"[数据帧 {self.annotations[i]['kine_start']}] ({self.current_label})")
                 return
 
         # 创建新标注
         self.annotations.append({
             'label': self.current_label,
             'start': self.current_frame,
-            'end': -1  # -1表示尚未标记结束
+            'kine_start': self.frame_to_kine_idx(self.current_frame),
+            'end': -1,
+            'kine_end': -1,
         })
 
         # 按开始帧排序
@@ -402,10 +687,12 @@ class VideoPhaseAnnotator:
 
         # 更新结束帧
         self.annotations[unclosed]['end'] = self.current_frame
+        self.annotations[unclosed]['kine_end'] = self.frame_to_kine_idx(self.current_frame)
 
         self.update_annotation_display()
         self.update_frame()
-        self.status_var.set(f"已标记结束帧: {self.current_frame} ({self.current_label})")
+        self.status_var.set(f"已标记结束帧: {self.current_frame} "
+                            f"[数据帧 {self.annotations[unclosed]['kine_end']}] ({self.current_label})")
 
     def clear_annotation(self):
         """清除当前帧的标注"""
@@ -438,12 +725,16 @@ class VideoPhaseAnnotator:
             return
 
         for ann in self.annotations:
-            start = ann['start']
-            end = ann['end'] if ann['end'] != -1 else "未结束"
+            end_str      = str(ann['end'])      if ann['end']      != -1 else "未结束"
+            kine_end_str = str(ann.get('kine_end', '—')) if ann.get('kine_end', -1) != -1 else "未结束"
             self.annotation_text.insert(tk.END, f"标签: {ann['label']}\n")
-            self.annotation_text.insert(tk.END, f"起始帧: {start}\n")
-            self.annotation_text.insert(tk.END, f"结束帧: {end}\n")
+            self.annotation_text.insert(tk.END,
+                f"起始帧: {ann['start']}  [数据帧: {ann.get('kine_start', '—')}]\n")
+            self.annotation_text.insert(tk.END,
+                f"结束帧: {end_str}  [数据帧: {kine_end_str}]\n")
             self.annotation_text.insert(tk.END, "-" * 30 + "\n")
+
+        self.annotation_text.see(tk.END)
 
     def save_annotations(self):
         """保存标注到文件"""
@@ -467,8 +758,14 @@ class VideoPhaseAnnotator:
             'video_path': self.video_path,
             'total_frames': self.total_frames,
             'fps': self.fps,
+            'demo_idx': self.demo_idx,
+            'kine_frames': self.kine_frames,
+            'calib_start':      self.calib_start,
+            'calib_end':        self.calib_end,
+            'kine_calib_start': self.kine_calib_start,
+            'kine_calib_end':   self.kine_calib_end,
             'labels': self.labels,
-            'annotations': self.annotations
+            'annotations': self.annotations,
         }
 
         with open(json_path, 'w', encoding='utf-8') as f:
@@ -508,14 +805,17 @@ if __name__ == "__main__":
     # ========== 配置区域 ==========
     # 设置打开视频时的初始文件夹（None 或不设置则使用当前工作目录）
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    INITIAL_VIDEO_DIR = "/home/lambda/Videos/train"
+    INITIAL_VIDEO_DIR = "/home/lambda/surgical_robotics_challenge/scripts/surgical_robotics_challenge/Project/video_process/output"
     
     # 设置JSON标注文件的导出目录（None 或不设置则保存在视频同目录）
-    ANNOTATION_OUTPUT_DIR = os.path.join(current_dir, 'train', 'label')
+    ANNOTATION_OUTPUT_DIR = os.path.join(current_dir, 'Dataset', 'label')
 
     # ==============================
     
     root = tk.Tk()
+    # 格式: "宽x高+距屏幕左边距+距屏幕上边距"
+    # 只设置位置而不强制尺寸: "+x+y"
+    root.geometry("1400x1440+0+0")   # 左上角
     app = VideoPhaseAnnotator(
         root, 
         initial_video_dir=INITIAL_VIDEO_DIR,
