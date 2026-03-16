@@ -756,7 +756,7 @@ if __name__ == '__main__':
     # visualize_demo_lengths()
     # visualize_scaled_state(demo_idx=21)
 
-    for i in range(109,148):
+    for i in range(125,148):
         visualize_scaled_state(demo_idx=i)
     
 
