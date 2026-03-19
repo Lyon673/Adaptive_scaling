@@ -14,6 +14,7 @@ import matplotlib.gridspec as gridspec
 from matplotlib.colors import LinearSegmentedColormap
 from torchcrf import CRF
 from config import resample, without_quat
+from segmentation_metrics import SegmentationEvaluator
 
 # Surgical action class names — adjust to match your dataset's label mapping
 CLASS_NAMES = [
@@ -330,10 +331,13 @@ def load_model(filepath, device='cpu'):
 
 class TestDataset(Dataset):
     def __init__(self):
-        # demonstrations_state = load_test_state(without_quat=without_quat, resample=resample)
-        # demonstrations_label = load_test_label(resample=resample)
-        demonstrations_state = load_specific_test_state(shuffle=False, without_quat=without_quat, resample=resample, demo_id_list=[76,78,79,118,119,120,121])
-        demonstrations_label = load_specific_test_label(demo_id_list=[76,78,79,118,119,120,121])
+        demo_id_list = np.arange(148)
+        demo_id_list = np.delete(demo_id_list, [80, 81, 92, 109, 112, 117, 122, 144, 145])
+
+        demonstrations_state = load_test_state(without_quat=without_quat, resample=resample, demo_id_list=demo_id_list)
+        demonstrations_label = load_test_label(resample=resample, demo_id_list=demo_id_list)
+        # demonstrations_state = load_specific_test_state(shuffle=False, without_quat=without_quat, resample=resample, demo_id_list=[76,78,79,118,119,120,121])
+        # demonstrations_label = load_specific_test_label(demo_id_list=[76,78,79,118,119,120,121])
 
         self.samples = []
         for state_seq, label_seq in zip(demonstrations_state, demonstrations_label):
@@ -424,6 +428,204 @@ def evaluate_model_CRF(model, dataloader, device, save_path=None):
                      title="LSTM-CRF Evaluation Report", save_path=save_path)
 
 
+def evaluate_segmental_metrics(
+    model,
+    test_dataset,
+    device,
+    tau: int = 15,
+    seg_thresholds: tuple = (0.10, 0.25, 0.50),
+    save_path: Optional[str] = None,
+) -> None:
+    """
+    Compute advanced segmental metrics for every sequence in test_dataset
+    and report per-sequence results plus dataset-level aggregates.
+
+    Metrics (all computed per sequence, then averaged):
+      • Boundary F1   – transition detection with tolerance window τ
+      • Edit Score    – workflow correctness via Levenshtein distance
+      • F1@k          – IoU-thresholded segment-level F1 (k = 0.10 / 0.25 / 0.50)
+      • Over-seg. Err – relative excess of predicted segments vs ground truth
+
+    Parameters
+    ----------
+    model        : trained LSTM or LSTM-CRF model
+    test_dataset : dataset whose __getitem__ returns (state_tensor, label_tensor)
+    device       : torch device
+    tau          : boundary tolerance in frames (default 15)
+    seg_thresholds : IoU thresholds for F1@k
+    save_path    : if given, save a summary table PNG to this path
+    """
+    is_crf = hasattr(model, 'crf')
+    evaluator = SegmentationEvaluator()
+    model.eval()
+
+    # Containers – one entry per sequence
+    seq_results = []           # list of EvaluationResult
+    demo_ids    = (test_dataset.demo_ids
+                   if hasattr(test_dataset, 'demo_ids')
+                   else list(range(len(test_dataset))))
+
+    with torch.no_grad():
+        for idx in range(len(test_dataset)):
+            sequence, true_labels = test_dataset[idx]
+            seq_tensor = sequence.to(device)
+            lengths    = [seq_tensor.shape[0]]
+
+            if is_crf:
+                paths = model.decode(seq_tensor.unsqueeze(0), lengths)
+                pred_np = np.array(paths[0], dtype=int)
+            else:
+                logits  = model(seq_tensor.unsqueeze(0), lengths)
+                pred_np = torch.argmax(logits, dim=2).squeeze(0).cpu().numpy()
+
+            true_np = true_labels.numpy()
+
+            # align lengths (safety guard)
+            min_len = min(len(true_np), len(pred_np))
+            true_np = true_np[:min_len]
+            pred_np = pred_np[:min_len]
+
+            # skip sequences with no valid labels at all
+            if np.all(true_np == -1):
+                continue
+
+            result = evaluator.evaluate(true_np, pred_np,
+                                        tau=tau,
+                                        segmental_thresholds=seg_thresholds)
+            seq_results.append((demo_ids[idx], result))
+
+    if not seq_results:
+        print("[evaluate_segmental_metrics] No valid sequences found.")
+        return
+
+    # ── per-sequence table ────────────────────────────────────────────────────
+    k_list = list(seg_thresholds)
+    header = (f"{'demo_id':>8}  {'Acc':>6}  {'BoundF1':>8}  "
+              f"{'EditSc':>7}  "
+              + "  ".join(f"F1@{k:.2f}" for k in k_list)
+              + f"  {'OSE':>7}")
+    sep = "─" * len(header)
+
+    print(f"\n{'═' * len(header)}")
+    print("  Segmental Metrics – Per Sequence")
+    print(f"{'═' * len(header)}")
+    print(header)
+    print(sep)
+
+    # accumulators for aggregate stats
+    accs, bfs, eds, oses = [], [], [], []
+    f1s = {k: [] for k in k_list}
+
+    for demo_id, r in seq_results:
+        f1_str = "  ".join(f"{r.segmental_f1.f1_at_k[k]*100:>7.1f}" for k in k_list)
+        print(f"{demo_id:>8}  "
+              f"{r.frame_accuracy*100:>5.1f}%  "
+              f"{r.boundary_f1.f1*100:>7.1f}%  "
+              f"{r.edit_score.score:>7.1f}  "
+              f"{f1_str}  "
+              f"{r.oversegmentation_err:>7.3f}")
+        accs.append(r.frame_accuracy)
+        bfs.append(r.boundary_f1.f1)
+        eds.append(r.edit_score.score)
+        oses.append(r.oversegmentation_err)
+        for k in k_list:
+            f1s[k].append(r.segmental_f1.f1_at_k[k])
+
+    # ── aggregate summary ─────────────────────────────────────────────────────
+    print(sep)
+    mean_f1_str = "  ".join(
+        f"{np.mean(f1s[k])*100:>7.1f}" for k in k_list)
+    print(f"{'MEAN':>8}  "
+          f"{np.mean(accs)*100:>5.1f}%  "
+          f"{np.mean(bfs)*100:>7.1f}%  "
+          f"{np.mean(eds):>7.1f}  "
+          f"{mean_f1_str}  "
+          f"{np.mean(oses):>7.3f}")
+    std_f1_str = "  ".join(
+        f"{np.std(f1s[k])*100:>7.1f}" for k in k_list)
+    print(f"{'STD':>8}  "
+          f"{np.std(accs)*100:>5.1f}%  "
+          f"{np.std(bfs)*100:>7.1f}%  "
+          f"{np.std(eds):>7.1f}  "
+          f"{std_f1_str}  "
+          f"{np.std(oses):>7.3f}")
+    print(f"{'═' * len(header)}\n")
+
+    # ── optional PNG summary table ────────────────────────────────────────────
+    if save_path:
+        _save_segmental_table(seq_results, k_list, save_path)
+        print(f"Segmental metrics table saved to {save_path}")
+
+
+def _save_segmental_table(
+    seq_results: list,
+    k_list: list,
+    save_path: str,
+) -> None:
+    """Render the per-sequence segmental metrics as a matplotlib table PNG."""
+    import matplotlib.pyplot as plt
+
+    col_labels = (["demo_id", "Acc(%)", "BoundF1(%)", "EditScore"]
+                  + [f"F1@{k:.2f}(%)" for k in k_list]
+                  + ["OSE"])
+
+    rows = []
+    for demo_id, r in seq_results:
+        row = [
+            str(demo_id),
+            f"{r.frame_accuracy*100:.1f}",
+            f"{r.boundary_f1.f1*100:.1f}",
+            f"{r.edit_score.score:.1f}",
+        ]
+        for k in k_list:
+            row.append(f"{r.segmental_f1.f1_at_k[k]*100:.1f}")
+        row.append(f"{r.oversegmentation_err:.3f}")
+        rows.append(row)
+
+    # aggregate rows
+    accs = [r.frame_accuracy         for _, r in seq_results]
+    bfs  = [r.boundary_f1.f1         for _, r in seq_results]
+    eds  = [r.edit_score.score        for _, r in seq_results]
+    oses = [r.oversegmentation_err    for _, r in seq_results]
+
+    def _agg_row(fn, label):
+        row = [label, f"{fn(accs)*100:.1f}", f"{fn(bfs)*100:.1f}", f"{fn(eds):.1f}"]
+        for k in k_list:
+            vals = [r.segmental_f1.f1_at_k[k] for _, r in seq_results]
+            row.append(f"{fn(vals)*100:.1f}")
+        row.append(f"{fn(oses):.3f}")
+        return row
+
+    rows.append(_agg_row(np.mean, "MEAN"))
+    rows.append(_agg_row(np.std,  "STD"))
+
+    n_rows = len(rows)
+    n_cols = len(col_labels)
+    fig, ax = plt.subplots(figsize=(max(10, n_cols * 1.4), max(4, n_rows * 0.4 + 1.5)))
+    ax.axis('off')
+
+    tbl = ax.table(cellText=rows, colLabels=col_labels,
+                   loc='center', cellLoc='center')
+    tbl.auto_set_font_size(False)
+    tbl.set_fontsize(9)
+    tbl.scale(1, 1.4)
+
+    # header style
+    for j in range(n_cols):
+        tbl[0, j].set_facecolor('#2C3E50')
+        tbl[0, j].set_text_props(color='white', fontweight='bold')
+    # aggregate rows style
+    for j in range(n_cols):
+        tbl[n_rows - 1, j].set_facecolor('#D6EAF8')
+        tbl[n_rows,     j].set_facecolor('#EBF5FB')
+
+    plt.title("Segmental Evaluation Metrics", fontsize=13, fontweight='bold', pad=12)
+    plt.tight_layout()
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    plt.close()
+
+
 """
     real-time simulation
 """
@@ -507,4 +709,10 @@ if __name__ == "__main__":
     model           = load_model(model_save_path, device)
 
     evaluate_model(model, test_loader, device)
+    evaluate_segmental_metrics(
+        model, test_dataset, device,
+        tau=15,
+        seg_thresholds=(0.10, 0.25, 0.50),
+        save_path=os.path.join(dir_path, 'eval_results', 'segmental_metrics.png'),
+    )
     # evaluate_model_real_time_simulation(model, test_dataset, device)

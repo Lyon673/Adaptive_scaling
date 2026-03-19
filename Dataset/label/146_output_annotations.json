@@ -1,0 +1,71 @@
+{
+  "video_path": "/home/lambda/surgical_robotics_challenge/scripts/surgical_robotics_challenge/Project/video_process/output/146_output.mp4",
+  "total_frames": 414,
+  "fps": 15.0,
+  "demo_idx": 146,
+  "kine_frames": 298,
+  "calib_start": 37,
+  "calib_end": 342,
+  "kine_calib_start": 31,
+  "kine_calib_end": 254,
+  "labels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "annotations": [
+    {
+      "label": "0",
+      "start": 11,
+      "kine_start": 12,
+      "end": 30,
+      "kine_end": 26
+    },
+    {
+      "label": "1",
+      "start": 31,
+      "kine_start": 27,
+      "end": 41,
+      "kine_end": 34
+    },
+    {
+      "label": "2",
+      "start": 42,
+      "kine_start": 35,
+      "end": 63,
+      "kine_end": 50
+    },
+    {
+      "label": "3",
+      "start": 64,
+      "kine_start": 51,
+      "end": 238,
+      "kine_end": 178
+    },
+    {
+      "label": "4",
+      "start": 239,
+      "kine_start": 179,
+      "end": 278,
+      "kine_end": 207
+    },
+    {
+      "label": "5",
+      "start": 279,
+      "kine_start": 208,
+      "end": 348,
+      "kine_end": 258
+    },
+    {
+      "label": "6",
+      "start": 349,
+      "kine_start": 259,
+      "end": 405,
+      "kine_end": 297
+    }
+  ]
+}

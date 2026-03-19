@@ -2,6 +2,8 @@
 resolution_x = 960
 resolution_y = 540
 
+fixed_scale = 10
+
 # the parameters in the scaling calculation formula
 feature_bound = {
     'd_min': 0.015, 'd_max': 0.065,
@@ -37,7 +39,7 @@ optimization_range = {
     'K_p': (0.8, 3.0),
     'C_base': (6.0, 15.0),
 
-    'A_theta': (1.0, 4.0),
+    'A_theta': (3.0, 7.0),
     'A_gp': (1.0, 4.0),
     'A_v': (3.0, 5.5),
     'B_safety': (3.6, 4.0),

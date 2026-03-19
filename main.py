@@ -51,8 +51,20 @@ from featureFilter import RealTimeSavitzkyGolay
 from screen_recorder import ScreenRecorder
 
 import params.config as config
+from Trajectory.realtime_phase_predictor import PhasePredictor
 
+# ── LSTM 实时阶段预测器配置 ────────────────────────────────────────────────────
+_LSTM_MODEL_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    'Trajectory', 'LSTM_model', 'lstm_sequence_model.pth'
+)
 
+# 当前预测阶段（全局，供其他回调读取）
+current_surgical_phase: int = -1
+current_phase_probs: list = []
+# 每帧预测结果的历史记录（与 Lpsm_pose_list 等同步采集）
+phase_label_list: list = []    # 每帧预测的阶段标签 (int, -1 表示热身期)
+phase_probs_list: list = []    # 每帧各阶段的边缘概率 (list[float], len=NUM_CLASSES)
 
 
 # set resolution
@@ -149,14 +161,6 @@ start_time = time.time()
 
 latest_gaze_timestamp = 0.0
 latest_gaze_point_ratio = [0.5, 0.5] 
-
-"""
-one-handed mode params:
-tau_d tau_p tau_v  **A_d A_p A_v**  Y_base W_d W_p W_v W_dp W_dv W_pv W_dpv 
-
-two-handed mode params:
-tau_d tau_p tau_v tau_s  **A_d A_p A_v A_s**  Y_base W_d W_p W_v W_dps W_dvs W_pvs W_dpv W_dpvs
-"""
 
 
 class AttentionHeatmapGenerator:
@@ -809,6 +813,20 @@ class DataCollector:
 		self.Ripa_filter = RealTimeSavitzkyGolay(window_length=config.ipa_window_length, polyorder=config.ipa_polyorder)
 		
 		self.attention_heatmap_generator = AttentionHeatmapGenerator(screen_width=resolution_x, screen_height=resolution_y, heatmap_size=(config.gaze_filter_params['heatmap_size_x'], config.gaze_filter_params['heatmap_size_y']))
+
+		# ── LSTM 实时手术阶段预测器 ────────────────────────────────────────────
+		try:
+			self.phase_predictor = PhasePredictor(
+				model_path=_LSTM_MODEL_PATH,
+				min_frames=10,      # 热身帧数；累积至少30帧后开始预测
+				sg_window=9,        # SG 速度平滑窗口（与训练时保持一致）
+				sg_poly=3,
+			)
+		except Exception as e:
+			rospy.logwarn(f"[PhasePredictor] 加载失败，实时预测将被禁用: {e}")
+			self.phase_predictor = None
+		# ── END LSTM 预测器 ────────────────────────────────────────────────────
+
 		# --- KEYBOARD LISTENER INTEGRATION START ---
 		# In the class's __init__ function, start the keyboard listener
 		self.start_keyboard_listener()
@@ -830,9 +848,14 @@ class DataCollector:
 		global ipaL_data, ipaR_data, last_button_state, last_button_stateL, last_button_stateR
 		global clutch_times_list, total_distance_list, total_time_list, start_time
 		global latest_gaze_timestamp, latest_gaze_point_ratio
+		global phase_label_list, phase_probs_list
 
 		
 		# Reset all lists
+		phase_label_list = []
+		phase_probs_list = []
+		if self.phase_predictor is not None:
+			self.phase_predictor.reset()
 		Lpsm_positon_list = []
 		Rpsm_positon_list = []
 		Lpsm_velocity_list = []
@@ -1181,6 +1204,15 @@ class DataCollector:
 		except rospy.ROSException as e:
 			rospy.logwarn(f"Failed to publish scale: {e}")
 
+		# ── 实时手术阶段预测 ──────────────────────────────────────────────────
+		self._update_phase_prediction(
+			Lpsm_position3=Lpsm_position3,
+			Rpsm_position3=Rpsm_position3,
+			L_gripper=1.0 if Lgripper_edge_list[-1] == 1 else 0.0,
+			R_gripper=1.0 if Rgripper_edge_list[-1] == 1 else 0.0,
+		)
+		# ── END 实时阶段预测 ──────────────────────────────────────────────────
+
 		if self.collecting:
 			# 只在收集数据时才更新这些统计信息
 			cal_total_distance(Lpsm_position3, Rpsm_position3)
@@ -1260,6 +1292,45 @@ class DataCollector:
 
 	# 	return normalized
 
+	def _update_phase_prediction(
+		self,
+		Lpsm_position3: np.ndarray,
+		Rpsm_position3: np.ndarray,
+		L_gripper: float,
+		R_gripper: float,
+	) -> None:
+		"""
+		将当前帧的机器人状态送入 PhasePredictor，更新全局手术阶段预测结果。
+
+		特征提取流水线（与训练数据生成完全一致）：
+		  位置差分 → SG 平滑 → 归一化 → LSTM/LSTM-CRF 推理
+
+		结果写入全局变量 current_surgical_phase 和 current_phase_probs，
+		可在其他回调或 GUI 中读取。
+		"""
+		global current_surgical_phase, current_phase_probs
+
+		if self.phase_predictor is None:
+			return
+
+		phase_label, phase_probs = self.phase_predictor.update(
+			L_pos3=Lpsm_position3,
+			R_pos3=Rpsm_position3,
+			L_gripper=L_gripper,
+			R_gripper=R_gripper,
+		)
+
+		current_surgical_phase = phase_label
+		current_phase_probs    = phase_probs.tolist()
+
+		if self.collecting:
+			phase_label_list.append(phase_label)
+			phase_probs_list.append(phase_probs.tolist())
+			if phase_label >= 0:
+				print(f"{'[Phase Predictor]':<25}: {self.phase_predictor.phase_name}  "
+					  f"(label={phase_label}, "
+					  f"conf={phase_probs[phase_label]*100:.1f}%)")
+
 	def calculate_scale(self, weighted_dist, psm_velocity, distance_psms, theta, phase_p=1):
 		scaleArray = Float32MultiArray()
 		if self.params['AFflag'] == 1:
@@ -1288,7 +1359,16 @@ class DataCollector:
 
 		output_L = self.params['K_g'] * (forward_factorL + self.params['K_p'] * backward_factorL) * safety_factor + self.params['C_base']
 		output_R = self.params['K_g'] * (forward_factorR + self.params['K_p'] * backward_factorR) * safety_factor + self.params['C_base']
-		scaleArray.data = [np.clip(output_L, 0.1, 25), np.clip(output_R, 0.1, 25)]
+		
+		fine_classes = [1, 3, 5]
+		prob_fine = np.sum(current_phase_probs[fine_classes])
+		coarse_classes = [0, 2, 4, 6]
+		prob_coarse = np.sum(current_phase_probs[coarse_classes])
+		
+		scale_left = prob_coarse*np.clip(output_L, 0.1, 25) + prob_fine * config.fixed_scale
+		scale_right = prob_coarse*np.clip(output_R, 0.1, 25) + prob_fine * config.fixed_scale
+		
+		scaleArray.data = [scale_left, scale_right]
 		return scaleArray
 
 
@@ -1936,6 +2016,20 @@ def save_data_cb():
 	np.save(join(latest_dir, 'Lpsm_direction.npy'), np.array(Lpsm_direction_list))
 	np.save(join(latest_dir, 'Rpsm_direction.npy'), np.array(Rpsm_direction_list))
 	np.save(join(latest_dir, 'theta.npy'), np.array(theta_list))
+
+	# ── 实时阶段预测结果 ────────────────────────────────────────────────────
+	# phase_labels : shape (N,)         int   每帧的预测阶段标签，-1 表示热身期
+	# phase_probs  : shape (N, C)       float 每帧各阶段的边缘概率（C=7）
+	if phase_label_list:
+		np.save(join(latest_dir, 'phase_labels.npy'),
+				np.array(phase_label_list, dtype=np.int32))
+		np.save(join(latest_dir, 'phase_probs.npy'),
+				np.array(phase_probs_list, dtype=np.float32))
+		print(f"  phase_labels : {len(phase_label_list)} frames  → phase_labels.npy")
+		print(f"  phase_probs  : shape {np.array(phase_probs_list).shape}  → phase_probs.npy")
+	else:
+		print("  [Phase Predictor] 无预测数据，跳过保存。")
+	# ── END 阶段预测保存 ────────────────────────────────────────────────────
 
 	# plot_psm_velocity_directions(latest_dir)
 	# plot_theta_over_time(latest_dir)

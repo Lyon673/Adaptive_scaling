@@ -13,7 +13,7 @@ import config
 
 # ==================== 数据集划分配置 ====================
 # 设置随机种子以确保可重复性
-RANDOM_SEED = 35
+RANDOM_SEED = 32
 np.random.seed(RANDOM_SEED)
 
 demo_num = 148
@@ -22,7 +22,7 @@ demo_num = 148
 demo_id_list = np.arange(demo_num)
 demo_id_list = np.random.permutation(demo_id_list)
 
-ratio = 0.9
+ratio = 1.0
 
 def load_annotations(json_path):
     with open(json_path, 'r') as f:
@@ -45,14 +45,9 @@ def generate_frame_label_map(dir_path, demo_id):
     return a list of labels for each frame , whose length is the same as the total number of frames
     """
     label_path = os.path.join(dir_path, 'label', f'{demo_id}_output_annotations.json')
-    # kine_path = os.path.join(dir_path, 'state', f'{demo_id}.txt')
-    # with open(kine_path, 'r') as f:
-    #     kine_frames = len(f.readlines())
-    # states = load_demonstrations_state()
-    # kine_frames = len(states[demo_id])
-    demo_lengths = np.load(os.path.join(needle_dir_path, 'demo_lengths.npy'))
-    kine_frames = int(demo_lengths[demo_id])
+
     annotation_data = load_annotations(label_path)
+    kine_frames = int(annotation_data['kine_frames'])
     frame_map = []
     for i in range(kine_frames):
         # frame_num = i * annotation_data['total_frames'] / kine_frames
@@ -243,24 +238,30 @@ def resample_label(demo_id, step_size=config.resample_step, target_length=None):
     return new_label
 
 
-def get_shuffled_demo_ids(shuffle=True):
+def get_shuffled_demo_ids(shuffle=True, demo_id_list=None):
     """获取统一的demo ID顺序，确保state和label使用相同顺序"""
     np.random.seed(RANDOM_SEED)  # 每次重置种子确保一致性
-    demo_id_list = np.arange(demo_num)
+    if demo_id_list is None:
+        demo_id_list = np.arange(demo_num)
     if shuffle:
         demo_id_list = np.random.permutation(demo_id_list)
+
+    # len_demo_id_list = len(demo_id_list)
+    # bound = int(ratio*len_demo_id_list)
+
+    # print("*****************************************")
+    # print(f"test demo id :{demo_id_list[bound:]}")
+    # print("*****************************************")
     return demo_id_list
 
 
-def load_demonstrations_state(shuffle=True, without_quat=False, resample=False):
+def load_demonstrations_state(shuffle=True, without_quat=False, resample=False, demo_id_list=None):
     if resample:
         print("Resampling demonstrations!!!")
-    demo_id_list = get_shuffled_demo_ids(shuffle)
+    demo_id_list = get_shuffled_demo_ids(shuffle, demo_id_list)
     demo_states = []
-    demo_lengths = np.zeros(len(demo_id_list))
     for demo_id in demo_id_list:
         state = read_demo_kinematics_state(needle_dir_path, demo_id)
-        demo_lengths[demo_id] = state.shape[0]
         if without_quat:
             state = state[:, [0,1,2,7,8,9,10,15]]
         if resample:
@@ -277,7 +278,7 @@ def load_demonstrations_state(shuffle=True, without_quat=False, resample=False):
         
     print(f"last demo id: {demo_id_list[-1]}")
     #print(f"demo_states shape: {np.array(demo_states).shape}")
-    np.save(os.path.join(needle_dir_path, 'demo_lengths.npy'), demo_lengths)
+
 
     return demo_states
 
@@ -360,15 +361,15 @@ def _scale_demos(demo_states):
     }
     return scaled, scalers
 
-def load_train_state(shuffle=True, without_quat=False, resample=False):
-    demo_states_all = load_demonstrations_state(shuffle=shuffle, without_quat=without_quat, resample=resample)
+def load_train_state(shuffle=True, without_quat=False, resample=False, demo_id_list=None):
+    demo_states_all = load_demonstrations_state(shuffle=shuffle, without_quat=without_quat, resample=resample, demo_id_list=demo_id_list)
     bound = round(ratio * len(demo_states_all))
     demo_states = demo_states_all[:bound]
     scaled_demos, _ = _scale_demos(demo_states)
     return scaled_demos
 
-def load_test_state(shuffle=True, without_quat=False, resample=False):
-    demo_states_all = load_demonstrations_state(shuffle=shuffle, without_quat=without_quat, resample=resample)
+def load_test_state(shuffle=True, without_quat=False, resample=False, demo_id_list=None):
+    demo_states_all = load_demonstrations_state(shuffle=shuffle, without_quat=without_quat, resample=resample, demo_id_list=demo_id_list)
     bound = round(ratio * len(demo_states_all))
     train_states = demo_states_all[:bound]
     test_states  = demo_states_all[bound:]
@@ -391,8 +392,8 @@ def load_test_state(shuffle=True, without_quat=False, resample=False):
     return scaled
 
 
-def load_demonstrations_label(shuffle=True, resample=False):
-    demo_id_list = get_shuffled_demo_ids(shuffle) 
+def load_demonstrations_label(shuffle=True, resample=False, demo_id_list=None):
+    demo_id_list = get_shuffled_demo_ids(shuffle, demo_id_list) 
     demo_labels = []
     for demo_id in demo_id_list:
         if resample:
@@ -411,19 +412,19 @@ def load_demonstrations_label(shuffle=True, resample=False):
     return demo_labels
 
 
-def load_train_label(resample=False):
+def load_train_label(resample=False, demo_id_list=None):
     """
     load the label of the train demos
     params: resample - True/False
     """
     # 159 / 138
-    demo_labels_all = load_demonstrations_label(resample=resample)
+    demo_labels_all = load_demonstrations_label(resample=resample, demo_id_list=demo_id_list)
     bound = round(ratio*len(demo_labels_all))
     demo_labels = demo_labels_all[:bound]
     return demo_labels
 
-def load_test_label(resample=False):
-    demo_labels_all = load_demonstrations_label(resample=resample)
+def load_test_label(resample=False, demo_id_list=None):
+    demo_labels_all = load_demonstrations_label(resample=resample, demo_id_list=demo_id_list)
     bound = round(ratio*len(demo_labels_all))
     demo_labels = demo_labels_all[bound:]
     return demo_labels
@@ -733,6 +734,11 @@ def visualize_scaled_state(demo_idx=0, close_event=None):
             return
         plt.pause(0.3)
 
+def get_test_demo_id_list(demo_id_list):
+    shuffle_list = get_shuffled_demo_ids(shuffle=True, demo_id_list=demo_id_list)
+    bound = int(ratio*len(shuffle_list))
+    return shuffle_list[bound:]
+
 
 # 使用示例
 if __name__ == '__main__':
@@ -756,7 +762,7 @@ if __name__ == '__main__':
     # visualize_demo_lengths()
     # visualize_scaled_state(demo_idx=21)
 
-    for i in range(125,148):
+    for i in range(82,148):
         visualize_scaled_state(demo_idx=i)
     
 

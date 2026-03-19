@@ -3,7 +3,9 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence, pad_packed_sequence
 import numpy as np
-from load_data import load_train_state, load_train_label
+from load_data import (load_train_state, load_train_label,
+                       load_demonstrations_state, _scale_demos,
+                       get_shuffled_demo_ids)
 from sklearn.metrics import classification_report, accuracy_score
 from tqdm import tqdm # 引入tqdm来显示进度条，因为这个过程会慢很多
 import os
@@ -13,7 +15,7 @@ import datetime
 from config import resample, without_quat
 
 # --- 1. 定义超参数 (Hyperparameters) ---
-INPUT_SIZE = 16  if not without_quat else 8    # 每个时间点的特征数 (14 kinematic variables from both arms)4
+INPUT_SIZE = 16     # 每个时间点的特征数 (14 kinematic variables from both arms)4
 HIDDEN_SIZE = 256     # LSTM 隐藏层的大小
 NUM_LAYERS = 5      # LSTM 层数
 NUM_CLASSES = 7      # 标签的类别数量 (0-6, total 7 different actions)
@@ -52,8 +54,12 @@ class KinematicDataset(Dataset):
         # all_data_stacked = np.vstack(demonstrations_state)
         # scaler.fit(all_data_stacked)
         # demonstrations_state = [scaler.transform(arr) for arr in demonstrations_state]
-        demonstrations_state = load_train_state(without_quat=without_quat, resample=resample)
-        demonstrations_label = load_train_label(resample=resample)
+
+        demo_id_list = np.arange(148)
+        demo_id_list = np.delete(demo_id_list, [80, 81, 92, 109, 112, 117, 122, 144, 145])
+
+        demonstrations_state = load_train_state(without_quat=without_quat, resample=resample, demo_id_list=demo_id_list)
+        demonstrations_label = load_train_label(resample=resample, demo_id_list=demo_id_list)
         
         # 确保每个演示都是一个序列（2D数组）
         for state_seq, label_seq in zip(demonstrations_state, demonstrations_label):
@@ -193,15 +199,38 @@ class SequenceLabelingLSTM_CRF(nn.Module): # 建议重命名以区分
         return emissions        
 
 # --- 保存训练好的模型 ---
-def save_model(model, filepath, additional_info=None):
+def _build_train_scalers(demo_id_list):
+    """用训练集 demo 拟合并返回归一化 scaler 字典。"""
+    excluded = [80, 81, 92, 109, 112, 117, 122, 144, 145]
+    if demo_id_list is None:
+        import numpy as _np
+        demo_id_list = _np.arange(148)
+        demo_id_list = _np.delete(demo_id_list, excluded)
+
+    from load_data import ratio
+    raw_all = load_demonstrations_state(
+        shuffle=True, without_quat=without_quat,
+        resample=resample, demo_id_list=demo_id_list,
+    )
+    bound = round(ratio * len(raw_all))
+    _, scalers = _scale_demos(raw_all[:bound])
+    return scalers
+
+
+def save_model(model, filepath, additional_info=None, demo_id_list=None):
     """
-    保存模型到指定路径
-    
+    保存模型到指定路径，同时将训练集 scaler 一起打包进 checkpoint，
+    以便实时推理时无需重新加载全量训练数据。
+
     参数:
-    model: 训练好的模型
-    filepath: 保存路径
+    model         : 训练好的模型
+    filepath      : 保存路径
     additional_info: 额外的信息字典（可选）
+    demo_id_list  : 训练所用的 demo_id 列表（用于拟合 scaler）
     """
+    print("正在拟合并保存 scalers …")
+    scalers = _build_train_scalers(demo_id_list)
+
     save_dict = {
         'model_state_dict': model.state_dict(),
         'model_config': {
@@ -209,18 +238,20 @@ def save_model(model, filepath, additional_info=None):
             'hidden_size': HIDDEN_SIZE,
             'num_layers': NUM_LAYERS,
             'num_classes': NUM_CLASSES,
-            'bidirectional': False  # 根据你的模型设置
+            'bidirectional': False,
         },
         'training_info': {
             'epochs': NUM_EPOCHS,
             'batch_size': BATCH_SIZE,
-            'learning_rate': LEARNING_RATE
-        }
+            'learning_rate': LEARNING_RATE,
+        },
+        'scalers': scalers,          # dict: pos / vel_scalar / vel3
+        'without_quat': without_quat,
     }
-    
+
     if additional_info:
         save_dict['additional_info'] = additional_info
-    
+
     torch.save(save_dict, filepath)
     print(f"模型已保存到: {filepath}")
 

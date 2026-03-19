@@ -11,7 +11,7 @@ from matplotlib.colors import ListedColormap
 import seaborn as sns
 from torch.utils.data import DataLoader
 from LSTM_seg_train import SequenceLabelingLSTM, SequenceLabelingLSTM_CRF, collate_fn
-from load_data import load_test_state, load_test_label, load_specific_test_state, load_specific_test_label
+from load_data import load_test_state, load_test_label, load_specific_test_state, load_specific_test_label, get_test_demo_id_list
 import os
 from config import resample, without_quat
 
@@ -22,9 +22,14 @@ class TestDataset:
     def __init__(self):
         # demonstrations_state = load_test_state(without_quat=without_quat, resample=resample)
         # demonstrations_label = load_test_label(resample=resample)
-        demonstrations_state = load_specific_test_state(shuffle=False, without_quat=without_quat, resample=resample, demo_id_list=[76,78,79,118,119,120,121])
-        demonstrations_label = load_specific_test_label(demo_id_list=[76,78,79,118,119,120,121])
-        
+        # demonstrations_state = load_specific_test_state(shuffle=False, without_quat=without_quat, resample=resample, demo_id_list=[76,78,79,118,119,120,121])
+        # demonstrations_label = load_specific_test_label(demo_id_list=[76,78,79,118,119,120,121])
+        demo_id_list = np.arange(148)
+        demo_id_list = np.delete(demo_id_list, [80, 81, 92, 109, 112, 117, 122, 144, 145])
+        test_demo_id_list = get_test_demo_id_list(demo_id_list)
+        self.demo_ids = list(test_demo_id_list)   # 保存每条序列对应的原始 demo_id
+        demonstrations_state = load_test_state(without_quat=without_quat, resample=resample, demo_id_list=demo_id_list)
+        demonstrations_label = load_test_label(resample=resample, demo_id_list=demo_id_list)
         
         self.samples = []
         for state_seq, label_seq in zip(demonstrations_state, demonstrations_label):
@@ -169,14 +174,15 @@ def visualize_sequence_predictions(model, test_dataset, device, num_sequences=7,
                           s=30, alpha=0.6, marker='^')
         
         # 计算准确率（只计算有效标签）
+        demo_id = test_dataset.demo_ids[seq_idx] if hasattr(test_dataset, 'demo_ids') else seq_idx
         if len(valid_true_labels) > 0:
             accuracy = np.mean(valid_true_labels == valid_predicted_labels)
             valid_count = len(valid_true_labels)
             total_count = len(true_labels)
-            title = f'Sequence {seq_idx + 1} - Accuracy: {accuracy:.3f} (Valid: {valid_count}/{total_count})'
+            title = f'Seq {seq_idx + 1}  [demo_id={demo_id}]  Accuracy: {accuracy:.3f}  (Valid: {valid_count}/{total_count})'
         else:
             accuracy = 0.0
-            title = f'Sequence {seq_idx + 1} - No valid labels'
+            title = f'Seq {seq_idx + 1}  [demo_id={demo_id}]  No valid labels'
         
         # 设置图形属性
         ax.set_ylim(0.5, 1.5)
@@ -454,9 +460,10 @@ def main():
     os.makedirs(save_dir, exist_ok=True)
 
     print("\n生成粗大/精细操作概率可视化...")
+    all_seq_indices = list(range(6))
     visualize_predicted_class_probabilities(
         model, test_dataset, device,
-        seq_idx=0,
+        seq_idx=all_seq_indices,
         save_path=os.path.join(save_dir, "coarse_fine_probabilities.png")
     )
     
@@ -464,7 +471,7 @@ def main():
     print("\n生成序列预测对比图...")
     visualize_sequence_predictions(
         model, test_dataset, device, 
-        num_sequences=7, 
+        num_sequences=6, 
         save_path=os.path.join(save_dir, "sequence_predictions.png")
     )
     
@@ -475,162 +482,181 @@ def main():
         save_path=os.path.join(save_dir, "confusion_matrix.png")
     )
     
-    # 3. 可视化单个序列的时间线
-    print("\n生成时间线可视化...")
-    visualize_sequence_timeline(
-        model, test_dataset, device, 
-        seq_idx=0,
-        save_path=os.path.join(save_dir, "sequence_timeline.png")
-    )
+    # # 3. 可视化单个序列的时间线
+    # print("\n生成时间线可视化...")
+    # visualize_sequence_timeline(
+    #     model, test_dataset, device, 
+    #     seq_idx=0,
+    #     save_path=os.path.join(save_dir, "sequence_timeline.png")
+    # )
     
-    # 4. 可视化特征重要性
-    print("\n生成特征可视化...")
-    visualize_feature_importance(
-        model, test_dataset, device, 
-        seq_idx=0,
-        save_path=os.path.join(save_dir, "feature_analysis.png")
-    )
+    # # 4. 可视化特征重要性
+    # print("\n生成特征可视化...")
+    # visualize_feature_importance(
+    #     model, test_dataset, device, 
+    #     seq_idx=0,
+    #     save_path=os.path.join(save_dir, "feature_analysis.png")
+    # )
     
 
     
-    print(f"\n所有可视化完成！结果保存在 {save_dir} 目录中")
+    # print(f"\n所有可视化完成！结果保存在 {save_dir} 目录中")
 
-def visualize_predicted_class_probabilities(model, test_dataset, device, seq_idx=0, save_path=None):
-    """
-    Visualize coarse vs fine operation probabilities over time
-    
-    Coarse operations: classes 0, 1, 3, 5
-    Fine operations: classes 2, 4
-    
-    Args:
-        model: Trained model
-        test_dataset: Test dataset
-        device: Device
-        seq_idx: Sequence index to visualize
-        save_path: Path to save figure, if None then show
-    """
-    model.eval()
-    
-    # Get sequence data
-    sequence, true_labels = test_dataset[seq_idx]
-    sequence = sequence.to(device)
-    lengths = [sequence.shape[0]]
-    
-    with torch.no_grad():
-        if hasattr(model, 'crf'):
-            print("Warning: CRF model does not provide per-step probabilities. Skipping visualization.")
-            return
-        
-        # Get logits and probabilities
-        logits = model(sequence.unsqueeze(0), lengths)  # (1, seq_len, num_classes)
-        probs = torch.softmax(logits, dim=2).squeeze(0).cpu().numpy()  # (seq_len, num_classes)
-    
-    # Define operation categories
-    coarse_classes = [0, 1, 3, 5]  # Coarse operations
-    fine_classes = [2, 4]           # Fine operations
-    
-    # Calculate probabilities for each category
-    coarse_prob = probs[:, coarse_classes].sum(axis=1)
-    fine_prob = probs[:, fine_classes].sum(axis=1)
-    
-    seq_len = len(coarse_prob)
+def _draw_prob_subplot(ax, probs, true_labels_np, seq_idx,
+                       coarse_classes, fine_classes, CLASS_NAMES, STAGE_COLORS,
+                       show_xlabel=False, show_legend_bands=False, show_legend_lines=False,
+                       demo_id=None):
+    """Draw a single probability subplot onto ax. Returns (band_handles, band_labels)."""
+    seq_len    = probs.shape[0]
     time_steps = np.arange(seq_len)
-    true_labels_np = true_labels.numpy()
-    
-    # Create figure with subplots
-    fig, axes = plt.subplots(3, 1, figsize=(15, 10))
-    
-    # ========== Subplot 1: Probability curves ==========
-    ax1 = axes[0]
-    ax1.plot(time_steps, coarse_prob, label='Coarse Operations (0,1,3,5)', 
-             color='#3498db', linewidth=2, alpha=0.8)
-    ax1.plot(time_steps, fine_prob, label='Fine Operations (2,4)', 
-             color='#e74c3c', linewidth=2, alpha=0.8)
-    ax1.fill_between(time_steps, 0, coarse_prob, alpha=0.2, color='#3498db')
-    ax1.fill_between(time_steps, 0, fine_prob, alpha=0.2, color='#e74c3c')
-    
-    ax1.set_ylabel('Probability', fontsize=12)
-    ax1.set_title(f'Sequence {seq_idx}: Coarse vs Fine Operation Probabilities', 
-                  fontsize=14, fontweight='bold')
-    ax1.legend(loc='upper right', fontsize=11)
-    ax1.grid(True, alpha=0.3)
-    ax1.set_xlim(-1, seq_len)
-    ax1.set_ylim(-0.05, 1.05)
-    
-    # ========== Subplot 2: True labels background ==========
-    ax2 = axes[1]
-    
-    # Draw background colors for true labels
-    for i in range(seq_len):
-        if true_labels_np[i] == -1:
-            color = '#D3D3D3'  # Gray for unlabeled
-            label_type = 'Unlabeled'
-        elif true_labels_np[i] in coarse_classes:
-            color = '#AED6F1'  # Light blue for coarse
-            label_type = 'Coarse'
-        elif true_labels_np[i] in fine_classes:
-            color = '#F5B7B1'  # Light red for fine
-            label_type = 'Fine'
-        else:
-            color = '#E8E8E8'
-            label_type = 'Unknown'
-        
-        ax2.axvspan(i-0.5, i+0.5, alpha=0.6, color=color)
-    
-    # Plot probability difference (coarse - fine)
-    prob_diff = coarse_prob - fine_prob
-    ax2.plot(time_steps, prob_diff, color='#2C3E50', linewidth=2, label='Prob(Coarse) - Prob(Fine)')
-    ax2.axhline(y=0, color='black', linestyle='--', linewidth=1, alpha=0.5)
-    
-    ax2.set_ylabel('Probability Difference', fontsize=12)
-    ax2.set_title('Probability Difference (Coarse - Fine) with True Label Background', 
-                  fontsize=13, fontweight='bold')
-    ax2.legend(loc='upper right', fontsize=11)
-    ax2.grid(True, alpha=0.3)
-    ax2.set_xlim(-1, seq_len)
-    ax2.set_ylim(-1.05, 1.05)
-    
-    # ========== Subplot 3: Stacked area chart ==========
-    ax3 = axes[2]
-    
-    # Show individual class probabilities as stacked areas
-    class_colors_fine = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA15E']
-    
-    # Reorder: coarse first, then fine
-    class_order = coarse_classes + fine_classes
-    prob_stacked = probs[:, class_order].T  # (6, seq_len)
-    
-    ax3.stackplot(time_steps, prob_stacked, 
-                  labels=[f'Class {c}' for c in class_order],
-                  colors=[class_colors_fine[c] for c in class_order],
-                  alpha=0.7)
-    
-    # Add separator line between coarse and fine
-    coarse_cumsum = probs[:, coarse_classes].sum(axis=1)
-    ax3.plot(time_steps, coarse_cumsum, 'k--', linewidth=2, alpha=0.8, 
-             label='Coarse/Fine Boundary')
-    
-    ax3.set_xlabel('Time Step', fontsize=12)
-    ax3.set_ylabel('Cumulative Probability', fontsize=12)
-    ax3.set_title('Individual Class Probability Distribution (Stacked)', 
-                  fontsize=13, fontweight='bold')
-    ax3.legend(loc='upper left', fontsize=9, ncol=2)
-    ax3.grid(True, alpha=0.3)
-    ax3.set_xlim(-1, seq_len)
-    ax3.set_ylim(0, 1.0)
-    
-    # Overall title
-    fig.suptitle(f'Operation Type Probability Analysis - Sequence {seq_idx}', 
-                 fontsize=16, fontweight='bold', y=0.995)
-    
-    plt.tight_layout()
-    
+
+    coarse_prob = probs[:, coarse_classes].sum(axis=1)
+    fine_prob   = probs[:, fine_classes  ].sum(axis=1)
+
+    # --- background stage bands ---
+    prev_label, span_start, spans = true_labels_np[0], 0, []
+    for t in range(1, seq_len):
+        if true_labels_np[t] != prev_label:
+            spans.append((span_start, t - 1, prev_label))
+            span_start, prev_label = t, true_labels_np[t]
+    spans.append((span_start, seq_len - 1, prev_label))
+
+    drawn_labels = set()
+    band_handles, band_labels = [], []
+    for (s, e, lbl) in spans:
+        color    = STAGE_COLORS.get(int(lbl), '#DDDDDD')
+        lbl_name = CLASS_NAMES[int(lbl)] if 0 <= lbl < len(CLASS_NAMES) else 'Unlabeled'
+        patch = ax.axvspan(s - 0.5, e + 0.5, alpha=0.45, color=color, linewidth=0)
+        if lbl not in drawn_labels:
+            band_handles.append(patch)
+            band_labels.append(lbl_name.replace('\n', ' '))
+            drawn_labels.add(lbl)
+
+    # --- probability curves ---
+    l_coarse, = ax.plot(time_steps, coarse_prob,
+                        color='#1A6FA8', linewidth=2.0,
+                        label='P(Coarse) – 0,2,4,6', zorder=3)
+    l_fine,   = ax.plot(time_steps, fine_prob,
+                        color='#C0392B', linewidth=2.0, linestyle='--',
+                        label='P(Fine) – 1,3,5', zorder=3)
+
+    ax.set_xlim(-0.5, seq_len - 0.5)
+    ax.set_ylim(-0.03, 1.08)
+    ax.set_ylabel('Probability', fontsize=10)
+    demo_label = f'  [demo_id={demo_id}]' if demo_id is not None else ''
+    ax.set_title(f'Sequence {seq_idx}{demo_label}', fontsize=11, fontweight='bold')
+    ax.grid(True, alpha=0.25, axis='y')
+
+    if show_xlabel:
+        ax.set_xlabel('Time Step', fontsize=10)
+
+    if show_legend_lines:
+        ax.legend([l_coarse, l_fine],
+                  ['P(Coarse) – 0,2,4,6', 'P(Fine) – 1,3,5'],
+                  loc='upper right', fontsize=9, framealpha=0.85)
+
+    return band_handles, band_labels
+
+
+def visualize_predicted_class_probabilities(model, test_dataset, device,
+                                            seq_idx=0, save_path=None):
+    """
+    Visualize coarse vs fine operation probabilities for one or multiple sequences.
+
+    seq_idx: int  → single sequence
+             list[int] → one subplot per sequence, arranged in a column
+
+    Coarse operations: classes 0, 2, 4, 6  (Move / Pull – gross motions)
+    Fine   operations: classes 1, 3, 5     (Pick / Pass / LeftPick – precision motions)
+    """
+    # ── class metadata ────────────────────────────────────────────────────────
+    CLASS_NAMES = [
+        'P0 Right\nMove', 'P1 Pick\nNeedle', 'P2 Right\nMove2',
+        'P3 Pass\nNeedle', 'P4 Left\nMove',  'P5 Left\nPick',
+        'P6 Pull\nThread',
+    ]
+    STAGE_COLORS = {
+        0: '#A8D5E2', 1: '#F4A9A8', 2: '#A8C5DA',
+        3: '#F7C5A0', 4: '#B5D5C5', 5: '#D5A8D4',
+        6: '#C5D5A8', -1: '#E0E0E0',
+    }
+    coarse_classes = [0, 2, 4, 6]
+    fine_classes   = [1, 3, 5]
+
+    # normalise seq_idx to a list
+    if isinstance(seq_idx, int):
+        seq_indices = [seq_idx]
+    else:
+        seq_indices = list(seq_idx)
+
+    n = len(seq_indices)
+
+    # ── inference for all requested sequences ────────────────────────────────
+    model.eval()
+    if hasattr(model, 'crf'):
+        print("Warning: CRF model does not provide per-step probabilities. Skipping.")
+        return
+
+    all_probs, all_true = [], []
+    with torch.no_grad():
+        for idx in seq_indices:
+            sequence, true_labels = test_dataset[idx]
+            sequence = sequence.to(device)
+            logits   = model(sequence.unsqueeze(0), [sequence.shape[0]])  # (1,T,C)
+            probs    = torch.softmax(logits, dim=2).squeeze(0).cpu().numpy()
+            all_probs.append(probs)
+            all_true.append(true_labels.numpy())
+
+    # ── figure layout ─────────────────────────────────────────────────────────
+    fig, axes = plt.subplots(n, 1, figsize=(16, 4 * n),
+                             squeeze=False)  # always 2-D array
+
+    # 取出每个序列对应的真实 demo_id（如果 dataset 有记录）
+    def _get_demo_id(dataset, idx):
+        if hasattr(dataset, 'demo_ids') and idx < len(dataset.demo_ids):
+            return dataset.demo_ids[idx]
+        return None
+
+    all_band_handles, all_band_labels = [], []
+    for row, (idx, probs, true_labels_np) in enumerate(
+            zip(seq_indices, all_probs, all_true)):
+        ax = axes[row, 0]
+        is_last = (row == n - 1)
+        bh, bl = _draw_prob_subplot(
+            ax, probs, true_labels_np, idx,
+            coarse_classes, fine_classes, CLASS_NAMES, STAGE_COLORS,
+            show_xlabel=is_last,
+            show_legend_bands=False,       # handled globally below
+            show_legend_lines=(row == 0),  # show curve legend only on first panel
+            demo_id=_get_demo_id(test_dataset, idx),
+        )
+        # collect unique band legend entries across all subplots
+        for h, l in zip(bh, bl):
+            if l not in all_band_labels:
+                all_band_handles.append(h)
+                all_band_labels.append(l)
+
+    # ── shared figure-level legends ───────────────────────────────────────────
+    # Stage-color legend below the figure
+    fig.legend(all_band_handles, all_band_labels,
+               loc='lower center', ncol=min(7, len(all_band_labels)),
+               fontsize=9, title='True Stage',
+               bbox_to_anchor=(0.5, 0.0), framealpha=0.9)
+
+    demo_ids_str = ([str(_get_demo_id(test_dataset, i)) for i in seq_indices])
+    title_suffix = (f'Seq {seq_indices[0]} [demo_id={demo_ids_str[0]}]' if n == 1
+                    else f'demo_ids={demo_ids_str}')
+    fig.suptitle(f'Coarse vs Fine Operation Probabilities – {title_suffix}',
+                 fontsize=13, fontweight='bold')
+
+    plt.tight_layout(rect=[0, 0.06, 1, 0.97])
+
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         print(f"Probability visualization saved to {save_path}")
-    
+
     plt.show()
-    plt.close(fig)  # 关闭图形，避免空白窗口
+    plt.close(fig)
 
 
 
