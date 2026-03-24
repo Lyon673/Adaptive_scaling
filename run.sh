@@ -39,6 +39,7 @@ tmux send-keys -t "${SESSION_TARGET_ROS}.1" "roslaunch geomagic_control geomagic
 sleep 1 
 tmux send-keys -t "${SESSION_TARGET_ROS}.2" "./env.sh" C-m
 sleep 2
+# tmux send-keys -t "${SESSION_TARGET_ROS}.3" "ls" C-m
 tmux send-keys -t "${SESSION_TARGET_ROS}.3" "python3 psm_control.py" C-m
 
 

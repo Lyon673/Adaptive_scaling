@@ -3,13 +3,13 @@ import rospy
 import random
 import numpy as np
 from cv_bridge import CvBridge
-import sensor_msgs.point_cloud2 as pc2
+
 from ambf_msgs.msg import RigidBodyState
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
 from sensor_msgs.msg import CompressedImage
-from ambf_msgs.msg import RigidBodyState
+
 from ambf_msgs.msg import ActuatorState
 from ambf_msgs.msg import CameraState
 from geometry_msgs.msg import PoseStamped
@@ -36,9 +36,9 @@ import ipa as ipa_t
 from std_msgs.msg import Float32  
 import datetime
 import threading
-import time
+
 from pynput import keyboard
-import sys
+
 import platform
 import matplotlib
 matplotlib.use('Agg')  
@@ -46,17 +46,26 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter
 from gracefulness import get_latest_data_dir
 from bayesian_optimization_GUI import BayesianOptimizationGUI
-from visualization import visualize_data
+from visualization import visualize_data, visualize_demo_state
 from featureFilter import RealTimeSavitzkyGolay
 from screen_recorder import ScreenRecorder
 
 import params.config as config
-from Trajectory.realtime_phase_predictor import PhasePredictor
 
-# ── LSTM 实时阶段预测器配置 ────────────────────────────────────────────────────
+# from realtime_phase_predictor import PhasePredictor
+
+# _LSTM_MODEL_PATH = os.path.join(
+#     os.path.dirname(os.path.abspath(__file__)),
+#     'Trajectory', 'LSTM_model', 'lstm_sequence_model.pth'
+# )
+
+
+from realtime_phase_predictor_tecno import PhasePredictor
+
+# ── TeCNO 实时阶段预测器配置 ───────────────────────────────────────────────────
 _LSTM_MODEL_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    'Trajectory', 'LSTM_model', 'lstm_sequence_model.pth'
+    'Trajectory', 'TeCNO_model', 'tecno_sequence_model.pth'
 )
 
 # 当前预测阶段（全局，供其他回调读取）
@@ -64,7 +73,7 @@ current_surgical_phase: int = -1
 current_phase_probs: list = []
 # 每帧预测结果的历史记录（与 Lpsm_pose_list 等同步采集）
 phase_label_list: list = []    # 每帧预测的阶段标签 (int, -1 表示热身期)
-phase_probs_list: list = []    # 每帧各阶段的边缘概率 (list[float], len=NUM_CLASSES)
+phase_probs_list: list = []    # 每帧各阶段的softmax概率 (list[float], len=NUM_CLASSES)
 
 
 # set resolution
@@ -775,7 +784,8 @@ class DataCollector:
 		self.bridge = CvBridge()
 		self.collecting = False
 		self.collection_complete = False
-		self.params = None
+		self.params = self.load_params()   # 提前加载，避免 maincb 在 run() 前触发时 params 为 None
+		self.phase_predictor = None        # 提前置 None，防止回调在 __init__ 完成前触发时找不到属性
 		
 		# Screen recorder initialization
 		self.screen_recorder = None
@@ -814,18 +824,18 @@ class DataCollector:
 		
 		self.attention_heatmap_generator = AttentionHeatmapGenerator(screen_width=resolution_x, screen_height=resolution_y, heatmap_size=(config.gaze_filter_params['heatmap_size_x'], config.gaze_filter_params['heatmap_size_y']))
 
-		# ── LSTM 实时手术阶段预测器 ────────────────────────────────────────────
+		# ── TeCNO 实时手术阶段预测器 ──────────────────────────────────────────
 		try:
 			self.phase_predictor = PhasePredictor(
 				model_path=_LSTM_MODEL_PATH,
-				min_frames=10,      # 热身帧数；累积至少30帧后开始预测
+				min_frames=20,      # 热身帧数；累积至少3帧后开始预测
 				sg_window=9,        # SG 速度平滑窗口（与训练时保持一致）
 				sg_poly=3,
 			)
 		except Exception as e:
 			rospy.logwarn(f"[PhasePredictor] 加载失败，实时预测将被禁用: {e}")
 			self.phase_predictor = None
-		# ── END LSTM 预测器 ────────────────────────────────────────────────────
+		# ── END TeCNO 预测器 ───────────────────────────────────────────────────
 
 		# --- KEYBOARD LISTENER INTEGRATION START ---
 		# In the class's __init__ function, start the keyboard listener
@@ -983,6 +993,7 @@ class DataCollector:
 				width = config.screen_recording_params.get('width', 1920)
 				height = config.screen_recording_params.get('height', 1080)
 				fps = config.screen_recording_params.get('fps', 15)
+				output_scale = config.screen_recording_params.get('output_scale', 1.0)
 				
 				# Use the same file naming and path logic as screen_recorder.py
 				current_file_path = os.path.abspath(__file__)
@@ -994,7 +1005,8 @@ class DataCollector:
 				
 				output_file = os.path.join(video_dir, f"{num_dirs}_NeedlePassing_demo.mp4")
 				
-				self.screen_recorder = ScreenRecorder(x, y, width, height, fps, output_file)
+				self.screen_recorder = ScreenRecorder(x, y, width, height, fps, output_file,
+													  output_scale=output_scale)
 				self.screen_recorder.start()
 				print(f"Screen recording started, will save to: {output_file}")
 			except Exception as e:
@@ -1182,8 +1194,9 @@ class DataCollector:
 		Lpsm_v_direction = transform_world_to_camera(Lpsm_v_average, cameraR.pose, cameraFrame.pose) - transform_world_to_camera(np.array([0,0,0]), cameraR.pose, cameraFrame.pose)
 		Rpsm_v_direction = transform_world_to_camera(Rpsm_v_average, cameraR.pose, cameraFrame.pose) - transform_world_to_camera(np.array([0,0,0]), cameraR.pose, cameraFrame.pose)
 
-		Lpsm_v_direction = np.where(np.fabs(Lpsm_v_direction) < 0.005, 0, Lpsm_v_direction)
-		Rpsm_v_direction = np.where(np.fabs(Rpsm_v_direction) < 0.005, 0, Rpsm_v_direction)
+
+		Lpsm_v_direction = np.zeros(2) if np.linalg.norm(Lpsm_v_direction) < 1.0 else Lpsm_v_direction
+		Rpsm_v_direction = np.zeros(2) if np.linalg.norm(Rpsm_v_direction) < 0.5 else Rpsm_v_direction
 
 		Lgp_direction = transform_world_to_camera(gazepoint_position3, cameraR.pose, cameraFrame.pose) - transform_world_to_camera(Lpsm_position3, cameraR.pose, cameraFrame.pose)
 		Rgp_direction = transform_world_to_camera(gazepoint_position3, cameraR.pose, cameraFrame.pose) - transform_world_to_camera(Rpsm_position3, cameraR.pose, cameraFrame.pose)
@@ -1197,14 +1210,15 @@ class DataCollector:
 		theta = [thetaL, thetaR]
 		ipa = [ipaL_data_filtered, ipaR_data_filtered]
 
-		scale = self.calculate_scale(GP_distance, psm_velocity, distance_psms, theta)	
-		
-		try:  
-			self.scale_pub.publish(scale)
-		except rospy.ROSException as e:
-			rospy.logwarn(f"Failed to publish scale: {e}")
 
 		# ── 实时手术阶段预测 ──────────────────────────────────────────────────
+		# if (config.open_phase_segmentation and config.comparison_experiment_mode == 0) or config.comparison_experiment_mode == 2 or config.comparison_experiment_mode == 1:
+		# 	self._update_phase_prediction(
+		# 		Lpsm_position3=Lpsm_position3,
+		# 		Rpsm_position3=Rpsm_position3,
+		# 		L_gripper=1.0 if Lgripper_edge_list[-1] == 1 else 0.0,
+		# 		R_gripper=1.0 if Rgripper_edge_list[-1] == 1 else 0.0,
+		# 	)
 		self._update_phase_prediction(
 			Lpsm_position3=Lpsm_position3,
 			Rpsm_position3=Rpsm_position3,
@@ -1213,13 +1227,23 @@ class DataCollector:
 		)
 		# ── END 实时阶段预测 ──────────────────────────────────────────────────
 
+		scale = self.calculate_scale(GP_distance, psm_velocity, distance_psms, theta)	
+
+		try:  
+			self.scale_pub.publish(scale)
+		except rospy.ROSException as e:
+			rospy.logwarn(f"Failed to publish scale: {e}")
+
 		if self.collecting:
 			# 只在收集数据时才更新这些统计信息
 			cal_total_distance(Lpsm_position3, Rpsm_position3)
 			total_time_list[0] = float(time.time() - start_time)
+			Rpsm_position2 = transform_world_to_camera(Rpsm_position3, cameraR.pose, cameraFrame.pose)
 			
 			print("\n")
 			print("=" * 50)
+
+
 			print(f"{'PSM Left 3d Position':<25}: [{psm_position[0][0]:.3f}, {psm_position[0][1]:.3f}, {psm_position[0][2]:.3f}]")
 			print(f"{'PSM Right 3d Position':<25}: [{psm_position[1][0]:.3f}, {psm_position[1][1]:.3f}, {psm_position[1][2]:.3f}]")
 			print(f"{'Gazing Point ':<25}: [{gazePoint[0]:.3f}, {gazePoint[1]:.3f}]")
@@ -1236,10 +1260,19 @@ class DataCollector:
 			print("\n")
 			print(f"{'Lpsm velocity3d':<25}: [{Lpsm_velocity6[0]:.3f}, {Lpsm_velocity6[1]:.3f}, {Lpsm_velocity6[2]:.3f}]")
 			print(f"{'Rpsm velocity3d':<25}: [{Rpsm_velocity6[0]:.3f}, {Rpsm_velocity6[1]:.3f}, {Rpsm_velocity6[2]:.3f}]")
-			print(f"{'PSM Left Direction':<25}: [{Lpsm_v_direction[0]:.3f}, {Lpsm_v_direction[1]:.3f}]")
-			print(f"{'PSM Right Direction':<25}: [{Rpsm_v_direction[0]:.3f}, {Rpsm_v_direction[1]:.3f}]")
+			
+			print(f"{'Gaze Point reconstruction':<25}: [{transform_world_to_camera(gazepoint_position3, cameraR.pose, cameraFrame.pose)[0]:.0f}, {transform_world_to_camera(gazepoint_position3, cameraR.pose, cameraFrame.pose)[1]:.0f}]")
+			print(f"{'Right PSM 2d Position':<25}: [{Rpsm_position2[0]:.3f}, {Rpsm_position2[1]:.3f}]")
 			print(f"{'Theta Left':<25}: {thetaL:.3f}")
 			print(f"{'Theta Right':<25}: {thetaR:.3f}")
+
+			print("\n")
+
+			print(f"{'PSM Left Direction':<25}: [{Lpsm_v_direction[0]:.3f}, {Lpsm_v_direction[1]:.3f}]")
+			print(f"{'PSM Right Direction':<25}: [{Rpsm_v_direction[0]:.3f}, {Rpsm_v_direction[1]:.3f}]")
+			print(f"{'PSM Left velocity average':<25}: [{Lpsm_v_average[0]:.3f}, {Lpsm_v_average[1]:.3f}, {Lpsm_v_average[2]:.3f}]")
+			print(f"{'PSM Right velocity average':<25}: [{Rpsm_v_average[0]:.3f}, {Rpsm_v_average[1]:.3f}, {Rpsm_v_average[2]:.3f}]")
+			
 			print("=" * 50)
 			print("\n")
 
@@ -1331,10 +1364,37 @@ class DataCollector:
 					  f"(label={phase_label}, "
 					  f"conf={phase_probs[phase_label]*100:.1f}%)")
 
-	def calculate_scale(self, weighted_dist, psm_velocity, distance_psms, theta, phase_p=1):
+	def calculate_scale(self, weighted_dist, psm_velocity, distance_psms, theta):
 		scaleArray = Float32MultiArray()
-		if self.params['AFflag'] == 1:
-			scaleArray.data = [self.params['fixed_scale']*10, self.params['fixed_scale']*10]
+		# if self.params['AFflag'] == 1:
+		# 	scaleArray.data = [self.params['fixed_scale']*10, self.params['fixed_scale']*10]
+		# 	return scaleArray
+
+		try:
+			if config.comparison_experiment_mode == 2:
+				scaleArray.data = [config.lower_fixed_scale, config.lower_fixed_scale]
+				Lforward_factor_list.append(0)
+				Lbackward_factor_list.append(0)
+				Rforward_factor_list.append(0)
+				Rbackward_factor_list.append(0)
+				return scaleArray
+
+			elif config.comparison_experiment_mode == 3:
+				if current_surgical_phase in [1, 3, 5]:
+					scaleArray.data = [config.lower_fixed_scale, config.lower_fixed_scale]
+				elif current_surgical_phase in [-1, 0, 2, 4, 6]:
+					scaleArray.data = [config.upper_fixed_scale, config.upper_fixed_scale]
+				else:
+					raise ValueError(f"!!!!Invalid surgical phase: {current_surgical_phase}")
+				
+				Lforward_factor_list.append(0)
+				Lbackward_factor_list.append(0)
+				Rforward_factor_list.append(0)
+				Rbackward_factor_list.append(0)
+				return scaleArray
+
+		except ValueError as e:
+			print(f"Error in calculate_scale: {e}")
 			return scaleArray
 		
 		weighted_dist_L = weighted_dist[0]
@@ -1357,16 +1417,20 @@ class DataCollector:
 		Rforward_factor_list.append(forward_factorR)
 		Rbackward_factor_list.append(backward_factorR)
 
-		output_L = self.params['K_g'] * (forward_factorL + self.params['K_p'] * backward_factorL) * safety_factor + self.params['C_base']
-		output_R = self.params['K_g'] * (forward_factorR + self.params['K_p'] * backward_factorR) * safety_factor + self.params['C_base']
+		adaptive_L = self.params['K_g'] * (forward_factorL + self.params['K_p'] * backward_factorL) * safety_factor + self.params['C_base']
+		adaptive_R = self.params['K_g'] * (forward_factorR + self.params['K_p'] * backward_factorR) * safety_factor + self.params['C_base']
 		
 		fine_classes = [1, 3, 5]
-		prob_fine = np.sum(current_phase_probs[fine_classes])
 		coarse_classes = [0, 2, 4, 6]
-		prob_coarse = np.sum(current_phase_probs[coarse_classes])
+		if len(current_phase_probs) > 0 and current_surgical_phase != -1 and config.comparison_experiment_mode == 0:
+			_probs = np.asarray(current_phase_probs)
+			prob_fine   = np.sum(_probs[fine_classes])
+			prob_coarse = np.sum(_probs[coarse_classes])
+		else:
+			prob_fine, prob_coarse = 0.0, 1.0   # 热身期尚无预测，默认按粗大操作处理0
 		
-		scale_left = prob_coarse*np.clip(output_L, 0.1, 25) + prob_fine * config.fixed_scale
-		scale_right = prob_coarse*np.clip(output_R, 0.1, 25) + prob_fine * config.fixed_scale
+		scale_left = prob_coarse*np.clip(adaptive_L, 0.1, 25) + prob_fine * config.fixed_scale
+		scale_right = prob_coarse*np.clip(adaptive_R, 0.1, 25) + prob_fine * config.fixed_scale
 		
 		scaleArray.data = [scale_left, scale_right]
 		return scaleArray
@@ -1454,11 +1518,13 @@ class DataCollector:
 		try:
 			with open(filename, 'r') as f:
 				for line in f:
-					key, value = line.strip().split('=')
-					params[key] = float(value)
+					line = line.strip()
+					if not line or '=' not in line:
+						continue
+					key, value = line.split('=', 1)
+					params[key.strip()] = float(value.strip())
 		except FileNotFoundError:
-			if self.collecting:
-				print("params.txt not found, using default parameters.")
+			print("params.txt not found, using default parameters.")
 
 		return params
 
@@ -1494,16 +1560,25 @@ class DataCollector:
 			self.print_statistics()
 			
 			# Generate visualization
-			print("\nGenerating data visualization...")
-			viz_result = visualize_data(save_statistics=False)
-			if viz_result:
-				print(f"Visualization saved to: {viz_result}")
-			else:
-				print("Warning: Failed to generate visualization")
+			# print("\nGenerating data visualization...")
+			# viz_result = visualize_data(save_statistics=False)
+			# viz_state_phase_result = visualize_demo_state()
+			# if viz_result and viz_state_phase_result:
+			# 	print(f"Visualization saved to: {viz_result}")
+			# 	print(f"Visualization saved to: {viz_state_phase_result}")
+			# else:
+			# 	print("Warning: Failed to generate visualization")
 			
-			
+			# # 释放 matplotlib 图形，避免退出阶段 GC 过慢
+			# try:
+			# 	plt.close('all')
+			# except Exception:
+			# 	pass
 			
 			flush_input()
+			# 必须显式关闭 ROS 节点，否则主线程结束后 rospy 内部订阅线程仍在运行，
+			# Python 解释器退出时会长时间卡在 ROS / TCP 清理上，表现为“打印完可视化后卡住”。
+			rospy.signal_shutdown('Data collection and visualization finished')
 			break
 			# Ask whether to continue
 			# try:
@@ -1631,26 +1706,47 @@ def get_transformation_matrix(position, quaternion):
 
 
 def transform_world_to_camera(point_world, camera_pose, camera_frame_pose):
-	"""
-	Transform 3D coordinates from the world frame into the camera frame.
+    point_world = np.asarray(point_world, dtype=float)
+    if point_world.shape != (3,):
+        raise ValueError('point_world must be length 3')
 
-	Args:
-		point_world: iterable or np.ndarray with XYZ in world coordinates.
-		camera_pose: geometry_msgs/Pose, camera pose relative to the camera frame.
-		camera_frame_pose: geometry_msgs/Pose, camera frame pose relative to world.
-	"""
-	point_world = np.asarray(point_world, dtype=float)
-	if point_world.shape != (3,):
-		raise ValueError('point_world must be length 3')
+    # ── Step 1: world → AMBF camera frame (T_LW) ────────────────────────
+    # 获取相机相对于世界的位姿 T_WL = T_WF * T_FL
+    T_FL = get_transformation_matrix(position2numpy(camera_pose), orientation2numpy(camera_pose))
+    T_WF = get_transformation_matrix(position2numpy(camera_frame_pose), orientation2numpy(camera_frame_pose))
+    T_WL = T_WF.dot(T_FL)       
+    T_LW = np.linalg.inv(T_WL)  
 
-	T_FL = get_transformation_matrix(position2numpy(camera_pose), orientation2numpy(camera_pose))
-	T_WF = get_transformation_matrix(position2numpy(camera_frame_pose), orientation2numpy(camera_frame_pose))
-	T_WL = T_WF.dot(T_FL)  # camera to world
-	T_LW = np.linalg.inv(T_WL)
+    # 得到在 AMBF 相机坐标系下的 3D 点
+    point_world_h = np.append(point_world, 1.0)
+    point_ambf = T_LW.dot(point_world_h)   
+    X_ambf, Y_ambf, Z_ambf = point_ambf[:3]
 
-	point_world_h = np.append(point_world, 1.0)
-	point_cam = T_LW.dot(point_world_h)
-	return point_cam[:2]
+    # ── Step 2: AMBF Camera convention → OpenCV convention ────────────────
+    # 根据官方文档，乘以转换矩阵 F
+    # F = [[0, 1, 0, 0], [0, 0, -1, 0], [-1, 0, 0, 0], [0, 0, 0, 1]]
+    X_cv2 = Y_ambf
+    Y_cv2 = -Z_ambf
+    Z_cv2 = -X_ambf  # Z_cv2 才是真正的深度 (Depth)
+
+    # ── Step 3: 透视投影 (Perspective projection) ──────────────────────────
+    # 使用截图中提供的公式计算内参矩阵
+    W, H  = resolution_x, resolution_y  
+    fva = 1.2  # 垂直视场角 (确保这个值与你的 yaml 文件一致)
+    
+    fx = fy = H / (2.0 * np.tan(fva / 2.0))
+    cx = W / 2.0
+    cy = H / 2.0
+
+    # 防止除以 0 (点刚好贴在镜头光心上)
+    if Z_cv2 == 0.0:
+        return np.array([cx, cy])
+
+    # 标准 OpenCV 投影公式
+    u = fx * (X_cv2 / Z_cv2) + cx
+    v = fy * (Y_cv2 / Z_cv2) + cy
+    
+    return np.array([u, v])
 
 def calculate_vector2d_angle(vector1, vector2):
 	"""
@@ -2017,9 +2113,48 @@ def save_data_cb():
 	np.save(join(latest_dir, 'Rpsm_direction.npy'), np.array(Rpsm_direction_list))
 	np.save(join(latest_dir, 'theta.npy'), np.array(theta_list))
 
+	# ── PSM v_direction 二范数统计 & 散点图（左手 + 右手）─────────────────
+	if Lpsm_direction_list or Rpsm_direction_list:
+		fig, axes = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
+
+		for ax, dir_list, side in zip(axes,
+		                              [Lpsm_direction_list, Rpsm_direction_list],
+		                              ['Left', 'Right']):
+			if not dir_list:
+				ax.set_title(f'{side} PSM v_direction L2 Norm  (no data)')
+				continue
+			arr   = np.array(dir_list)                          # (N, 2)
+			norms = np.linalg.norm(arr, axis=1)                 # (N,)
+			n_mean = np.mean(norms)
+			n_max  = np.max(norms)
+			n_q75  = np.percentile(norms, 75)
+
+			print(f"  [{side} psm_v_direction L2 norm]  mean={n_mean:.6f}  max={n_max:.6f}  Q75={n_q75:.6f}")
+			np.save(join(latest_dir, f'{side[0]}psm_direction_norms.npy'), norms)
+
+			t = np.arange(len(norms))
+			ax.scatter(t, norms, s=6, alpha=0.6,
+			           color='steelblue' if side == 'Right' else 'coral',
+			           label='L2 norm')
+			ax.axhline(n_mean, color='orange', ls='--', lw=1.5, label=f'Mean = {n_mean:.6f}')
+			ax.axhline(n_max,  color='red',    ls='--', lw=1.5, label=f'Max  = {n_max:.6f}')
+			ax.axhline(n_q75,  color='green',  ls='--', lw=1.5, label=f'Q75  = {n_q75:.6f}')
+			ax.set_ylabel('L2 Norm')
+			ax.set_title(f'{side} PSM v_direction  L2 Norm per Frame')
+			ax.legend(loc='upper right', fontsize=9)
+			ax.grid(True, linestyle='--', alpha=0.4)
+
+		axes[-1].set_xlabel('Frame')
+		fig.tight_layout()
+		norm_plot_path = join(latest_dir, 'psm_direction_norm_scatter.png')
+		fig.savefig(norm_plot_path, dpi=150)
+		plt.close(fig)
+		print(f"  PSM norm scatter plot saved to: {norm_plot_path}")
+	# ── END 二范数统计 ──────────────────────────────────────────────────────
+
 	# ── 实时阶段预测结果 ────────────────────────────────────────────────────
 	# phase_labels : shape (N,)         int   每帧的预测阶段标签，-1 表示热身期
-	# phase_probs  : shape (N, C)       float 每帧各阶段的边缘概率（C=7）
+	# phase_probs  : shape (N, C)       float 每帧各阶段的softmax概率（C=7）
 	if phase_label_list:
 		np.save(join(latest_dir, 'phase_labels.npy'),
 				np.array(phase_label_list, dtype=np.int32))
@@ -2031,7 +2166,7 @@ def save_data_cb():
 		print("  [Phase Predictor] 无预测数据，跳过保存。")
 	# ── END 阶段预测保存 ────────────────────────────────────────────────────
 
-	# plot_psm_velocity_directions(latest_dir)
+	#plot_psm_velocity_directions(latest_dir)
 	# plot_theta_over_time(latest_dir)
 	print("done saving...")
 

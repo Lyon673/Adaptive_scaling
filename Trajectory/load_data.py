@@ -22,7 +22,7 @@ demo_num = 148
 demo_id_list = np.arange(demo_num)
 demo_id_list = np.random.permutation(demo_id_list)
 
-ratio = 1.0
+ratio = 0.9
 
 def load_annotations(json_path):
     with open(json_path, 'r') as f:

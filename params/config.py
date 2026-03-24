@@ -1,8 +1,15 @@
-# resolution of windows
+# ── System settings ──────────────────────────────────────────────────
 resolution_x = 960
 resolution_y = 540
 
+#open_phase_segmentation = True
+
+
+
+# —— Adaptive formula settings ──────────────────────────────────────────────────
+
 fixed_scale = 10
+
 
 # the parameters in the scaling calculation formula
 feature_bound = {
@@ -34,6 +41,31 @@ ipa_polyorder = 3
 velocity_window_length = 9
 velocity_polyorder = 5
 
+
+
+# —— Comparison Experiments settings ──────────────────────────────────────────────────
+
+comparison_experiment_mode = 0 # 0-phase adaptive 1-adaptive  2-lower fixed, 3-lower and upper fixed
+
+lower_fixed_scale = 10
+
+upper_fixed_scale = 18
+
+# the params of the best adaptive frame
+# adaptive = {"K_g":10.0, "K_p":2.0, "C_base":9.0, "A_theta":2, "A_gp":2.0, "A_v":4.3, "B_safety":1.0, "AFflag":0}
+
+
+# fixed = {"fixed_scale": 1.2, "AFflag": 1}
+
+
+
+
+
+
+# —— Bayesian Optimization settings ──────────────────────────────────────────────────
+
+iter_times = 15
+
 optimization_range = {
     'K_g': (8.0, 12.0),
     'K_p': (0.8, 3.0),
@@ -41,33 +73,8 @@ optimization_range = {
 
     'A_theta': (3.0, 7.0),
     'A_gp': (1.0, 4.0),
-    'A_v': (3.0, 5.5),
+    'A_v': (3.0, 5.5), 
     'B_safety': (3.6, 4.0),
-}
-
-# Screen recording parameters
-enable_screen_recording = True  # Set to False to disable screen recording
-
-screen_recording_params = {
-    'x': 0,                                     # Left-top corner X coordinate
-    'y': 0,                                     # Left-top corner Y coordinate
-    'width': 1920,                              # Recording width
-    'height': 1080,                             # Recording height
-    'fps': 15,                                  # Frames per second
-    'output_dir': '/home/lambda/Videos/train', # Video output directory
-}
-
-iter_times = 15
-
-# parameters in the score calculation formula
-scoreParams_bound = {
-    'gracefulness_max': 5,
-    'gracefulness_min': 2,
-	'smoothness_max': 6,
-    'smoothness_min': 2,
-    'clutch_times_max': 6,
-    'total_distance_max': 0.4,
-    'total_time_max': 50
 }
 
 # the optimization params set history
@@ -76,16 +83,45 @@ logname ='logs.log.json'
 # the score log of the optimazation tests
 scorefilename = 'scores.json'
 
-# for the command params (not used)
-exflag = 1
+# parameters in the score calculation formula
+scoreParams_bound = {
+    'gracefulness_max': 5,
+    'gracefulness_min': 2,
+	'smoothness_max': 6,
+    'smoothness_min': 2,
+    'clutch_times_max': 4,
+    'total_distance_max': 0.4,
+    'total_time_max': 50
+}
 
-# the params of the best adaptive frame
-adaptive = {"K_g":10.0, "K_p":2.0, "C_base":9.0, "A_theta":2, "A_gp":2.0, "A_v":4.3, "B_safety":1.0, "AFflag":0}
 
 
-fixed = {"fixed_scale": 1.2, "AFflag": 1}
 
-# the params for the gaze filter
+# —— Screen recording settings ──────────────────────────────────────────────────
+
+enable_screen_recording = False # Set to False to disable screen recording
+
+screen_recording_params = {
+    'x': 2560,                                   # Left-top corner X coordinate
+    'y': 0,                                      # Left-top corner Y coordinate
+    'width': 2560,                               # Capture area width
+    'height': 1440,                              # Capture area height
+    'fps': 15,                                   # Frames per second
+    'output_scale': 0.375,                         # Output scale (0.5 → 1280x720)
+    'output_dir': '/home/lambda/Videos/train',   # Video output directory
+}
+
+
+
+
+
+
+
+
+
+
+
+# —— Gaze filter settings ──────────────────────────────────────────────────
 gaze_filter_params = {
     'heatmap_size_x': 192,
     'heatmap_size_y': 108,

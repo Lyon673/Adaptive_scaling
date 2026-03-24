@@ -29,7 +29,7 @@ class BayesianOptimizationGUI:
 		self.root = root
 		self.root.title("Bayesian Optimization System")
 		# Increased window size for better layout
-		self.root.geometry("1980x1600+0+0")
+		self.root.geometry("2560x1440+2560+0")
 		
 		# Initialize variables
 		self.current_iteration = 0
@@ -63,32 +63,32 @@ class BayesianOptimizationGUI:
 	def _configure_styles(self):
 		"""Configure ttk styles for the application for a better look and feel."""
 		self.style = ttk.Style(self.root)
-		# Changed the font to Calibri
-		self.base_font = ('Noto Sans', 10, 'normal')
-		self.title_font = ('Noto Sans', 12, 'bold')
+		self.base_font = ('Noto Sans', 20, 'normal')
+		self.title_font = ('Noto Sans', 24, 'bold')
+		self.small_font = ('Noto Sans', 18)
 
-		self.style.theme_use('clam') # A modern theme
+		self.style.theme_use('clam')
 
 		self.style.configure('TFrame', background='#f0f0f0')
 		self.style.configure('TLabel', font=self.base_font, background='#f0f0f0')
-		self.style.configure('TButton', font=self.base_font, padding=5)
-		self.style.configure('TLabelframe', font=self.base_font, padding=10, background='#f0f0f0')
+		self.style.configure('TButton', font=('Noto Sans', 20), padding=12)
+		self.style.configure('TLabelframe', font=self.base_font, padding=20, background='#f0f0f0')
 		self.style.configure('TLabelframe.Label', font=self.title_font, background='#f0f0f0')
-		self.style.configure('TNotebook', font=self.base_font, padding=5)
-		self.style.configure('TNotebook.Tab', font=('Noto Sans', 12), padding=[10, 5])
-		self.style.configure('TProgressbar', thickness=20)
+		self.style.configure('TNotebook', font=self.base_font, padding=10)
+		self.style.configure('TNotebook.Tab', font=('Noto Sans', 22), padding=[20, 10])
+		self.style.configure('TProgressbar', thickness=36)
 
 
 	def _create_ui(self):
 		# Create the main frame
-		main_frame = ttk.Frame(self.root, padding="10")
+		main_frame = ttk.Frame(self.root, padding="24")
 		main_frame.pack(fill=tk.BOTH, expand=True)
 		
 		# Create the tab control
 		self.tab_control = ttk.Notebook(main_frame)
-		tab1 = ttk.Frame(self.tab_control, padding=10)  # Optimization Settings & Progress
-		tab2 = ttk.Frame(self.tab_control, padding=10)  # NASA-TLX Rating
-		tab3 = ttk.Frame(self.tab_control, padding=10)  # Results Display
+		tab1 = ttk.Frame(self.tab_control, padding=20)  # Optimization Settings & Progress
+		tab2 = ttk.Frame(self.tab_control, padding=20)  # NASA-TLX Rating
+		tab3 = ttk.Frame(self.tab_control, padding=20)  # Results Display
 		
 		self.tab_control.add(tab1, text="Optimization Settings")
 		self.tab_control.add(tab2, text="Subjective Rating")
@@ -106,17 +106,17 @@ class BayesianOptimizationGUI:
 		
 		# Bottom control buttons
 		control_frame = ttk.Frame(main_frame)
-		control_frame.pack(fill=tk.X, pady=10, side=tk.BOTTOM)
+		control_frame.pack(fill=tk.X, pady=16, side=tk.BOTTOM)
 		
 		# Align buttons to the right
 		self.stop_button = ttk.Button(control_frame, text="Stop", command=self.stop_optimization, state=tk.DISABLED)
-		self.stop_button.pack(side=tk.RIGHT, padx=5)
+		self.stop_button.pack(side=tk.RIGHT, padx=12)
 		
 		self.next_button = ttk.Button(control_frame, text="Next Step", command=self.next_step, state=tk.DISABLED)
-		self.next_button.pack(side=tk.RIGHT, padx=5)
+		self.next_button.pack(side=tk.RIGHT, padx=12)
 
 		self.start_button = ttk.Button(control_frame, text="Start Optimization", command=self.start_optimization)
-		self.start_button.pack(side=tk.RIGHT, padx=5)
+		self.start_button.pack(side=tk.RIGHT, padx=12)
 
 	def _create_optimization_tab(self, parent):
 		global mode
@@ -124,39 +124,39 @@ class BayesianOptimizationGUI:
 
 		# Optimization settings UI
 		settings_frame = ttk.LabelFrame(parent, text="Optimization Settings")
-		settings_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=10)
+		settings_frame.grid(row=0, column=0, sticky="ew", padx=16, pady=12)
 		
 		# Number of iterations setting
-		ttk.Label(settings_frame, text="Number of Iterations:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
+		ttk.Label(settings_frame, text="Number of Iterations:").grid(row=0, column=0, sticky=tk.W, padx=10, pady=10)
 		# set initial iteration times
 		if mode == 3:
 			self.iter_var = tk.IntVar(value=10)
 		else:
 			self.iter_var = tk.IntVar(value=config.iter_times)
 		iter_entry = ttk.Spinbox(settings_frame, from_=1, to=100, textvariable=self.iter_var, width=10, font=self.base_font)
-		iter_entry.grid(row=0, column=1, sticky=tk.W, padx=5, pady=5)
+		iter_entry.grid(row=0, column=1, sticky=tk.W, padx=10, pady=10)
 		
 		# Progress information
 		progress_frame = ttk.LabelFrame(parent, text="Optimization Progress")
-		progress_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=10)
-		progress_frame.columnconfigure(1, weight=1) # Make progress bar expandable
+		progress_frame.grid(row=1, column=0, sticky="ew", padx=16, pady=12)
+		progress_frame.columnconfigure(1, weight=1)
 		
-		ttk.Label(progress_frame, text="Current Iteration:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
+		ttk.Label(progress_frame, text="Current Iteration:").grid(row=0, column=0, sticky=tk.W, padx=10, pady=10)
 		self.current_iter_label = ttk.Label(progress_frame, text="0/0", font=self.base_font)
-		self.current_iter_label.grid(row=0, column=1, sticky=tk.W, padx=5, pady=5)
+		self.current_iter_label.grid(row=0, column=1, sticky=tk.W, padx=10, pady=10)
 		
 		# Progress bar
-		ttk.Label(progress_frame, text="Overall Progress:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=5)
-		self.progress_bar = ttk.Progressbar(progress_frame, orient=tk.HORIZONTAL, length=400, mode='determinate')
-		self.progress_bar.grid(row=1, column=1, columnspan=3, sticky="ew", padx=5, pady=5)
+		ttk.Label(progress_frame, text="Overall Progress:").grid(row=1, column=0, sticky=tk.W, padx=10, pady=10)
+		self.progress_bar = ttk.Progressbar(progress_frame, orient=tk.HORIZONTAL, length=800, mode='determinate')
+		self.progress_bar.grid(row=1, column=1, columnspan=3, sticky="ew", padx=10, pady=10)
 		
 		# Current parameters
 		params_frame = ttk.LabelFrame(parent, text="Current Test Parameters")
-		params_frame.grid(row=2, column=0, sticky="nsew", padx=10, pady=10)
-		parent.rowconfigure(2, weight=1) # Allow this frame to expand vertically
+		params_frame.grid(row=2, column=0, sticky="nsew", padx=16, pady=12)
+		parent.rowconfigure(2, weight=1)
 		
 		self.params_text = tk.Text(params_frame, height=15, width=60, font=self.base_font)
-		self.params_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+		self.params_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 		self.params_text.config(state=tk.DISABLED, background='#ffffff')
 	
 	def _create_nasa_tlx_tab(self, parent):
@@ -164,70 +164,58 @@ class BayesianOptimizationGUI:
 
 		# NASA-TLX rating UI
 		nasa_frame = ttk.LabelFrame(parent, text="NASA-TLX Subjective Rating")
-		nasa_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=10)
+		nasa_frame.grid(row=0, column=0, sticky="ew", padx=16, pady=12)
 		
 		# Instruction text
-		instr_text = "Please rate the following items based on your teleoperation experience (0-20):"
-		ttk.Label(nasa_frame, text=instr_text, font=self.title_font).pack(anchor=tk.W, pady=(5, 15))
+		instr_text = "Please rate the following items based on your teleoperation experience (0-10):"
+		ttk.Label(nasa_frame, text=instr_text, font=self.title_font).pack(anchor=tk.W, pady=(10, 24))
 		
 		# Rating scales
-		
 		self._create_scale(nasa_frame, "1. Physical Demand (0=easy, 10=difficult):", self.physical_demand)
 		self._create_scale(nasa_frame, "2. Temporal Demand (0=easy, 10=difficult):", self.temporal_demand)
 		self._create_scale(nasa_frame, "3. Controllability (0=good, 10=poor):", self.controllability)
 		self._create_scale(nasa_frame, "4. Performance (0=good, 10=poor):", self.performance)
-
 		self._create_scale(nasa_frame, "5. Mental Demand (0=easy, 10=difficult):", self.mental_demand)
 		self._create_scale(nasa_frame, "6. Effort (0=easy, 10=difficult):", self.effort)
 		self._create_scale(nasa_frame, "7. Frustration/Distractions (0=low, 10=high):", self.frustration)
 		
 		# Submit button
 		submit_button = ttk.Button(nasa_frame, text="Submit Ratings", command=self.submit_scores)
-		submit_button.pack(pady=20)
-	
-	# def _create_scale(self, parent, label_text, variable):
-	# 	frame = ttk.Frame(parent)
-	# 	frame.pack(fill=tk.X, pady=8, padx=10)
-	# 	frame.columnconfigure(1, weight=1) # Let the scale expand
-		
-	# 	ttk.Label(frame, text=label_text).grid(row=0, column=0, sticky="w")
-	# 	scale = ttk.Scale(frame, from_=0, to=20, orient=tk.HORIZONTAL, variable=variable, length=300)
-	# 	scale.grid(row=0, column=1, padx=10)
-		
-	# 	value_label = ttk.Label(frame, textvariable=variable, width=4)
-	# 	# Format value to show integer part
-	# 	variable.trace_add("write", lambda *args, var=variable, lbl=value_label: lbl.config(text=f"{int(var.get())}"))
-	# 	value_label.grid(row=0, column=2, padx=5, sticky="e")
+		submit_button.pack(pady=30)
 	
 	def _create_scale(self, parent, label_text, variable):
 		frame = ttk.Frame(parent)
-		frame.pack(fill=tk.X, pady=8, padx=10)
+		frame.pack(fill=tk.X, pady=18, padx=16)
+		frame.columnconfigure(1, weight=1)
 
-		label = ttk.Label(frame, text=label_text, width=50, anchor="w")  
+		label = ttk.Label(frame, text=label_text, width=50, anchor="w")
 		label.grid(row=0, column=0, sticky="w")
 
-		scale = ttk.Scale(frame, from_=0, to=10, orient=tk.HORIZONTAL, variable=variable, length=700)
+		scale = tk.Scale(frame, from_=0, to=10, orient=tk.HORIZONTAL,
+						 variable=variable, length=1000, resolution=0.1,
+						 width=36, sliderlength=50, showvalue=False,
+						 bg="#f0f0f0", troughcolor="#ccc", highlightthickness=0,
+						 font=self.small_font)
 		scale.grid(row=0, column=1, padx=10, sticky="ew")
 
 		value_label = ttk.Label(frame, text="5.0", width=6, anchor="e")
-		
-		# Update label text when variable changes
+
 		def update_label(*args):
 			value_label.config(text=f"{variable.get():.1f}")
 		variable.trace_add("write", update_label)
-		value_label.grid(row=0, column=2, padx=(10, 15), sticky="e")
+		value_label.grid(row=0, column=2, padx=(12, 16), sticky="e")
 
 	def _create_results_tab(self, parent):
 		parent.columnconfigure(0, weight=1)
 		parent.columnconfigure(1, weight=1)
-		parent.rowconfigure(1, weight=1) # Allow best results to expand
+		parent.rowconfigure(1, weight=1)
 
 		# Performance metrics display
 		metrics_frame = ttk.LabelFrame(parent, text="Performance Metrics")
-		metrics_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+		metrics_frame.grid(row=0, column=0, padx=16, pady=12, sticky="nsew")
 		
 		metrics = [
-			("gracefulness:", "gracefulness_value"), 
+			("Gracefulness:", "gracefulness_value"), 
 			("Smoothness:", "smoothness_value"),
 			("Clutch Times:", "clutch_times_value"),
 			("Total Distance:", "total_distance_value"),
@@ -235,34 +223,34 @@ class BayesianOptimizationGUI:
 		]
 		
 		for i, (label_text, attr_name) in enumerate(metrics):
-			ttk.Label(metrics_frame, text=label_text).grid(row=i, column=0, sticky=tk.W, padx=5, pady=2)
+			ttk.Label(metrics_frame, text=label_text).grid(row=i, column=0, sticky=tk.W, padx=12, pady=8)
 			setattr(self, attr_name, ttk.Label(metrics_frame, text="-", font=self.base_font + ('bold',)))
-			getattr(self, attr_name).grid(row=i, column=1, sticky=tk.W, padx=5, pady=2)
+			getattr(self, attr_name).grid(row=i, column=1, sticky=tk.W, padx=12, pady=8)
 		
 		# Scores display
 		scores_frame = ttk.LabelFrame(parent, text="Scores")
-		scores_frame.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
+		scores_frame.grid(row=0, column=1, padx=16, pady=12, sticky="nsew")
 		
 		scores = [
-			("gracefulness Score(5):", "gracefulness_score"), 
-			("Smoothness Score(5):", "smoothness_score"),
-			("Clutch Times Score(15):", "clutch_times_score"),
-			("Total Distance Score(15):", "total_distance_score"),
-			("Total Time Score(10):", "total_time_score"),
+			("Gracefulness Score (10):", "gracefulness_score"), 
+			("Smoothness Score (10):", "smoothness_score"),
+			("Clutch Times Score (30):", "clutch_times_score"),
+			("Total Distance Score (40):", "total_distance_score"),
+			("Total Time Score (20):", "total_time_score"),
 			("Total Score:", "total_score")
 		]
 		
 		for i, (label_text, attr_name) in enumerate(scores):
-			ttk.Label(scores_frame, text=label_text).grid(row=i, column=0, sticky=tk.W, padx=5, pady=2)
+			ttk.Label(scores_frame, text=label_text).grid(row=i, column=0, sticky=tk.W, padx=12, pady=8)
 			setattr(self, attr_name, ttk.Label(scores_frame, text="-", font=self.base_font + ('bold',)))
-			getattr(self, attr_name).grid(row=i, column=1, sticky=tk.W, padx=5, pady=2)
+			getattr(self, attr_name).grid(row=i, column=1, sticky=tk.W, padx=12, pady=8)
 		
 		# Best results display
 		best_frame = ttk.LabelFrame(parent, text="Best Result")
-		best_frame.grid(row=1, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
+		best_frame.grid(row=1, column=0, columnspan=2, padx=16, pady=12, sticky="nsew")
 		
 		self.best_results_text = tk.Text(best_frame, height=10, width=60, font=self.base_font)
-		self.best_results_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+		self.best_results_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 		self.best_results_text.config(state=tk.DISABLED, background='#ffffff')
 	
 	def _initialize_optimizer(self):
@@ -406,8 +394,8 @@ class BayesianOptimizationGUI:
 		gracefulness, smoothness, clutch_times, total_distance, total_time = self.calculate_metrics()
 		# Calculate individual scores
 		# group1 G S
-		gracefulness_score =  10 * np.clip((self.gracefulness_max - gracefulness) / (self.gracefulness_max - self.gracefulness_min), 0, 1)
-		smoothness_score = 10 * np.clip((self.smoothness_max - smoothness) / (self.smoothness_max - self.smoothness_min), 0, 1)
+		gracefulness_score =  5 * np.clip((self.gracefulness_max - gracefulness) / (self.gracefulness_max - self.gracefulness_min), 0, 1)
+		smoothness_score = 5 * np.clip((self.smoothness_max - smoothness) / (self.smoothness_max - self.smoothness_min), 0, 1)
 		# group2 fast
 		clutch_times_score = 30 * np.clip((self.clutch_times_max - clutch_times[0] - clutch_times[1]) / self.clutch_times_max, 0, 1) 
 		total_time_score = 20 * np.clip((self.total_time_max - total_time) / self.total_time_max, 0, 1)

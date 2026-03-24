@@ -705,7 +705,7 @@ if __name__ == "__main__":
     print(f"Using device: {device}")
 
     dir_path       = os.path.dirname(__file__)
-    model_save_path = os.path.join(dir_path, "LSTM_model", "lstm_sequence_model.pth")
+    model_save_path = os.path.join(dir_path, "LSTM_model", "lstmcrf_sequence_model.pth")
     model           = load_model(model_save_path, device)
 
     evaluate_model(model, test_loader, device)

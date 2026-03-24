@@ -20,10 +20,10 @@ plt.rcParams['axes.unicode_minus'] = False
 
 class TestDataset:
     def __init__(self):
-        # demonstrations_state = load_test_state(without_quat=without_quat, resample=resample)
-        # demonstrations_label = load_test_label(resample=resample)
-        # demonstrations_state = load_specific_test_state(shuffle=False, without_quat=without_quat, resample=resample, demo_id_list=[76,78,79,118,119,120,121])
-        # demonstrations_label = load_specific_test_label(demo_id_list=[76,78,79,118,119,120,121])
+
+        # demonstrations_state = load_specific_test_state(shuffle=False, without_quat=without_quat, resample=resample, demo_id_list=[109,112,117])
+        # demonstrations_label = load_specific_test_label(demo_id_list=[109,112,117])
+        
         demo_id_list = np.arange(148)
         demo_id_list = np.delete(demo_id_list, [80, 81, 92, 109, 112, 117, 122, 144, 145])
         test_demo_id_list = get_test_demo_id_list(demo_id_list)
@@ -113,7 +113,7 @@ def visualize_sequence_predictions(model, test_dataset, device, num_sequences=7,
     """
     
     # 定义颜色和标签 (6个有效类 + 1个未标注类)
-    class_colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA15E', '#A9A9A9', '#A9A2B5']
+    class_colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA15E', '#BA68C8', '#A9A2B5']
     class_names = ['Class 0', 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'Unlabeled']
     
     # 创建图形
@@ -433,8 +433,8 @@ def visualize_feature_importance(model, test_dataset, device, seq_idx=0, save_pa
     plt.close(fig)  # 关闭图形，避免空白窗口
 
 
-def main():
-    """主函数 - 运行所有可视化"""
+def lstm_main():
+    """主函数 - LSTM 可视化"""
     
     # 设置设备
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -442,7 +442,7 @@ def main():
     
     # 加载模型
     dir_path = os.path.dirname(__file__)
-    model_path = os.path.join(dir_path, "LSTM_model", "lstm_sequence_model.pth")
+    model_path = os.path.join(dir_path, "LSTM_model", "lstmcrf_sequence_model.pth")
     if not os.path.exists(model_path):
         print(f"模型文件不存在: {model_path}")
         return
@@ -481,26 +481,176 @@ def main():
         model, test_dataset, device,
         save_path=os.path.join(save_dir, "confusion_matrix.png")
     )
-    
-    # # 3. 可视化单个序列的时间线
-    # print("\n生成时间线可视化...")
-    # visualize_sequence_timeline(
-    #     model, test_dataset, device, 
-    #     seq_idx=0,
-    #     save_path=os.path.join(save_dir, "sequence_timeline.png")
-    # )
-    
-    # # 4. 可视化特征重要性
-    # print("\n生成特征可视化...")
-    # visualize_feature_importance(
-    #     model, test_dataset, device, 
-    #     seq_idx=0,
-    #     save_path=os.path.join(save_dir, "feature_analysis.png")
-    # )
-    
 
-    
-    # print(f"\n所有可视化完成！结果保存在 {save_dir} 目录中")
+
+# ── TeCNO 可视化 ─────────────────────────────────────────────────────────
+
+def load_tecno_model(filepath, device='cpu'):
+    """加载 TeCNO 模型（不影响 LSTM 的 load_model）"""
+    from TeCNO_seg_train import TeCNO
+    checkpoint = torch.load(filepath, map_location=device)
+    cfg = checkpoint['model_config']
+    model = TeCNO(
+        cfg['input_size'], cfg['hidden_size'],
+        cfg['num_layers'], cfg['num_classes'],
+        num_stages=cfg.get('num_stages', 2),
+        kernel_size=cfg.get('kernel_size', 3),
+        dropout=cfg.get('dropout', 0.5),
+    )
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model.to(device)
+    model.eval()
+    return model
+
+
+def visualize_tecno_per_phase_probs(model, test_dataset, device,
+                                    seq_idx=0, save_path=None):
+    """
+    TeCNO 专用：绘制每个阶段的 softmax 概率曲线 + 真实标签色带。
+    与 coarse/fine 互补，直接展示 7 条概率曲线。
+
+    seq_idx: int 或 list[int]
+    """
+    CLASS_NAMES = [
+        'P0 Right Move', 'P1 Pick Needle', 'P2 Right Move2',
+        'P3 Pass Needle', 'P4 Left Move', 'P5 Left Pick', 'P6 Pull Thread',
+    ]
+    PHASE_COLORS = [
+        '#1abc9c', '#3498db', '#9b59b6',
+        '#e67e22', '#e74c3c', '#2ecc71', '#f1c40f',
+    ]
+    STAGE_BG = {
+        0: '#A8D5E2', 1: '#F4A9A8', 2: '#A8C5DA',
+        3: '#F7C5A0', 4: '#B5D5C5', 5: '#D5A8D4',
+        6: '#C5D5A8', -1: '#E0E0E0',
+    }
+
+    if isinstance(seq_idx, int):
+        seq_indices = [seq_idx]
+    else:
+        seq_indices = list(seq_idx)
+
+    model.eval()
+    all_probs, all_true = [], []
+    with torch.no_grad():
+        for idx in seq_indices:
+            sequence, true_labels = test_dataset[idx]
+            logits = model(sequence.unsqueeze(0).to(device), [sequence.shape[0]])
+            probs = torch.softmax(logits, dim=2).squeeze(0).cpu().numpy()
+            all_probs.append(probs)
+            all_true.append(true_labels.numpy())
+
+    n = len(seq_indices)
+    fig, axes = plt.subplots(n, 1, figsize=(16, 4.5 * n), squeeze=False)
+
+    from matplotlib.patches import Patch
+    for row, (idx, probs, true_lbl) in enumerate(
+            zip(seq_indices, all_probs, all_true)):
+        ax = axes[row, 0]
+        T = probs.shape[0]
+        t = np.arange(T)
+
+        # background: true stage bands
+        prev, start = true_lbl[0], 0
+        for i in range(1, T):
+            if true_lbl[i] != prev:
+                ax.axvspan(start - 0.5, i - 0.5, alpha=0.30,
+                           color=STAGE_BG.get(int(prev), '#DDD'), linewidth=0)
+                start, prev = i, true_lbl[i]
+        ax.axvspan(start - 0.5, T - 0.5, alpha=0.30,
+                   color=STAGE_BG.get(int(prev), '#DDD'), linewidth=0)
+
+        # probability curves
+        for ci in range(probs.shape[1]):
+            ax.plot(t, probs[:, ci], color=PHASE_COLORS[ci],
+                    linewidth=1.8, alpha=0.85, label=CLASS_NAMES[ci])
+
+        # predicted label (argmax) as thin color bar at bottom
+        pred = probs.argmax(axis=1)
+        for ci in range(len(CLASS_NAMES)):
+            mask = pred == ci
+            if mask.any():
+                ax.fill_between(t, -0.06, -0.01, where=mask,
+                                color=PHASE_COLORS[ci], alpha=0.9, step='mid')
+
+        ax.set_xlim(-0.5, T - 0.5)
+        ax.set_ylim(-0.08, 1.05)
+        ax.set_ylabel('Probability', fontsize=10)
+        demo_id = test_dataset.demo_ids[idx] if hasattr(test_dataset, 'demo_ids') else idx
+        ax.set_title(f'TeCNO Per-Phase Probabilities — Seq {idx}  [demo_id={demo_id}]',
+                     fontsize=11, fontweight='bold')
+        ax.grid(True, alpha=0.25, axis='y')
+        if row == n - 1:
+            ax.set_xlabel('Time Step', fontsize=10)
+        if row == 0:
+            ax.legend(loc='upper right', fontsize=8, ncol=4, framealpha=0.85)
+
+    fig.suptitle('TeCNO — Per-Phase Softmax Probabilities', fontsize=13, fontweight='bold')
+    plt.tight_layout(rect=[0, 0, 1, 0.97])
+
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"TeCNO per-phase probability visualization saved to {save_path}")
+    plt.show()
+    plt.close(fig)
+
+
+def tecno_main():
+    """TeCNO 可视化主函数（复用 LSTM 可视化函数 + TeCNO 专属图表）"""
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"使用设备: {device}")
+
+    dir_path = os.path.dirname(__file__)
+    model_path = os.path.join(dir_path, "TeCNO_model", "tecno_sequence_model.pth")
+    if not os.path.exists(model_path):
+        print(f"模型文件不存在: {model_path}")
+        return
+
+    print("加载 TeCNO 模型...")
+    model = load_tecno_model(model_path, device)
+    print("模型加载成功")
+
+    test_dataset = TestDataset()
+    print(f"测试数据集大小: {len(test_dataset)}")
+
+    save_dir = os.path.join(dir_path, "TeCNO_visualization_results")
+    os.makedirs(save_dir, exist_ok=True)
+
+    all_seq_indices = list(range(min(6, len(test_dataset))))
+
+    # 1. TeCNO 专属：逐阶段概率曲线
+    print("\n生成 TeCNO 逐阶段概率可视化...")
+    visualize_tecno_per_phase_probs(
+        model, test_dataset, device,
+        seq_idx=all_seq_indices,
+        save_path=os.path.join(save_dir, "per_phase_probabilities.png"),
+    )
+
+    # 2. 复用：粗大/精细操作概率
+    print("\n生成粗大/精细操作概率可视化...")
+    visualize_predicted_class_probabilities(
+        model, test_dataset, device,
+        seq_idx=all_seq_indices,
+        save_path=os.path.join(save_dir, "coarse_fine_probabilities.png"),
+    )
+
+    # 3. 复用：序列预测对比
+    print("\n生成序列预测对比图...")
+    visualize_sequence_predictions(
+        model, test_dataset, device,
+        num_sequences=min(6, len(test_dataset)),
+        save_path=os.path.join(save_dir, "sequence_predictions.png"),
+    )
+
+    # 4. 复用：混淆矩阵
+    print("\n生成混淆矩阵...")
+    visualize_confusion_matrix(
+        model, test_dataset, device,
+        save_path=os.path.join(save_dir, "confusion_matrix.png"),
+    )
+
+    print(f"\n所有 TeCNO 可视化完成！结果保存在 {save_dir}")
 
 def _draw_prob_subplot(ax, probs, true_labels_np, seq_idx,
                        coarse_classes, fine_classes, CLASS_NAMES, STAGE_COLORS,
@@ -661,4 +811,7 @@ def visualize_predicted_class_probabilities(model, test_dataset, device,
 
 
 if __name__ == "__main__":
-    main()
+    
+    #lstm_main()
+    
+    tecno_main()

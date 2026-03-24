@@ -2,12 +2,15 @@
 """
 固定屏幕位置录屏工具
 支持捕获指定区域的屏幕并保存为视频文件
+
+使用独立进程进行截图+编码，避免 GIL 争抢导致主线程卡顿。
 """
 
 import cv2
 import numpy as np
 import time
 from datetime import datetime
+import multiprocessing as mp
 import threading
 import argparse
 import os
@@ -22,8 +25,72 @@ except ImportError:
     print("建议安装: pip install mss")
 
 
+def _recording_process(monitor_dict, x, y, width, height,
+                       out_w, out_h,
+                       fps, output_file, stop_event, pause_event):
+    """
+    独立进程：截图 + 编码写入视频文件。
+    在进程内创建一次 mss 实例并复用，避免每帧创建/销毁 X11 连接。
+    截图以原始分辨率捕获，然后缩放到 (out_w, out_h) 再编码。
+    """
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(output_file, fourcc, fps, (out_w, out_h))
+    need_resize = (out_w != width or out_h != height)
+    frame_time = 1.0 / fps
+    frame_count = 0
+
+    print(f"开始录制... 捕获 {width}x{height} → 输出 {out_w}x{out_h}")
+    start_time = time.time()
+
+    if USE_MSS:
+        sct = mss()
+
+    try:
+        while not stop_event.is_set():
+            if pause_event.is_set():
+                time.sleep(0.1)
+                continue
+
+            loop_start = time.time()
+
+            if USE_MSS:
+                screenshot = sct.grab(monitor_dict)
+                frame = np.array(screenshot)
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+            else:
+                screenshot = ImageGrab.grab(bbox=(x, y, x + width, y + height))
+                frame = np.array(screenshot)
+                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+
+            if need_resize:
+                frame = cv2.resize(frame, (out_w, out_h),
+                                   interpolation=cv2.INTER_AREA)
+
+            out.write(frame)
+            frame_count += 1
+
+            elapsed = time.time() - loop_start
+            sleep_time = frame_time - elapsed
+            if sleep_time > 0:
+                time.sleep(sleep_time)
+
+            if frame_count % fps == 0:
+                duration = time.time() - start_time
+                print(f"已录制: {duration:.1f}秒 | 帧数: {frame_count}")
+    finally:
+        if USE_MSS:
+            sct.close()
+        out.release()
+        duration = time.time() - start_time
+        print(f"\n录制完成!")
+        print(f"总时长: {duration:.2f}秒")
+        print(f"总帧数: {frame_count}")
+        print(f"保存至: {output_file}")
+
+
 class ScreenRecorder:
-    def __init__(self, x, y, width, height, fps=60, output_file=None):
+    def __init__(self, x, y, width, height, fps=60, output_file=None,
+                 output_scale=1.0):
         """
         初始化屏幕录制器
         
@@ -34,14 +101,17 @@ class ScreenRecorder:
             height: 捕获区域高度
             fps: 录制帧率
             output_file: 输出文件名（默认自动生成）
+            output_scale: 输出缩放比例 (0~1)，例如 0.5 表示宽高各缩一半
         """
         self.x = x
         self.y = y
         self.width = width
         self.height = height
         self.fps = fps
+        self.output_scale = output_scale
+        self.out_w = int(width * output_scale)
+        self.out_h = int(height * output_scale)
         
-        # 生成输出文件名
         if output_file is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             self.output_file = f"screen_record_{timestamp}.mp4"
@@ -50,104 +120,40 @@ class ScreenRecorder:
         
         self.recording = False
         self.paused = False
-        self.thread = None
-        self.out = None
+        self._process = None
+        self._stop_event = None
+        self._pause_event = None
         self.frame_count = 0
         
-        # 定义捕获区域
-        if USE_MSS:
-            self.monitor = {
-                "top": y,
-                "left": x,
-                "width": width,
-                "height": height
-            }
+        self.monitor = {
+            "top": y,
+            "left": x,
+            "width": width,
+            "height": height,
+        }
         
-        print(f"录制区域: ({x}, {y}) - 尺寸: {width}x{height}")
+        print(f"录制区域: ({x}, {y}) - 捕获: {width}x{height} → 输出: {self.out_w}x{self.out_h}")
         print(f"帧率: {fps} FPS")
         print(f"输出文件: {self.output_file}")
     
-    def capture_screen(self):
-        """捕获屏幕指定区域"""
-        if USE_MSS:
-            with mss() as sct:
-                screenshot = sct.grab(self.monitor)
-                frame = np.array(screenshot)
-                # mss 返回 BGRA 格式，转换为 BGR
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
-        else:
-            # 使用 PIL ImageGrab
-            screenshot = ImageGrab.grab(bbox=(
-                self.x, 
-                self.y, 
-                self.x + self.width, 
-                self.y + self.height
-            ))
-            frame = np.array(screenshot)
-            # PIL 返回 RGB 格式，转换为 BGR
-            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        
-        return frame
-    
-    def _recording_loop(self):
-        """录制循环（在单独线程中运行）"""
-        # 初始化视频写入器
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        self.out = cv2.VideoWriter(
-            self.output_file, 
-            fourcc, 
-            self.fps, 
-            (self.width, self.height)
-        )
-        
-        frame_time = 1.0 / self.fps
-        
-        print("开始录制...")
-        start_time = time.time()
-        
-        while self.recording:
-            if not self.paused:
-                loop_start = time.time()
-                
-                # 捕获屏幕
-                frame = self.capture_screen()
-                
-                # 写入视频
-                self.out.write(frame)
-                self.frame_count += 1
-                
-                # 控制帧率
-                elapsed = time.time() - loop_start
-                sleep_time = frame_time - elapsed
-                if sleep_time > 0:
-                    time.sleep(sleep_time)
-                
-                # 每秒显示一次进度
-                if self.frame_count % self.fps == 0:
-                    duration = time.time() - start_time
-                    print(f"已录制: {duration:.1f}秒 | 帧数: {self.frame_count}")
-            else:
-                time.sleep(0.1)
-        
-        # 释放资源
-        if self.out:
-            self.out.release()
-        
-        duration = time.time() - start_time
-        print(f"\n录制完成!")
-        print(f"总时长: {duration:.2f}秒")
-        print(f"总帧数: {self.frame_count}")
-        print(f"保存至: {self.output_file}")
-    
     def start(self):
-        """开始录制"""
+        """开始录制（启动独立进程）"""
         if not self.recording:
             self.recording = True
             self.paused = False
-            self.frame_count = 0
-            self.thread = threading.Thread(target=self._recording_loop)
-            self.thread.start()
-            print("录制已启动")
+            self._stop_event = mp.Event()
+            self._pause_event = mp.Event()
+            self._process = mp.Process(
+                target=_recording_process,
+                args=(self.monitor, self.x, self.y,
+                      self.width, self.height,
+                      self.out_w, self.out_h,
+                      self.fps, self.output_file,
+                      self._stop_event, self._pause_event),
+                daemon=True,
+            )
+            self._process.start()
+            print("录制已启动 (独立进程)")
         else:
             print("已在录制中")
     
@@ -155,6 +161,8 @@ class ScreenRecorder:
         """暂停录制"""
         if self.recording and not self.paused:
             self.paused = True
+            if self._pause_event:
+                self._pause_event.set()
             print("录制已暂停")
         else:
             print("当前未在录制或已暂停")
@@ -163,6 +171,8 @@ class ScreenRecorder:
         """恢复录制"""
         if self.recording and self.paused:
             self.paused = False
+            if self._pause_event:
+                self._pause_event.clear()
             print("录制已恢复")
         else:
             print("当前未暂停")
@@ -172,8 +182,12 @@ class ScreenRecorder:
         if self.recording:
             print("正在停止录制...")
             self.recording = False
-            if self.thread:
-                self.thread.join()
+            if self._stop_event:
+                self._stop_event.set()
+            if self._process and self._process.is_alive():
+                self._process.join(timeout=5)
+                if self._process.is_alive():
+                    self._process.terminate()
             print("录制已停止")
         else:
             print("当前未在录制")
