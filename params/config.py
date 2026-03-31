@@ -25,7 +25,7 @@ init_params = {
     'K_p': 2.0,
     'C_base': 9.0,
 
-    'A_theta': 2,
+    'A_theta': 5,
     'A_gp': 2.0,
     'A_v': 4.3,
     'B_safety': 3.8,
@@ -64,11 +64,12 @@ upper_fixed_scale = 18
 
 # —— Bayesian Optimization settings ──────────────────────────────────────────────────
 
-iter_times = 15
+iter_times = 10
+
+phase_rate = 0.6
 
 optimization_range = {
     'K_g': (8.0, 12.0),
-    'K_p': (0.8, 3.0),
     'C_base': (6.0, 15.0),
 
     'A_theta': (3.0, 7.0),

@@ -50,10 +50,10 @@ NUM_LAYERS = 8          # dilated residual layers per stage; RF = 2^9-1 = 511 fr
 NUM_STAGES = 2          # refinement stages (paper: 2 is optimal)
 NUM_CLASSES = 7
 KERNEL_SIZE = 3
-DROPOUT = 0.2           # reduced from 0.5: small dataset (139 demos), avoid underfitting
+DROPOUT = 0.5           # reduced from 0.5: small dataset (139 demos), avoid underfitting
 BATCH_SIZE = 16
 NUM_EPOCHS = 800
-LEARNING_RATE = 5e-3
+LEARNING_RATE = 1e-3
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")

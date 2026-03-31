@@ -302,7 +302,7 @@ class SequenceLabelingLSTM_CRF(nn.Module):
             num_layers, 
             batch_first=True, 
             bidirectional=False,
-            dropout=0.5 if num_layers > 1 else 0  # 防止单层报错
+            dropout=0.2 if num_layers > 1 else 0  # 防止单层报错
         )
         self.fc = nn.Linear(hidden_size, num_classes)
         self.crf = CRF(num_classes, batch_first=True)
@@ -666,12 +666,12 @@ def train_LSTM_CRF():
 
 if __name__ == "__main__":
     # --- 4. 训练循环 (Training Loop) ---
-    model = train_LSTM_CRF()
+    model = train_LSTM()
 
     # save model
     dir_path = os.path.dirname(__file__)
     os.makedirs(os.path.join(dir_path, "LSTM_model"), exist_ok=True)
-    model_save_path = os.path.join(dir_path, "LSTM_model", "lstmcrf_sequence_model.pth")
+    model_save_path = os.path.join(dir_path, "LSTM_model", "lstm_sequence_model.pth")
     save_model(model, model_save_path)
 
 

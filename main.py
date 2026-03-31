@@ -125,6 +125,7 @@ Lforward_factor_list = []
 Lbackward_factor_list = []
 Rforward_factor_list = []
 Rbackward_factor_list = []
+adaptive_scale_list = [[0,0],[0,0]]
 
 velocity_deque_L = deque(maxlen=8)
 velocity_deque_R = deque(maxlen=8)
@@ -136,7 +137,7 @@ HF_Rpsm_velocity_queue = deque(maxlen=config.velocity_queue_length)
 pupilL = deque(maxlen=128)
 pupilR = deque(maxlen=128)
 gazePoint = np.array([0.5*resolution_x,0.5*resolution_y])
-scale = deque(maxlen=10)
+scale_deque = deque(maxlen=2)
 velocity_deque = deque(maxlen=8)
 psmPosePre = np.zeros(4)
 psmPosePreL = np.zeros(4)
@@ -821,6 +822,12 @@ class DataCollector:
 		self.Rpsm_linear_velocity_filter = RealTimeSavitzkyGolay(window_length=config.velocity_window_length, polyorder=config.velocity_polyorder)
 		self.Lipa_filter = RealTimeSavitzkyGolay(window_length=config.ipa_window_length, polyorder=config.ipa_polyorder)
 		self.Ripa_filter = RealTimeSavitzkyGolay(window_length=config.ipa_window_length, polyorder=config.ipa_polyorder)
+
+		# ── theta 5 帧动量因果滤波器 ──────────────────────────────────────────
+		# 线性递增权重 [1,2,3,4,5]（归一化），新帧权重最高，保持因果性。
+		_N = 5
+		self._theta_buf = [deque(maxlen=_N), deque(maxlen=_N)]   # [左, 右]
+		self._theta_weights = np.arange(1, _N + 1, dtype=float)  # [1,2,3,4,5]
 		
 		self.attention_heatmap_generator = AttentionHeatmapGenerator(screen_width=resolution_x, screen_height=resolution_y, heatmap_size=(config.gaze_filter_params['heatmap_size_x'], config.gaze_filter_params['heatmap_size_y']))
 
@@ -828,7 +835,7 @@ class DataCollector:
 		try:
 			self.phase_predictor = PhasePredictor(
 				model_path=_LSTM_MODEL_PATH,
-				min_frames=20,      # 热身帧数；累积至少3帧后开始预测
+				min_frames=5,      # 热身帧数；累积至少3帧后开始预测
 				sg_window=9,        # SG 速度平滑窗口（与训练时保持一致）
 				sg_poly=3,
 			)
@@ -904,6 +911,7 @@ class DataCollector:
 		Lbackward_factor_list = []
 		Rforward_factor_list = []
 		Rbackward_factor_list = []
+		adaptive_scale_list = [[0,0],[0,0]]
 		
 		# Reset deques
 		velocity_deque_L = deque(maxlen=8)
@@ -912,7 +920,8 @@ class DataCollector:
 		HF_Rpsm_velocity_queue = deque(maxlen=30)
 		pupilL = deque(maxlen=128)
 		pupilR = deque(maxlen=128)
-		scale = deque(maxlen=10)
+		scale_deque = deque(maxlen=2)
+		
 		velocity_deque = deque(maxlen=8)
 		
 		# Reset state variables
@@ -1201,13 +1210,23 @@ class DataCollector:
 		Lgp_direction = transform_world_to_camera(gazepoint_position3, cameraR.pose, cameraFrame.pose) - transform_world_to_camera(Lpsm_position3, cameraR.pose, cameraFrame.pose)
 		Rgp_direction = transform_world_to_camera(gazepoint_position3, cameraR.pose, cameraFrame.pose) - transform_world_to_camera(Rpsm_position3, cameraR.pose, cameraFrame.pose)
 
+		
+
 		thetaL = calculate_vector2d_angle(Lpsm_v_direction, Lgp_direction)
 		thetaR = calculate_vector2d_angle(Rpsm_v_direction, Rgp_direction)
+
+		for i, raw_theta in enumerate([thetaL, thetaR]):
+			self._theta_buf[i].append(float(raw_theta))
+		theta = []
+		for buf in self._theta_buf:
+			n = len(buf)
+			w = self._theta_weights[-n:]          # 取最近 n 个权重 [N-n+1 .. N]
+			theta.append(float(np.dot(w, list(buf)) / w.sum()))
 
 		psm_position = [Lpsm_position3, Rpsm_position3]
 		GP_distance = [weighted_dist_left_3d, weighted_dist_right_3d]
 		psm_velocity = [Lpsm_linear_velocity_filtered, Rpsm_linear_velocity_filtered]
-		theta = [thetaL, thetaR]
+	
 		ipa = [ipaL_data_filtered, ipaR_data_filtered]
 
 
@@ -1407,18 +1426,29 @@ class DataCollector:
 		N_d_pp = normalize(distance_psms, config.feature_bound['s_min'], config.feature_bound['s_max'], 1) 
 
 		safety_factor = self.expFunc(N_d_pp, 1000, self.params['B_safety'])
-		forward_factorL = self.thetaFunc(theta[0]) * self.expFunc(N_d_gpL, self.params['A_gp']) 
-		backward_factorL = (1 - self.thetaFunc(theta[0])) * self.expFunc(N_vL, self.params['A_v'])
-		forward_factorR = self.thetaFunc(theta[1]) * self.expFunc(N_d_gpR, self.params['A_gp']) 
-		backward_factorR = (1 - self.thetaFunc(theta[1])) * self.expFunc(N_vR, self.params['A_v'])
+		# forward_factorL = self.thetaFunc(theta[0]) * self.expFunc(N_d_gpL, self.params['A_gp']) 
+		# backward_factorL = (1 - self.thetaFunc(theta[0])) * self.expFunc(N_vL, self.params['A_v'])
+		# forward_factorR = self.thetaFunc(theta[1]) * self.expFunc(N_d_gpR, self.params['A_gp']) 
+		# backward_factorR = (1 - self.thetaFunc(theta[1])) * self.expFunc(N_vR, self.params['A_v'])
 
-		Lforward_factor_list.append(forward_factorL)
-		Lbackward_factor_list.append(backward_factorL)
-		Rforward_factor_list.append(forward_factorR)
-		Rbackward_factor_list.append(backward_factorR)
+		# ── theta 5 帧动量因果滤波 ────────────────────────────────────────────
+		# 每帧将原始 theta 压入环形缓冲，用线性递增权重 [1..N] 加权平均，
+		# 使方向估计平滑且对突变具有惯性抑制，同时不引入未来帧（因果）。
 
-		adaptive_L = self.params['K_g'] * (forward_factorL + self.params['K_p'] * backward_factorL) * safety_factor + self.params['C_base']
-		adaptive_R = self.params['K_g'] * (forward_factorR + self.params['K_p'] * backward_factorR) * safety_factor + self.params['C_base']
+
+		directional_motion_factorL = self.thetaFunc(theta[0]) * self.expFunc(N_vL, self.params['A_v'])
+		directional_motion_factorR = self.thetaFunc(theta[1]) * self.expFunc(N_vR, self.params['A_v'])
+
+		basic_level_factorL = 0.5 * self.expFunc(N_d_gpL, self.params['A_gp'])
+		basic_level_factorR = 0.5 * self.expFunc(N_d_gpR, self.params['A_gp'])
+
+		Lforward_factor_list.append(basic_level_factorL)
+		Lbackward_factor_list.append(directional_motion_factorL)
+		Rforward_factor_list.append(basic_level_factorR)
+		Rbackward_factor_list.append(directional_motion_factorR)
+
+		adaptive_L = self.params['K_g'] * (basic_level_factorL + directional_motion_factorL) * safety_factor + self.params['C_base']
+		adaptive_R = self.params['K_g'] * (basic_level_factorR + directional_motion_factorR) * safety_factor + self.params['C_base']
 		
 		fine_classes = [1, 3, 5]
 		coarse_classes = [0, 2, 4, 6]
@@ -1426,11 +1456,45 @@ class DataCollector:
 			_probs = np.asarray(current_phase_probs)
 			prob_fine   = np.sum(_probs[fine_classes])
 			prob_coarse = np.sum(_probs[coarse_classes])
+			if len(adaptive_scale_list) ==0:
+				adaptive_scale_list[0]= [np.clip(adaptive_L, 0.1, 25), np.clip(adaptive_R, 0.1, 25)]
+				scale_left = prob_coarse*np.clip(adaptive_L, 0.1, 25) + prob_fine * config.fixed_scale
+				scale_right = prob_coarse*np.clip(adaptive_R, 0.1, 25) + prob_fine * config.fixed_scale
+			elif len(adaptive_scale_list) == 1:
+				adaptive_scale_list[1]= [min(np.clip(adaptive_L, 0.1, 25)-adaptive_scale_list[0][0],-0.8), min(np.clip(adaptive_R, 0.1, 25)-adaptive_scale_list[0][1],-0.8)]
+				adaptive_scale_list[0]= [np.clip(adaptive_L, 0.1, 25), np.clip(adaptive_R, 0.1, 25)]
+				scale_left = prob_coarse*np.clip(adaptive_L, 0.1, 25) + prob_fine * config.fixed_scale
+				scale_right = prob_coarse*np.clip(adaptive_R, 0.1, 25) + prob_fine * config.fixed_scale
+				
+			elif prob_fine > prob_coarse:
+				if np.clip(adaptive_L, 0.1, 25) <= adaptive_scale_list[0][0]:
+					scale_left = max(np.clip(adaptive_L, 0.1, 25),config.fixed_scale)
+				else:
+					scale_left = max(adaptive_scale_list[0][0]+adaptive_scale_list[1][0], config.fixed_scale)
+
+				if np.clip(adaptive_R, 0.1, 25) <= adaptive_scale_list[0][1]:
+					scale_right = max(np.clip(adaptive_R, 0.1, 25),config.fixed_scale)
+				else:
+					scale_right = max(adaptive_scale_list[0][1]+adaptive_scale_list[1][1], config.fixed_scale)
+
+				adaptive_scale_list[1] = [min(scale_left-adaptive_scale_list[0][0],-0.8), min(scale_right-adaptive_scale_list[0][1],-0.8)]
+				adaptive_scale_list[0] = [scale_left, scale_right]
+
+			else:
+				scale_left = prob_coarse*np.clip(adaptive_L, 0.1, 25) + prob_fine * config.fixed_scale
+				scale_right = prob_coarse*np.clip(adaptive_R, 0.1, 25) + prob_fine * config.fixed_scale
+
+				adaptive_scale_list[1] = [min(scale_left-adaptive_scale_list[0][0],-0.8), min(scale_right-adaptive_scale_list[0][1],-0.8)]
+				adaptive_scale_list[0] = [scale_left, scale_right]
+
+
 		else:
 			prob_fine, prob_coarse = 0.0, 1.0   # 热身期尚无预测，默认按粗大操作处理0
+			scale_left = prob_coarse*np.clip(adaptive_L, 0.1, 25) + prob_fine * config.fixed_scale
+			scale_right = prob_coarse*np.clip(adaptive_R, 0.1, 25) + prob_fine * config.fixed_scale
+
 		
-		scale_left = prob_coarse*np.clip(adaptive_L, 0.1, 25) + prob_fine * config.fixed_scale
-		scale_right = prob_coarse*np.clip(adaptive_R, 0.1, 25) + prob_fine * config.fixed_scale
+		
 		
 		scaleArray.data = [scale_left, scale_right]
 		return scaleArray
@@ -1438,7 +1502,7 @@ class DataCollector:
 
 
 	def thetaFunc(self, theta):
-		return 1 - 1 / (1 + np.exp(-self.params['A_theta'] * (theta - np.pi/2)**3))
+		return 2*np.fabs(0.5- 1 / (1 + np.exp(-self.params['A_theta'] * (theta - np.pi/2)**3))) + 0.2
 
 	def expFunc(self, x, alpha, beta=2):
 		return 1-np.exp(-alpha**2 * x**beta)

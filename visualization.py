@@ -414,9 +414,9 @@ def visualize_data(data_dir=None, save_statistics=True):
 		# 5. [2,0] 左手 Codirectional/Antiparallel Factors
 		if has_factors:
 			axs[2, 0].plot(timestamps, Lforward_factor, color='#2ecc71', alpha=0.9, 
-						   linewidth=2.5, label='Codirectional Factor')
+						   linewidth=2.5, label= 'gaze Factor')
 			axs[2, 0].plot(timestamps, Lbackward_factor, color='#e67e22', alpha=0.9, 
-						   linewidth=2.5, label='Antiparallel Factor')
+						   linewidth=2.5, label='directional v Factor')
 			axs[2, 0].fill_between(timestamps, Lforward_factor, alpha=0.1, color='#2ecc71')
 			axs[2, 0].fill_between(timestamps, Lbackward_factor, alpha=0.1, color='#e67e22')
 			
@@ -427,14 +427,14 @@ def visualize_data(data_dir=None, save_statistics=True):
 			if not np.isnan(avg_lbackward):
 				axs[2, 0].axhline(y=avg_lbackward, color='#e67e22', linestyle=':', alpha=0.6, linewidth=2)
 			
-			axs[2, 0].text(0.02, 0.98, f'Codirectional Avg: {avg_lforward:.3f}\nAntiparallel Avg: {avg_lbackward:.3f}',
+			axs[2, 0].text(0.02, 0.98, f'dgp Avg: {avg_lforward:.3f}\n theta-v Avg: {avg_lbackward:.3f}',
 						   transform=axs[2, 0].transAxes, verticalalignment='top', fontsize=10,
 						   bbox=dict(boxstyle='round', facecolor='#ecf0f1', alpha=0.8, edgecolor='#95a5a6'))
 		else:
 			axs[2, 0].text(0.5, 0.5, 'No factor data available', 
 						   transform=axs[2, 0].transAxes, ha='center', va='center', fontsize=12)
 		
-		axs[2, 0].set_title('Left PSM: Codirectional and Antiparallel Factors', 
+		axs[2, 0].set_title('Left PSM component Factors', 
 							fontsize=13, fontweight='bold', pad=15)
 		axs[2, 0].set_xlabel('Frame Index', fontsize=11)
 		axs[2, 0].set_ylabel('Factor Value', fontsize=11)
@@ -445,9 +445,9 @@ def visualize_data(data_dir=None, save_statistics=True):
 		# 6. [2,1] 右手 Codirectional/Antiparallel Factors
 		if has_factors:
 			axs[2, 1].plot(timestamps, Rforward_factor, color='#2ecc71', alpha=0.9, 
-						   linewidth=2.5, label='Codirectional Factor')
+						   linewidth=2.5, label='gaze Factor')
 			axs[2, 1].plot(timestamps, Rbackward_factor, color='#e67e22', alpha=0.9, 
-						   linewidth=2.5, label='Antiparallel Factor')
+						   linewidth=2.5, label='directional v Factor')
 			axs[2, 1].fill_between(timestamps, Rforward_factor, alpha=0.1, color='#2ecc71')
 			axs[2, 1].fill_between(timestamps, Rbackward_factor, alpha=0.1, color='#e67e22')
 			
@@ -458,14 +458,14 @@ def visualize_data(data_dir=None, save_statistics=True):
 			if not np.isnan(avg_rbackward):
 				axs[2, 1].axhline(y=avg_rbackward, color='#e67e22', linestyle=':', alpha=0.6, linewidth=2)
 			
-			axs[2, 1].text(0.02, 0.98, f'Codirectional Avg: {avg_rforward:.3f}\nAntiparallel Avg: {avg_rbackward:.3f}',
+			axs[2, 1].text(0.02, 0.98, f'dgp Avg: {avg_rforward:.3f}\n theta-v Avg: {avg_rbackward:.3f}',
 						   transform=axs[2, 1].transAxes, verticalalignment='top', fontsize=10,
 						   bbox=dict(boxstyle='round', facecolor='#ecf0f1', alpha=0.8, edgecolor='#95a5a6'))
 		else:
 			axs[2, 1].text(0.5, 0.5, 'No factor data available', 
 						   transform=axs[2, 1].transAxes, ha='center', va='center', fontsize=12)
 		
-		axs[2, 1].set_title('Right PSM: Codirectional and Antiparallel Factors', 
+		axs[2, 1].set_title('Right PSM component Factors', 
 							fontsize=13, fontweight='bold', pad=15)
 		axs[2, 1].set_xlabel('Frame Index', fontsize=11)
 		axs[2, 1].set_ylabel('Factor Value', fontsize=11)
@@ -1215,10 +1215,10 @@ def visualize_demo_state(data_dir=None):
 			diff = np.diff(grip.astype(float), prepend=grip[0])
 			rise = t[diff > 0.5]
 			fall = t[diff < -0.5]
-			for f in rise:
-				ax.axvline(f, color='green', linewidth=0.8, linestyle='--', alpha=0.7)
-			for f in fall:
-				ax.axvline(f, color='red', linewidth=0.8, linestyle='--', alpha=0.7)
+			# for f in rise:
+			# 	ax.axvline(f, color='green', linewidth=0.8, linestyle='--', alpha=0.7)
+			# for f in fall:
+			# 	ax.axvline(f, color='red', linewidth=0.8, linestyle='--', alpha=0.7)
 			lines = []
 			if len(rise): lines.append('0→1: ' + ', '.join(str(int(f)) for f in rise))
 			if len(fall): lines.append('1→0: ' + ', '.join(str(int(f)) for f in fall))

@@ -129,7 +129,7 @@ class TeCNOPhasePredictor:
         self,
         model_path: str,
         device: str | torch.device | None = None,
-        min_frames: int = 30,
+        min_frames: int = 10,
         sg_window: int = 9,
         sg_poly:   int = 3,
         max_history: int = 512,

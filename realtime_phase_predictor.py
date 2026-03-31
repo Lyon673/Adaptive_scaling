@@ -120,7 +120,7 @@ class PhasePredictor:
         self,
         model_path: str,
         device: str | torch.device | None = None,
-        min_frames: int = 30,
+        min_frames: int = 3,
         sg_window: int = 9,
         sg_poly:   int = 3,
         demo_id_list_for_scalers=None,

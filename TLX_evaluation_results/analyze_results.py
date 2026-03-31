@@ -288,6 +288,78 @@ def plot_radar(df: pd.DataFrame, save_dir: str):
     print(f'  → {path}')
 
 
+def plot_radar_objective(df: pd.DataFrame, save_dir: str):
+    """
+    雷达图：各组在客观评分各分量上的均值轮廓。
+
+    各轴独立做 min-max 归一化（0-1），使量纲差异较大的指标可以放在同一图上
+    比较形状。轴刻度标注原始均值，方便读数。
+    """
+    items = [c for c in OBJECTIVE_SCORES if c != 'objective_total']
+    labels = [
+        'Gracefulness',
+        'Smoothness',
+        'Clutch\nTimes',
+        'Total\nDistance',
+        'Total\nTime',
+    ]
+    N      = len(items)
+    angles = np.linspace(0, 2 * np.pi, N, endpoint=False).tolist()
+    angles += angles[:1]
+
+    # 各指标组均值
+    group_means = {
+        g: np.array([df[df['group'] == g][it].mean() for it in items])
+        for g in GROUP_DEFS
+    }
+
+    # min-max 归一化（基于各组均值的范围）
+    all_vals = np.stack(list(group_means.values()))          # (4, 5)
+    v_min = all_vals.min(axis=0)
+    v_max = all_vals.max(axis=0)
+    v_range = np.where(v_max - v_min > 0, v_max - v_min, 1.0)
+
+    def normalize(v):
+        return (v - v_min) / v_range
+
+    fig, ax = plt.subplots(figsize=(7, 7), subplot_kw=dict(polar=True))
+    ax.set_title('Objective Score Components Radar by Group\n'
+                 '(axes normalized to [0, 1] per metric)',
+                 fontsize=11, fontweight='bold', pad=22)
+
+    for gname in GROUP_DEFS:
+        raw   = group_means[gname]
+        normed = normalize(raw).tolist()
+        normed += normed[:1]
+        ax.plot(angles, normed, 'o-', linewidth=2,
+                color=GROUP_COLORS[gname], label=GROUP_SHORT[gname])
+        ax.fill(angles, normed, alpha=0.12, color=GROUP_COLORS[gname])
+
+        # 在各顶点标注原始均值
+        for ang, nv, rv in zip(angles[:-1], normed[:-1], raw):
+            ax.annotate(
+                f'{rv:.1f}',
+                xy=(ang, nv),
+                xytext=(ang, nv + 0.08),
+                fontsize=7,
+                ha='center', va='center',
+                color=GROUP_COLORS[gname],
+            )
+
+    ax.set_thetagrids(np.degrees(angles[:-1]), labels, fontsize=9)
+    ax.set_ylim(0, 1.25)
+    ax.set_yticks([0.25, 0.5, 0.75, 1.0])
+    ax.set_yticklabels(['0.25', '0.50', '0.75', '1.00'], fontsize=7, color='grey')
+    ax.legend(loc='upper right', bbox_to_anchor=(1.35, 1.15), fontsize=9)
+    ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    path = os.path.join(save_dir, 'radar_objective.png')
+    plt.savefig(path, dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f'  → {path}')
+
+
 def plot_scatter_subj_obj(df: pd.DataFrame, save_dir: str):
     """主观 vs 客观综合得分散点图，按组着色。"""
     fig, ax = plt.subplots(figsize=(7, 5))
@@ -408,6 +480,7 @@ def main():
     plot_objective_raw(df, save_dir)
     plot_objective_scores(df, save_dir)
     plot_radar(df, save_dir)
+    plot_radar_objective(df, save_dir)
     plot_scatter_subj_obj(df, save_dir)
 
     print('\n── 统计报告 ──────────────────────────────────────────────────────────')

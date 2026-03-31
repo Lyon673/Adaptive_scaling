@@ -21,15 +21,15 @@ plt.rcParams['axes.unicode_minus'] = False
 class TestDataset:
     def __init__(self):
 
-        # demonstrations_state = load_specific_test_state(shuffle=False, without_quat=without_quat, resample=resample, demo_id_list=[109,112,117])
-        # demonstrations_label = load_specific_test_label(demo_id_list=[109,112,117])
+        demonstrations_state = load_specific_test_state(shuffle=False, without_quat=without_quat, resample=resample, demo_id_list=[109,112,117])
+        demonstrations_label = load_specific_test_label(demo_id_list=[109,112,117])
         
-        demo_id_list = np.arange(148)
-        demo_id_list = np.delete(demo_id_list, [80, 81, 92, 109, 112, 117, 122, 144, 145])
-        test_demo_id_list = get_test_demo_id_list(demo_id_list)
-        self.demo_ids = list(test_demo_id_list)   # 保存每条序列对应的原始 demo_id
-        demonstrations_state = load_test_state(without_quat=without_quat, resample=resample, demo_id_list=demo_id_list)
-        demonstrations_label = load_test_label(resample=resample, demo_id_list=demo_id_list)
+        # demo_id_list = np.arange(148)
+        # demo_id_list = np.delete(demo_id_list, [80, 81, 92, 109, 112, 117, 122, 144, 145])
+        # test_demo_id_list = get_test_demo_id_list(demo_id_list)
+        # self.demo_ids = list(test_demo_id_list)   # 保存每条序列对应的原始 demo_id
+        # demonstrations_state = load_test_state(without_quat=without_quat, resample=resample, demo_id_list=demo_id_list)
+        # demonstrations_label = load_test_label(resample=resample, demo_id_list=demo_id_list)
         
         self.samples = []
         for state_seq, label_seq in zip(demonstrations_state, demonstrations_label):
@@ -442,7 +442,7 @@ def lstm_main():
     
     # 加载模型
     dir_path = os.path.dirname(__file__)
-    model_path = os.path.join(dir_path, "LSTM_model", "lstmcrf_sequence_model.pth")
+    model_path = os.path.join(dir_path, "LSTM_model", "lstm_sequence_model.pth")
     if not os.path.exists(model_path):
         print(f"模型文件不存在: {model_path}")
         return
