@@ -408,41 +408,54 @@ class BayesianOptimizationGUI:
 		instr_text = "Please rate the following items based on your teleoperation experience (0-10):"
 		ttk.Label(nasa_frame, text=instr_text, font=self.title_font).pack(anchor=tk.W, pady=(6, 12))
 		
-		# Rating scales
-		self._create_scale(nasa_frame, "1. Physical Demand (0=easy, 10=difficult):", self.physical_demand)
-		self._create_scale(nasa_frame, "2. Temporal Demand (0=easy, 10=difficult):", self.temporal_demand)
-		self._create_scale(nasa_frame, "3. Controllability (0=good, 10=poor):", self.controllability)
-		self._create_scale(nasa_frame, "4. Performance (0=good, 10=poor):", self.performance)
-		self._create_scale(nasa_frame, "5. Mental Demand (0=easy, 10=difficult):", self.mental_demand)
-		self._create_scale(nasa_frame, "6. Effort (0=easy, 10=difficult):", self.effort)
-		self._create_scale(nasa_frame, "7. Frustration/Distractions (0=low, 10=high):", self.frustration)
+		# Rating scales (传递左右侧锚点参数)
+		self._create_scale(nasa_frame, "1. Physical Demand", "Easy", "Difficult", self.physical_demand)
+		self._create_scale(nasa_frame, "2. Temporal Demand", "Easy", "Difficult", self.temporal_demand)
+		self._create_scale(nasa_frame, "3. Controllability", "Good", "Poor", self.controllability)
+		self._create_scale(nasa_frame, "4. Performance", "Good", "Poor", self.performance)
+		self._create_scale(nasa_frame, "5. Mental Demand", "Easy", "Difficult", self.mental_demand)
+		self._create_scale(nasa_frame, "6. Effort", "Easy", "Difficult", self.effort)
+		self._create_scale(nasa_frame, "7. Frustration / Distractions", "Low", "High", self.frustration)
 		
 		# Submit button
 		submit_button = ttk.Button(nasa_frame, text="Submit Ratings", command=self.submit_scores)
 		submit_button.pack(pady=15)
 	
-	def _create_scale(self, parent, label_text, variable):
-		frame = ttk.Frame(parent)
-		frame.pack(fill=tk.X, pady=4, padx=10) # 极限压缩每一行的间距
-		frame.columnconfigure(1, weight=1)
+	def _create_scale(self, parent, label_text, low_anchor, high_anchor, variable):
+			frame = ttk.Frame(parent)
+			frame.pack(fill=tk.X, pady=4, padx=10) 
+			# 将原本的 column 1 权重转移到 column 2 (即滑动条所在列)
+			frame.columnconfigure(2, weight=1)
 
-		label = ttk.Label(frame, text=label_text, width=45, anchor="w")
-		label.grid(row=0, column=0, sticky="w")
+			# 1. 主指标标签 (Row 0, Col 0)
+			label = ttk.Label(frame, text=label_text, width=28, anchor="w")
+			label.grid(row=0, column=0, sticky="w")
 
-		# 将长度缩减至 600，厚度缩减至 14，滑块长度缩减至 30
-		scale = tk.Scale(frame, from_=0, to=10, orient=tk.HORIZONTAL,
-						 variable=variable, length=600, resolution=0.1,
-						 width=28, sliderlength=30, showvalue=False,
-						 bg="#f0f0f0", troughcolor="#ccc", highlightthickness=0,
-						 font=self.small_font)
-		scale.grid(row=0, column=1, padx=10, sticky="ew")
+			# 2. 左侧锚点标签 (Row 0, Col 1)
+			lo_lbl = ttk.Label(frame, text=low_anchor, width=10, anchor="e",
+							font=self.small_font, foreground="#888")
+			lo_lbl.grid(row=0, column=1, padx=(10, 6))
 
-		value_label = ttk.Label(frame, text="5.0", width=5, anchor="e")
+			# 3. 滑动条主体 (Row 0, Col 2)
+			scale = tk.Scale(frame, from_=0, to=10, orient=tk.HORIZONTAL,
+							variable=variable, length=600, resolution=0.1,
+							width=28, sliderlength=30, showvalue=False,
+							bg="#f0f0f0", troughcolor="#ccc", highlightthickness=0,
+							font=self.small_font)
+			scale.grid(row=0, column=2, padx=6, sticky="ew")
 
-		def update_label(*args):
-			value_label.config(text=f"{variable.get():.1f}")
-		variable.trace_add("write", update_label)
-		value_label.grid(row=0, column=2, padx=(10, 10), sticky="e")
+			# 4. 右侧锚点标签 (Row 0, Col 3)
+			hi_lbl = ttk.Label(frame, text=high_anchor, width=10, anchor="w",
+							font=self.small_font, foreground="#888")
+			hi_lbl.grid(row=0, column=3, padx=(6, 10))
+
+			# 5. 动态数值标签 (Row 0, Col 4)
+			value_label = ttk.Label(frame, text="5.0", width=5, anchor="e")
+
+			def update_label(*args):
+				value_label.config(text=f"{variable.get():.1f}")
+			variable.trace_add("write", update_label)
+			value_label.grid(row=0, column=4, padx=(10, 10), sticky="e")
 
 	def _create_results_tab(self, parent):
 		parent.columnconfigure(0, weight=1)

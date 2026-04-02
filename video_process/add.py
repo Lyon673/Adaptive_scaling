@@ -6,7 +6,7 @@ import glob
 
 gaze_dir = '/home/lambda/surgical_robotics_challenge/scripts/surgical_robotics_challenge/Project/data'
 cap_dir = '/home/lambda/Videos/train'
-output_dir = '/home/lambda/surgical_robotics_challenge/scripts/surgical_robotics_challenge/Project/video_process/output'
+output_dir = '/home/lambda/surgical_robotics_challenge/scripts/surgical_robotics_challenge/Project/video_process/output2'
 
 os.makedirs(output_dir, exist_ok=True)
 
@@ -27,7 +27,7 @@ def find_gaze_folder(subject_id):
 total_videos = len(video_files)
 print(f"共找到 {total_videos} 个视频，开始处理...")
 
-for idx, video_path in enumerate(video_files[107:]):
+for idx, video_path in enumerate(video_files):
     video_name = os.path.basename(video_path)
     subject_id = video_name.split('_')[0]
 
@@ -72,8 +72,8 @@ for idx, video_path in enumerate(video_files[107:]):
 
             if gaze_index < total_gaze_points:
                 current_gaze = gaze_data[gaze_index]
-                x = int(current_gaze[0]) * 2
-                y = 1080 - int(current_gaze[1]) * 2
+                x = int(current_gaze[0]) 
+                y = 540 - int(current_gaze[1])
                 trail_points.append((x, y))
 
                 for i in range(1, len(trail_points)):

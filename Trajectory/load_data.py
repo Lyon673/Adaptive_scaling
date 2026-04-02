@@ -506,7 +506,7 @@ def load_specific_test_label(demo_id_list):
 def visualize_demo_lengths():
     """可视化所有demo的时间长度（索引）"""
     # 加载数据
-    demos = load_demonstrations_state()
+    demos = load_demonstrations_state(shuffle=False)
     
     # 计算每个demo的长度
     demo_lengths = [len(demo) for demo in demos]
@@ -762,7 +762,7 @@ if __name__ == '__main__':
     # visualize_demo_lengths()
     # visualize_scaled_state(demo_idx=21)
 
-    for i in range(82,148):
+    for i in range(148,164):
         visualize_scaled_state(demo_idx=i)
     
 

@@ -1,13 +1,9 @@
 """
 analyze_results.py
 ==================
-对 subjective_20260322_143035.json 按实验条件分组进行统计分析并可视化。
+对 subjective_*.json 按记录中的 note 字段分组进行统计分析并可视化。
 
-分组定义：
-  Group A (demo  0- 9)  全局固定缩放    Global Fixed Scale
-  Group B (demo 10-14)  分阶段自适应缩放  Phase-Adaptive Scale
-  Group C (demo 15-19)  分阶段固定缩放   Phase-Fixed Scale
-  Group D (demo 20-24)  全局自适应缩放   Global Adaptive Scale
+分组由 JSON 每条记录的 "note" 字段自动推断，无需硬编码。
 
 用法：
     python analyze_results.py
@@ -26,20 +22,24 @@ import matplotlib.patches as mpatches
 from scipy import stats
 from itertools import combinations
 
-# ── 分组映射 ───────────────────────────────────────────────────────────────────
-GROUP_DEFS = {
-    'A: Global\nFixed':          list(range(0, 10)),
-    'B: Phase\nAdaptive':        list(range(10, 15)),
-    'C: Phase\nFixed':           list(range(15, 20)),
-    'D: Global\nAdaptive':       list(range(20, 25)),
-}
-GROUP_COLORS = {
-    'A: Global\nFixed':    '#4C72B0',
-    'B: Phase\nAdaptive':  '#55A868',
-    'C: Phase\nFixed':     '#C44E52',
-    'D: Global\nAdaptive': '#DD8452',
-}
-GROUP_SHORT = {k: k.replace('\n', ' ') for k in GROUP_DEFS}
+# ── 分组元数据（运行时由数据动态填充）──────────────────────────────────────────
+_COLOR_PALETTE = ['#4C72B0', '#55A868', '#C44E52', '#DD8452', '#8172B2', '#937860', '#64B5CD']
+
+GROUP_ORDER  = []   # 按首次出现顺序排列的分组名列表
+GROUP_COLORS = {}   # group_name -> color
+GROUP_SHORT  = {}   # group_name -> 短标签（用于图表显示）
+
+
+def _init_groups(df: pd.DataFrame):
+    """从 DataFrame 的 group 列推断分组顺序及颜色映射。"""
+    global GROUP_ORDER, GROUP_COLORS, GROUP_SHORT
+    seen: list = []
+    for g in df['group']:
+        if g not in seen:
+            seen.append(g)
+    GROUP_ORDER  = seen
+    GROUP_COLORS = {g: _COLOR_PALETTE[i % len(_COLOR_PALETTE)] for i, g in enumerate(GROUP_ORDER)}
+    GROUP_SHORT  = {g: g for g in GROUP_ORDER}
 
 # ── 关注的指标列 ───────────────────────────────────────────────────────────────
 SUBJECTIVE_ITEMS = [
@@ -55,7 +55,10 @@ OBJECTIVE_SCORES = [
     'gracefulness_score', 'smoothness_score', 'clutch_times_score',
     'total_distance_score', 'total_time_score', 'objective_total',
 ]
-SUMMARY_COLS = ['subjective_score', 'objective_total', 'total_score']
+# 归一化前的原始评分列
+_SCORE_COLS_RAW = ['subjective_score', 'objective_total', 'total_score']
+# 经过按参与者 min-max 归一化后的列，用于汇总分析
+SUMMARY_COLS = ['subjective_score_norm', 'objective_total_norm', 'total_score_norm']
 
 
 # ── 工具函数 ───────────────────────────────────────────────────────────────────
@@ -70,6 +73,8 @@ def load_data(json_path: str) -> pd.DataFrame:
         demo_id = int(folder.split('_')[0])
 
         row = {'demo_id': demo_id}
+        row['participant'] = entry.get('participant', 'unknown')
+        row['group'] = entry.get('note', 'unknown')
         row.update(entry['ratings'])
         row['subjective_score'] = entry['subjective_score']
         row.update(entry['objective_metrics'])
@@ -77,13 +82,29 @@ def load_data(json_path: str) -> pd.DataFrame:
         rows.append(row)
 
     df = pd.DataFrame(rows).sort_values('demo_id').reset_index(drop=True)
+    return df
 
-    # 分配 group 标签
-    id2group = {}
-    for gname, ids in GROUP_DEFS.items():
-        for i in ids:
-            id2group[i] = gname
-    df['group'] = df['demo_id'].map(id2group)
+
+def normalize_per_participant(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    对每个参与者的 subjective_score、objective_total、total_score
+    独立做 min-max 归一化到 [0, 100]，结果存入对应的 *_norm 列。
+
+    归一化公式：norm = (x - min_p) / (max_p - min_p) * 100
+    若某参与者所有值完全相同（极差为 0），则归一化结果统一为 50.0。
+    """
+    df = df.copy()
+    for col in _SCORE_COLS_RAW:
+        norm_col = col + '_norm'
+        df[norm_col] = np.nan
+        for p, idx in df.groupby('participant').groups.items():
+            vals = df.loc[idx, col]
+            lo, hi = vals.min(), vals.max()
+            rng = hi - lo
+            if rng > 0:
+                df.loc[idx, norm_col] = (vals - lo) / rng * 100.0
+            else:
+                df.loc[idx, norm_col] = 50.0
     return df
 
 
@@ -100,7 +121,7 @@ def desc_stats(series: pd.Series) -> dict:
 
 def group_stats(df: pd.DataFrame, col: str) -> pd.DataFrame:
     rows = []
-    for gname in GROUP_DEFS:
+    for gname in GROUP_ORDER:
         sub = df[df['group'] == gname][col]
         d = desc_stats(sub)
         d['group'] = GROUP_SHORT[gname]
@@ -110,7 +131,7 @@ def group_stats(df: pd.DataFrame, col: str) -> pd.DataFrame:
 
 def kruskal_pairwise(df: pd.DataFrame, col: str):
     """Kruskal-Wallis 总体检验 + 两两 Mann-Whitney U 检验（Bonferroni 校正）"""
-    groups = [df[df['group'] == g][col].values for g in GROUP_DEFS]
+    groups = [df[df['group'] == g][col].values for g in GROUP_ORDER]
     n_groups = len(groups)
 
     # 总体 KW 检验
@@ -120,13 +141,12 @@ def kruskal_pairwise(df: pd.DataFrame, col: str):
     pairs = list(combinations(range(n_groups), 2))
     n_comparisons = len(pairs)
     pairwise = []
-    gkeys = list(GROUP_DEFS.keys())
     for i, j in pairs:
         _, p_mwu = stats.mannwhitneyu(groups[i], groups[j], alternative='two-sided')
         p_adj = min(p_mwu * n_comparisons, 1.0)   # Bonferroni
         pairwise.append({
-            'group_1': GROUP_SHORT[gkeys[i]],
-            'group_2': GROUP_SHORT[gkeys[j]],
+            'group_1': GROUP_SHORT[GROUP_ORDER[i]],
+            'group_2': GROUP_SHORT[GROUP_ORDER[j]],
             'p_mwu':   p_mwu,
             'p_adj':   p_adj,
             'sig':     '***' if p_adj < 0.001 else ('**' if p_adj < 0.01 else ('*' if p_adj < 0.05 else 'ns')),
@@ -138,7 +158,7 @@ def kruskal_pairwise(df: pd.DataFrame, col: str):
 
 def _bar_with_error(ax, df: pd.DataFrame, col: str, title: str, ylabel: str):
     """按组绘制带误差棒的柱状图（均值 ± 1 std）。"""
-    gnames = list(GROUP_DEFS.keys())
+    gnames = GROUP_ORDER
     x = np.arange(len(gnames))
     means = [df[df['group'] == g][col].mean() for g in gnames]
     stds  = [df[df['group'] == g][col].std(ddof=1) for g in gnames]
@@ -159,7 +179,7 @@ def _bar_with_error(ax, df: pd.DataFrame, col: str, title: str, ylabel: str):
 
 
 def _boxplot(ax, df: pd.DataFrame, col: str, title: str, ylabel: str):
-    gnames = list(GROUP_DEFS.keys())
+    gnames = GROUP_ORDER
     data   = [df[df['group'] == g][col].values for g in gnames]
     colors = [GROUP_COLORS[g] for g in gnames]
 
@@ -177,14 +197,21 @@ def _boxplot(ax, df: pd.DataFrame, col: str, title: str, ylabel: str):
 
 
 def plot_summary(df: pd.DataFrame, save_dir: str):
-    """综合评分总览：subjective / objective / total 三个指标的柱图+箱图。"""
+    """综合评分总览：subjective / objective / total 三个指标的柱图+箱图（参与者内归一化）。"""
     fig, axes = plt.subplots(2, 3, figsize=(14, 8))
-    fig.suptitle('Experiment Group Comparison — Summary Scores', fontsize=13, fontweight='bold')
+    fig.suptitle('Experiment Group Comparison — Summary Scores\n'
+                 '(per-participant min-max normalized to [0, 100])',
+                 fontsize=12, fontweight='bold')
 
+    nice_names = {
+        'subjective_score_norm': 'Subjective Score',
+        'objective_total_norm':  'Objective Total',
+        'total_score_norm':      'Total Score',
+    }
     for col_idx, col in enumerate(SUMMARY_COLS):
-        nice = col.replace('_', ' ').title()
-        _bar_with_error(axes[0, col_idx], df, col, f'{nice} (Mean ± Std)', 'Score')
-        _boxplot(axes[1, col_idx], df, col, f'{nice} (Box)', 'Score')
+        nice = nice_names.get(col, col.replace('_', ' ').title())
+        _bar_with_error(axes[0, col_idx], df, col, f'{nice} (Mean ± Std)', 'Norm. Score [0-100]')
+        _boxplot(axes[1, col_idx], df, col, f'{nice} (Box)', 'Norm. Score [0-100]')
 
     plt.tight_layout()
     path = os.path.join(save_dir, 'summary_scores.png')
@@ -269,7 +296,7 @@ def plot_radar(df: pd.DataFrame, save_dir: str):
     fig, ax = plt.subplots(figsize=(7, 7), subplot_kw=dict(polar=True))
     ax.set_title('TLX Sub-Items Radar by Group', fontsize=12, fontweight='bold', pad=20)
 
-    for gname in GROUP_DEFS:
+    for gname in GROUP_ORDER:
         means = [10-df[df['group'] == gname][it].mean() for it in items]
         means += means[:1]
         ax.plot(angles, means, 'o-', linewidth=2,
@@ -310,11 +337,11 @@ def plot_radar_objective(df: pd.DataFrame, save_dir: str):
     # 各指标组均值
     group_means = {
         g: np.array([df[df['group'] == g][it].mean() for it in items])
-        for g in GROUP_DEFS
+        for g in GROUP_ORDER
     }
 
     # min-max 归一化（基于各组均值的范围）
-    all_vals = np.stack(list(group_means.values()))          # (4, 5)
+    all_vals = np.stack(list(group_means.values()))
     v_min = all_vals.min(axis=0)
     v_max = all_vals.max(axis=0)
     v_range = np.where(v_max - v_min > 0, v_max - v_min, 1.0)
@@ -327,7 +354,7 @@ def plot_radar_objective(df: pd.DataFrame, save_dir: str):
                  '(axes normalized to [0, 1] per metric)',
                  fontsize=11, fontweight='bold', pad=22)
 
-    for gname in GROUP_DEFS:
+    for gname in GROUP_ORDER:
         raw   = group_means[gname]
         normed = normalize(raw).tolist()
         normed += normed[:1]
@@ -361,23 +388,24 @@ def plot_radar_objective(df: pd.DataFrame, save_dir: str):
 
 
 def plot_scatter_subj_obj(df: pd.DataFrame, save_dir: str):
-    """主观 vs 客观综合得分散点图，按组着色。"""
+    """主观 vs 客观综合得分散点图，按组着色（使用参与者内归一化分数）。"""
     fig, ax = plt.subplots(figsize=(7, 5))
-    ax.set_title('Subjective Score vs Objective Score', fontsize=12, fontweight='bold')
+    ax.set_title('Subjective Score vs Objective Score\n'
+                 '(per-participant normalized)', fontsize=11, fontweight='bold')
 
-    for gname in GROUP_DEFS:
+    for gname in GROUP_ORDER:
         sub = df[df['group'] == gname]
-        ax.scatter(sub['objective_total'], sub['subjective_score'],
+        ax.scatter(sub['objective_total_norm'], sub['subjective_score_norm'],
                    color=GROUP_COLORS[gname], label=GROUP_SHORT[gname],
                    s=70, alpha=0.85, edgecolors='white', linewidths=0.5)
 
-    ax.set_xlabel('Objective Total Score', fontsize=10)
-    ax.set_ylabel('Subjective Score', fontsize=10)
+    ax.set_xlabel('Objective Total Score (norm.)', fontsize=10)
+    ax.set_ylabel('Subjective Score (norm.)', fontsize=10)
     ax.legend(fontsize=9)
     ax.grid(alpha=0.3)
 
     # 添加相关系数
-    r, p = stats.pearsonr(df['objective_total'], df['subjective_score'])
+    r, p = stats.pearsonr(df['objective_total_norm'], df['subjective_score_norm'])
     ax.text(0.05, 0.95, f'Pearson r = {r:.3f}  (p={p:.3f})',
             transform=ax.transAxes, fontsize=9,
             bbox=dict(boxstyle='round', facecolor='lightyellow', alpha=0.8))
@@ -400,9 +428,12 @@ def print_and_save_stats(df: pd.DataFrame, save_dir: str):
     def ln(s):  lines.append(s)
 
     # ── 原始记录预览 ──────────────────────────────────────────────────────────
-    h1('0. RAW DATA PREVIEW')
-    preview_cols = ['demo_id', 'group', 'subjective_score', 'objective_total', 'total_score']
-    ln(df[preview_cols].to_string(index=False))
+    h1('0. RAW DATA PREVIEW (raw + per-participant normalized scores)')
+    preview_cols = ['demo_id', 'participant', 'group',
+                    'subjective_score', 'subjective_score_norm',
+                    'objective_total',  'objective_total_norm',
+                    'total_score',      'total_score_norm']
+    ln(df[preview_cols].to_string(index=False, float_format=lambda x: f'{x:.2f}'))
 
     # ── 各组描述统计 ──────────────────────────────────────────────────────────
     h1('1. DESCRIPTIVE STATISTICS BY GROUP')
@@ -422,12 +453,15 @@ def print_and_save_stats(df: pd.DataFrame, save_dir: str):
         ln(pw.to_string(index=False))
 
     # ── 综合排名 ──────────────────────────────────────────────────────────────
-    h1('3. GROUP RANKING (by mean total_score, descending)')
-    ranking = (df.groupby('group')[['subjective_score', 'objective_total', 'total_score']]
+    h1('3. GROUP RANKING (by mean normalized total_score, descending)')
+    ranking = (df.groupby('group')[SUMMARY_COLS]
                .mean()
-               .rename(columns=str)
-               .sort_values('total_score', ascending=False))
-    ranking.index = [GROUP_SHORT[i] for i in ranking.index]
+               .rename(columns={
+                   'subjective_score_norm': 'subj_norm',
+                   'objective_total_norm':  'obj_norm',
+                   'total_score_norm':      'total_norm',
+               })
+               .sort_values('total_norm', ascending=False))
     ln(ranking.to_string(float_format=lambda x: f'{x:.4f}'))
 
     report = '\n'.join(lines)
@@ -473,6 +507,19 @@ def main():
     print(f'[analyze] 输出: {save_dir}\n')
 
     df = load_data(json_path)
+    df = normalize_per_participant(df)
+
+    participants = df['participant'].unique().tolist()
+    print(f'[analyze] 参与者: {participants}')
+    for p in participants:
+        sub = df[df['participant'] == p]
+        print(f'         {p}: {len(sub)} 条记录  '
+              f'subj [{sub["subjective_score"].min():.1f}, {sub["subjective_score"].max():.1f}]  '
+              f'obj [{sub["objective_total"].min():.1f}, {sub["objective_total"].max():.1f}]  '
+              f'total [{sub["total_score"].min():.1f}, {sub["total_score"].max():.1f}]')
+
+    _init_groups(df)
+    print(f'[analyze] 发现分组（按首次出现顺序）: {GROUP_ORDER}\n')
 
     print('── 生成图表 ──────────────────────────────────────────────────────────')
     plot_summary(df, save_dir)

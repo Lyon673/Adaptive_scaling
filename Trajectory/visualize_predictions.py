@@ -21,15 +21,15 @@ plt.rcParams['axes.unicode_minus'] = False
 class TestDataset:
     def __init__(self):
 
-        demonstrations_state = load_specific_test_state(shuffle=False, without_quat=without_quat, resample=resample, demo_id_list=[109,112,117])
-        demonstrations_label = load_specific_test_label(demo_id_list=[109,112,117])
+        # demonstrations_state = load_specific_test_state(shuffle=False, without_quat=without_quat, resample=resample, demo_id_list=[109,112,117])
+        # demonstrations_label = load_specific_test_label(demo_id_list=[109,112,117])
         
-        # demo_id_list = np.arange(148)
-        # demo_id_list = np.delete(demo_id_list, [80, 81, 92, 109, 112, 117, 122, 144, 145])
-        # test_demo_id_list = get_test_demo_id_list(demo_id_list)
-        # self.demo_ids = list(test_demo_id_list)   # 保存每条序列对应的原始 demo_id
-        # demonstrations_state = load_test_state(without_quat=without_quat, resample=resample, demo_id_list=demo_id_list)
-        # demonstrations_label = load_test_label(resample=resample, demo_id_list=demo_id_list)
+        demo_id_list = np.arange(148)
+        demo_id_list = np.delete(demo_id_list, [80, 81, 92, 109, 112, 117, 122, 144, 145])
+        test_demo_id_list = get_test_demo_id_list(demo_id_list)
+        self.demo_ids = list(test_demo_id_list)   # 保存每条序列对应的原始 demo_id
+        demonstrations_state = load_test_state(without_quat=without_quat, resample=resample, demo_id_list=demo_id_list)
+        demonstrations_label = load_test_label(resample=resample, demo_id_list=demo_id_list)
         
         self.samples = []
         for state_seq, label_seq in zip(demonstrations_state, demonstrations_label):
@@ -810,8 +810,286 @@ def visualize_predicted_class_probabilities(model, test_dataset, device,
 
 
 
+# ── Attention TeCNO 可视化 ────────────────────────────────────────────────────
+
+def load_attention_tecno_model(filepath, device='cpu'):
+    """加载 TeCNO+Attention checkpoint（tecno_attention_sequence_model.pth）。"""
+    from TeCNO_attention_seg_train import TeCNO as AttentionTeCNO
+    checkpoint = torch.load(filepath, map_location=device)
+    cfg = checkpoint['model_config']
+    model = AttentionTeCNO(
+        cfg['input_size'], cfg['hidden_size'],
+        cfg['num_layers'], cfg['num_classes'],
+        num_stages=cfg.get('num_stages', 2),
+        kernel_size=cfg.get('kernel_size', 3),
+        dropout=cfg.get('dropout', 0.2),
+    )
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model.to(device)
+    model.eval()
+    return model
+
+
+def visualize_attention_heatmap(model, test_dataset, device,
+                                seq_idx=0, save_path=None):
+    """
+    Attention TeCNO 专属：可视化双臂交叉注意力热图。
+
+    对每条序列生成一张图，包含 3 行 × 2 列：
+      Row 0 (thin strip)   : GT 阶段颜色条（query 轴）
+      Row 1 (large heatmap): T×T 注意力权重矩阵
+                               - 左图：左臂 ← 右臂（left_attn）
+                               - 右图：右臂 ← 左臂（right_attn）
+      Row 2 (curve panel)  : 各阶段 softmax 概率曲线 + 平均注意力滞后（双 y 轴）
+
+    Parameters
+    ----------
+    seq_idx : int 或 list[int]
+        要可视化的序列索引（列表时逐条生成）。
+    save_path : str | None
+        保存路径；多序列时自动在文件名中加 _seqN 后缀。
+    """
+    import matplotlib.colors as mcolors
+    import matplotlib.gridspec as gridspec
+
+    CLASS_NAMES = [
+        'P0 Right Move', 'P1 Pick Needle', 'P2 Right Move2',
+        'P3 Pass Needle', 'P4 Left Move',  'P5 Left Pick', 'P6 Pull Thread',
+    ]
+    PHASE_COLORS = [
+        '#1abc9c', '#3498db', '#9b59b6',
+        '#e67e22', '#e74c3c', '#2ecc71', '#f1c40f',
+    ]
+
+    seq_indices = [seq_idx] if isinstance(seq_idx, int) else list(seq_idx)
+    model.eval()
+
+    for idx in seq_indices:
+        sequence, true_labels = test_dataset[idx]
+        true_np = true_labels.numpy()
+        T = sequence.shape[0]
+
+        # ── 前向推理，获取注意力权重 ─────────────────────────────────────────
+        with torch.no_grad():
+            out = model(sequence.unsqueeze(0).to(device), [T], return_attn=True)
+        logits, left_attn, right_attn = out          # (1,T,C), (1,T,T), (1,T,T)
+
+        left_np  = left_attn[0].cpu().numpy()        # (T, T)  query=left, key=right
+        right_np = right_attn[0].cpu().numpy()       # (T, T)  query=right, key=left
+        probs    = torch.softmax(logits, dim=2).squeeze(0).cpu().numpy()  # (T, C)
+
+        demo_id = test_dataset.demo_ids[idx] if hasattr(test_dataset, 'demo_ids') else idx
+
+        # ── 构建 GT 阶段颜色带（用于热图两轴装饰）──────────────────────────
+        phase_rgba = np.zeros((T, 4), dtype=np.float32)
+        for t in range(T):
+            lb = int(true_np[t])
+            color = PHASE_COLORS[lb] if 0 <= lb < len(PHASE_COLORS) else '#CCCCCC'
+            phase_rgba[t] = mcolors.to_rgba(color)
+
+        # ── 图形布局 ─────────────────────────────────────────────────────────
+        fig = plt.figure(figsize=(22, 15))
+        outer_gs = gridspec.GridSpec(3, 2, figure=fig,
+                                     height_ratios=[0.07, 3.5, 1.4],
+                                     hspace=0.38, wspace=0.32)
+
+        attn_pairs = [
+            (left_np,  'Left  ←  Right\n(L arm attending R arm context)'),
+            (right_np, 'Right  ←  Left\n(R arm attending L arm context)'),
+        ]
+
+        for col, (attn_np, side_title) in enumerate(attn_pairs):
+
+            # ── Row 0: GT 相位颜色条（query 轴，水平）──────────────────────
+            ax_strip = fig.add_subplot(outer_gs[0, col])
+            strip_img = phase_rgba[np.newaxis, :, :]       # (1, T, 4)
+            ax_strip.imshow(strip_img, aspect='auto', interpolation='nearest')
+            ax_strip.set_xticks([])
+            ax_strip.set_yticks([0])
+            ax_strip.set_yticklabels(['GT Phase'], fontsize=7)
+            ax_strip.set_title(
+                f'{side_title}   |   Seq {idx}  [demo_id={demo_id}]',
+                fontsize=10, fontweight='bold', pad=4)
+
+            # ── Row 1: 注意力热图 ────────────────────────────────────────────
+            ax_heat = fig.add_subplot(outer_gs[1, col])
+
+            vmax = np.percentile(attn_np[attn_np > 0], 99) if (attn_np > 0).any() else 1.0
+            im = ax_heat.imshow(attn_np, aspect='auto', origin='upper',
+                                cmap='magma', interpolation='nearest',
+                                vmin=0.0, vmax=vmax)
+            plt.colorbar(im, ax=ax_heat, fraction=0.025, pad=0.02,
+                         label='Attention weight')
+
+            # 阶段过渡竖线 / 横线
+            for t in range(1, T):
+                if true_np[t] != true_np[t - 1]:
+                    ax_heat.axvline(t - 0.5, color='white', linewidth=0.8, alpha=0.6)
+                    ax_heat.axhline(t - 0.5, color='white', linewidth=0.8, alpha=0.6)
+
+            # y 轴右侧：GT 颜色条（query 轴）
+            ax_side = ax_heat.inset_axes([1.04, 0, 0.025, 1])
+            side_img = phase_rgba[:, np.newaxis, :]    # (T, 1, 4)
+            ax_side.imshow(side_img, aspect='auto', interpolation='nearest',
+                           origin='upper', extent=[0, 1, T - 0.5, -0.5])
+            ax_side.set_xticks([])
+            ax_side.set_yticks([])
+
+            ax_heat.set_xlabel('Key time step  (past frame k)', fontsize=9)
+            ax_heat.set_ylabel('Query time step  (current frame t)', fontsize=9)
+            ax_heat.set_xlim(-0.5, T - 0.5)
+            ax_heat.set_ylim(T - 0.5, -0.5)
+            ax_heat.tick_params(labelsize=8)
+
+            # ── Row 2: 概率曲线 + 平均注意力滞后 ────────────────────────────
+            ax_prob = fig.add_subplot(outer_gs[2, col])
+            t_axis = np.arange(T)
+
+            for ci in range(probs.shape[1]):
+                ax_prob.plot(t_axis, probs[:, ci],
+                             color=PHASE_COLORS[ci], linewidth=1.3,
+                             alpha=0.75, label=CLASS_NAMES[ci])
+
+            # 平均注意力滞后：mean(t - k) 加权 attn_np[t, k]
+            key_idx = np.arange(T, dtype=np.float32)
+            attn_sum = attn_np.sum(axis=1, keepdims=False)   # (T,)
+            with np.errstate(divide='ignore', invalid='ignore'):
+                mean_key = np.where(
+                    attn_sum > 1e-9,
+                    (attn_np * key_idx[np.newaxis, :]).sum(axis=1) / attn_sum,
+                    t_axis.astype(float),
+                )
+            mean_lag = t_axis - mean_key      # positive = attending backward
+
+            ax2 = ax_prob.twinx()
+            ax2.fill_between(t_axis, mean_lag, alpha=0.18, color='slategrey')
+            ax2.plot(t_axis, mean_lag, color='slategrey', linewidth=1.2,
+                     alpha=0.9, label='Mean attn lag')
+            ax2.set_ylabel('Mean attn lag (frames)', fontsize=8, color='slategrey')
+            ax2.tick_params(axis='y', labelcolor='slategrey', labelsize=7)
+
+            # GT 阶段过渡竖线
+            for t in range(1, T):
+                if true_np[t] != true_np[t - 1]:
+                    ax_prob.axvline(t, color='grey', linewidth=0.7,
+                                    linestyle='--', alpha=0.5)
+
+            ax_prob.set_xlim(0, T - 1)
+            ax_prob.set_ylim(-0.03, 1.06)
+            ax_prob.set_xlabel('Time Step', fontsize=9)
+            ax_prob.set_ylabel('Softmax Probability', fontsize=9)
+            ax_prob.grid(axis='y', alpha=0.2)
+            if col == 0:
+                ax_prob.legend(loc='upper right', fontsize=7, ncol=4,
+                               framealpha=0.75)
+
+        # ── 底部图例：GT 阶段颜色说明 ─────────────────────────────────────────
+        legend_patches = [
+            patches.Patch(color=PHASE_COLORS[i], label=CLASS_NAMES[i])
+            for i in range(len(CLASS_NAMES))
+        ]
+        fig.legend(handles=legend_patches, loc='lower center',
+                   ncol=len(CLASS_NAMES), fontsize=8, title='GT Phase',
+                   bbox_to_anchor=(0.5, 0.0), framealpha=0.85)
+
+        fig.suptitle(
+            f'Attention TeCNO — Cross-Attention Heatmaps\n'
+            f'Seq {idx}  [demo_id={demo_id}]  |  T={T} frames',
+            fontsize=13, fontweight='bold', y=0.995,
+        )
+
+        plt.tight_layout(rect=[0, 0.04, 1, 0.995])
+
+        # ── 保存 ─────────────────────────────────────────────────────────────
+        if save_path:
+            sp = save_path
+            if len(seq_indices) > 1:
+                base, ext = os.path.splitext(save_path)
+                sp = f'{base}_seq{idx}{ext}'
+            plt.savefig(sp, dpi=150, bbox_inches='tight')
+            print(f"注意力热图已保存至: {sp}")
+
+        plt.show()
+        plt.close(fig)
+
+
+def attention_tecno_main():
+    """Attention TeCNO 可视化主函数
+
+    输出内容（保存至 AttentionTeCNO_visualization_results/）：
+      attention_heatmap_seq*.png  —— 双臂交叉注意力热图（前 3 条序列）
+      per_phase_probabilities.png —— 逐阶段 softmax 概率曲线
+      coarse_fine_probabilities.png —— 粗/细操作概率对比
+      sequence_predictions.png   —— 真实 vs 预测标签对比
+      confusion_matrix.png        —— 混淆矩阵
+    """
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"使用设备: {device}")
+
+    dir_path = os.path.dirname(__file__)
+    model_path = os.path.join(dir_path, 'TeCNO_model', 'tecno_attention_sequence_model.pth')
+    if not os.path.exists(model_path):
+        print(f"模型文件不存在: {model_path}")
+        return
+
+    print("加载 Attention TeCNO 模型...")
+    model = load_attention_tecno_model(model_path, device)
+    print("模型加载成功")
+
+    test_dataset = TestDataset()
+    print(f"测试数据集大小: {len(test_dataset)}")
+
+    save_dir = os.path.join(dir_path, 'AttentionTeCNO_visualization_results')
+    os.makedirs(save_dir, exist_ok=True)
+
+    all_seq_indices = list(range(min(6, len(test_dataset))))
+
+    # ── 1. Attention 专属：双臂交叉注意力热图（前 3 条，热图较大） ───────────
+    print("\n生成交叉注意力热图（前 3 条序列）...")
+    visualize_attention_heatmap(
+        model, test_dataset, device,
+        seq_idx=all_seq_indices[:3],
+        save_path=os.path.join(save_dir, 'attention_heatmap.png'),
+    )
+
+    # ── 2. TeCNO 逐阶段概率曲线 ──────────────────────────────────────────────
+    print("\n生成逐阶段 softmax 概率可视化...")
+    visualize_tecno_per_phase_probs(
+        model, test_dataset, device,
+        seq_idx=all_seq_indices,
+        save_path=os.path.join(save_dir, 'per_phase_probabilities.png'),
+    )
+
+    # ── 3. 粗/细操作概率 ─────────────────────────────────────────────────────
+    print("\n生成粗大/精细操作概率可视化...")
+    visualize_predicted_class_probabilities(
+        model, test_dataset, device,
+        seq_idx=all_seq_indices,
+        save_path=os.path.join(save_dir, 'coarse_fine_probabilities.png'),
+    )
+
+    # ── 4. 序列预测对比 ───────────────────────────────────────────────────────
+    print("\n生成序列预测对比图...")
+    visualize_sequence_predictions(
+        model, test_dataset, device,
+        num_sequences=min(6, len(test_dataset)),
+        save_path=os.path.join(save_dir, 'sequence_predictions.png'),
+    )
+
+    # ── 5. 混淆矩阵 ──────────────────────────────────────────────────────────
+    print("\n生成混淆矩阵...")
+    visualize_confusion_matrix(
+        model, test_dataset, device,
+        save_path=os.path.join(save_dir, 'confusion_matrix.png'),
+    )
+
+    print(f"\n所有 Attention TeCNO 可视化完成！结果保存在 {save_dir}")
+
+
 if __name__ == "__main__":
-    
+
     #lstm_main()
-    
-    tecno_main()
+
+    #tecno_main()
+
+    attention_tecno_main()

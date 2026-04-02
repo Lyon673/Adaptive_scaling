@@ -265,5 +265,5 @@ def visualize_state(demo_id):
 
 
 if __name__ == '__main__':
-    #transformed_state = transform_state()
-    visualize_state('7_data_01-18')
+    transformed_state = transform_state()
+    #visualize_state('7_data_01-18')

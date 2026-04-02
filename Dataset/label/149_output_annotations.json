@@ -1,0 +1,71 @@
+{
+  "video_path": "/home/lambda/Videos/train/31_NeedlePassing_demo.mp4",
+  "total_frames": 303,
+  "fps": 15.0,
+  "demo_idx": 149,
+  "kine_frames": 213,
+  "calib_start": 47,
+  "calib_end": 239,
+  "kine_calib_start": 27,
+  "kine_calib_end": 179,
+  "labels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "annotations": [
+    {
+      "label": "0",
+      "start": 25,
+      "kine_start": 10,
+      "end": 42,
+      "kine_end": 23
+    },
+    {
+      "label": "1",
+      "start": 43,
+      "kine_start": 24,
+      "end": 138,
+      "kine_end": 99
+    },
+    {
+      "label": "2",
+      "start": 139,
+      "kine_start": 100,
+      "end": 161,
+      "kine_end": 117
+    },
+    {
+      "label": "3",
+      "start": 162,
+      "kine_start": 118,
+      "end": 202,
+      "kine_end": 150
+    },
+    {
+      "label": "4",
+      "start": 204,
+      "kine_start": 151,
+      "end": 224,
+      "kine_end": 167
+    },
+    {
+      "label": "5",
+      "start": 225,
+      "kine_start": 168,
+      "end": 237,
+      "kine_end": 177
+    },
+    {
+      "label": "6",
+      "start": 238,
+      "kine_start": 178,
+      "end": 273,
+      "kine_end": 206
+    }
+  ]
+}

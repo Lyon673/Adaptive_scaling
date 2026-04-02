@@ -46,7 +46,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 #   NUM_LAYERS= 7 → RF= 255  (covers median only)
 INPUT_SIZE = 16
 HIDDEN_SIZE = 64        # TCN feature channel width
-NUM_LAYERS = 8          # dilated residual layers per stage; RF = 2^9-1 = 511 frames
+NUM_LAYERS = 6          # dilated residual layers per stage; RF = 2^6-1 = 63 frames
 NUM_STAGES = 2          # refinement stages (paper: 2 is optimal)
 NUM_CLASSES = 7
 KERNEL_SIZE = 3

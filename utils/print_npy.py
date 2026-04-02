@@ -11,5 +11,5 @@ def print_npy(npy_path):
     print(npy[:10])
 
 if __name__ == '__main__':
-    npy_path = os.path.join(os.path.dirname(__file__),os.pardir, 'data', '0_data_12-01', 'Lpsm_position.npy')
+    npy_path = os.path.join(os.path.dirname(__file__),os.pardir, 'data', '32_data_04-02', 'gazepoint_position_data.npy')
     print_npy(npy_path)

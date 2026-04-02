@@ -13,7 +13,8 @@ fixed_scale = 10
 
 # the parameters in the scaling calculation formula
 feature_bound = {
-    'd_min': 0.015, 'd_max': 0.065,
+    'dL_min': 0.015, 'dL_max': 0.08,
+    'dR_min': 0.015, 'dR_max': 0.045,
 	'p_min': 0.95, 'p_max': 1,
 	'v_min': 0.001, 'v_max': 0.10,
     's_min': 0.01, 's_max': 0.06,
@@ -21,9 +22,9 @@ feature_bound = {
 
 # the initial params for the optimization
 init_params = {
-    'K_g': 10.0,
+    'K_g': 4.0,
     'K_p': 2.0,
-    'C_base': 9.0,
+    'C_base': 10.0,
 
     'A_theta': 5,
     'A_gp': 2.0,
@@ -58,10 +59,6 @@ upper_fixed_scale = 18
 # fixed = {"fixed_scale": 1.2, "AFflag": 1}
 
 
-
-
-
-
 # —— Bayesian Optimization settings ──────────────────────────────────────────────────
 
 iter_times = 10
@@ -69,8 +66,8 @@ iter_times = 10
 phase_rate = 0.6
 
 optimization_range = {
-    'K_g': (8.0, 12.0),
-    'C_base': (6.0, 15.0),
+    'K_g': (4.0, 10.0),
+    'C_base': (10.0, 14.0),
 
     'A_theta': (3.0, 7.0),
     'A_gp': (1.0, 4.0),

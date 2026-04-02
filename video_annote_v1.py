@@ -254,19 +254,18 @@ class VideoPhaseAnnotator:
 
             # 从文件名提取 demo_idx，如 "21_NeedlePassing_demo.mp4" → 21
             try:
-                self.demo_idx = int(os.path.basename(file_path).split('_')[0])
+                self.demo_idx = int(os.path.basename(file_path).split('_')[0])+118
             except (ValueError, IndexError):
                 self.demo_idx = -1
 
             # 加载运动学数据帧数
             self.kine_frames = 0
-            if self.demo_idx >= 0 and os.path.exists(self._demo_lengths_path):
-                try:
-                    demo_lengths = np.load(self._demo_lengths_path)
-                    if self.demo_idx < len(demo_lengths):
-                        self.kine_frames = int(demo_lengths[self.demo_idx])
-                except Exception:
-                    pass
+            state_txt_path = os.path.join(self._project_dir, 'Dataset', 'state', f'{self.demo_idx}.txt')
+            if self.demo_idx >= 0 and os.path.exists(state_txt_path):
+                with open(state_txt_path, 'r') as f:
+                    for line in f:
+                        self.kine_frames += 1
+
 
             # 初始化数据流起止输入框
             # 默认：右手 gripper 第一次 0→1 / 1→0 的时间戳；找不到时退回全段
@@ -743,12 +742,12 @@ class VideoPhaseAnnotator:
 
         # 确定保存路径
         video_basename = os.path.basename(self.video_path)
-        video_name = os.path.splitext(video_basename)[0]
+        video_name = str(int(os.path.splitext(video_basename)[0].split('_')[0])+118)
         
         if self.annotation_output_dir:
             # 使用自定义输出目录
             os.makedirs(self.annotation_output_dir, exist_ok=True)
-            json_path = os.path.join(self.annotation_output_dir, f"{video_name}_annotations.json")
+            json_path = os.path.join(self.annotation_output_dir, f"{video_name}_output_annotations.json")
         else:
             # 使用视频同目录
             base_path = os.path.splitext(self.video_path)[0]
@@ -805,7 +804,8 @@ if __name__ == "__main__":
     # ========== 配置区域 ==========
     # 设置打开视频时的初始文件夹（None 或不设置则使用当前工作目录）
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    INITIAL_VIDEO_DIR = "/home/lambda/surgical_robotics_challenge/scripts/surgical_robotics_challenge/Project/video_process/output"
+    #INITIAL_VIDEO_DIR = "/home/lambda/surgical_robotics_challenge/scripts/surgical_robotics_challenge/Project/video_process/output"
+    INITIAL_VIDEO_DIR = "/home/lambda/Videos/train"
     
     # 设置JSON标注文件的导出目录（None 或不设置则保存在视频同目录）
     ANNOTATION_OUTPUT_DIR = os.path.join(current_dir, 'Dataset', 'label')

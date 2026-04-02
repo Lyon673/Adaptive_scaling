@@ -969,15 +969,21 @@ class DataCollector:
 
 	def on_press(self, key):
 		"""Callback function for key press"""
-		# We set the 's' key (stop) to stop collection
-		if hasattr(key, 'char') and key.char == 's':
+		# 1. 检查是否按下了 's' (通过 char 属性)
+		is_s_key = hasattr(key, 'char') and key.char == 's'
+
+		# 2. 检查是否按下了 空格 (通过对象比对)
+		is_space_key = key == keyboard.Key.space
+
+		# 只要满足其中之一就停止采集
+		if is_s_key or is_space_key:
 			if self.collecting:
-				print(f"\nstop collecting... (press 's' to stop)")
+				print(f"\nstop collecting... (press 's' or 'space' to stop)")
 				self.stop_collection()
-	
+
 	def listener_thread_target(self):
 		"""Target function for the listener thread"""
-		# The 'with' statement ensures the listener is properly cleaned up on exit
+		# 确保你在文件顶部导入了 Key 和 Listener
 		with keyboard.Listener(on_press=self.on_press) as listener:
 			listener.join()
 
@@ -1419,8 +1425,8 @@ class DataCollector:
 		weighted_dist_L = weighted_dist[0]
 		weighted_dist_R = weighted_dist[1]
 
-		N_d_gpL = normalize(weighted_dist_L, config.feature_bound['d_min'], config.feature_bound['d_max'], 1)
-		N_d_gpR = normalize(weighted_dist_R, config.feature_bound['d_min'], config.feature_bound['d_max'], 1)
+		N_d_gpL = normalize(weighted_dist_L, config.feature_bound['dL_min'], config.feature_bound['dL_max'], 1)
+		N_d_gpR = normalize(weighted_dist_R, config.feature_bound['dR_min'], config.feature_bound['dR_max'], 1)
 		N_vL = normalize(psm_velocity[0], config.feature_bound['v_min'], config.feature_bound['v_max'], 1)
 		N_vR = normalize(psm_velocity[1], config.feature_bound['v_min'], config.feature_bound['v_max'], 1)
 		N_d_pp = normalize(distance_psms, config.feature_bound['s_min'], config.feature_bound['s_max'], 1) 

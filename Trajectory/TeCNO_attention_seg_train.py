@@ -49,7 +49,7 @@ NUM_EPOCHS = 800
 LEARNING_RATE = 5e-4
 EMBED_DIM = 16
 ATTN_DROPOUT = 0.2
-LOCAL_WINDOW = 90
+LOCAL_WINDOW = 800
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
@@ -114,6 +114,26 @@ class DilatedResidualLayer(nn.Module):
         z = self.drop(F.relu(self.dconv(x)))
         return x + self.conv1x1(z)
 
+class ShallowTCNEncoder(nn.Module):
+    """
+    双流网络中的独立浅层时序编码器 (Local Temporal Encoder)。
+    用于在执行 Cross-Attention 前，为单臂动作建立局部上下文语义感受野。
+    """
+    def __init__(self, in_dim, out_dim, num_layers=3, kernel_size=3, dropout=0.2):
+        super().__init__()
+        self.conv_in = nn.Conv1d(in_dim, out_dim, 1)
+        # 使用 3 层扩张卷积，感受野为 2^(3+1)-1 = 15 帧（约 1 秒的局部上下文）
+        self.layers = nn.ModuleList([
+            DilatedResidualLayer(out_dim, kernel_size, dilation=2 ** i, dropout=dropout)
+            for i in range(num_layers)
+        ])
+
+    def forward(self, x):
+        # x: (B, in_dim, T)
+        h = self.conv_in(x)
+        for layer in self.layers:
+            h = layer(h)
+        return h  # (B, out_dim, T)
 
 class TCNStage(nn.Module):
     """Single TCN prediction stage: 1×1 → N dilated residual layers → 1×1."""
@@ -135,16 +155,6 @@ class TCNStage(nn.Module):
 
 
 class TeCNO(nn.Module):
-    """
-    Multi-Stage Temporal Convolutional Network for surgical phase recognition.
-
-    Receptive field per stage = 2^(NUM_LAYERS+1) - 1 frames.
-    With 10 layers: RF = 2047 frames per stage.
-
-    Interface compatible with SequenceLabelingLSTM:
-        forward(x, lengths) → (B, T, num_classes)
-    """
-
     def __init__(self, input_size, hidden_size, num_layers, num_classes,
                  num_stages=2, kernel_size=3, dropout=0.5):
         super().__init__()
@@ -153,27 +163,28 @@ class TeCNO(nn.Module):
         self.num_classes = num_classes
         self.local_window = LOCAL_WINDOW
 
-        # ── Dual-stream low-rank projection (8 -> 16) + LN ─────────────────
-        self.left_proj = nn.Conv1d(8, EMBED_DIM, kernel_size=1)
-        self.right_proj = nn.Conv1d(8, EMBED_DIM, kernel_size=1)
-        self.left_ln = nn.LayerNorm(EMBED_DIM)
-        self.right_ln = nn.LayerNorm(EMBED_DIM)
-
-        # ── Heavily regularized cross-attention ─────────────────────────────
+        # ── 1. 双流局部时序编码器 (Dual-Stream Shallow TCN) ────────────────
+        # 将原始 8 维特征映射至高维语义空间，并聚合局部时间感受野
+        shallow_layers = 3
+        self.left_encoder = ShallowTCNEncoder(in_dim=8, out_dim=EMBED_DIM, num_layers=shallow_layers, dropout=dropout)
+        self.right_encoder = ShallowTCNEncoder(in_dim=8, out_dim=EMBED_DIM, num_layers=shallow_layers, dropout=dropout)
+        
+        # ── 2. 纯语义级交叉注意力 (Pure Semantic Cross-Attention) ─────────
+        # 移除了 self.gamma 物理惩罚参数
         self.left_from_right_attn = nn.MultiheadAttention(
-            embed_dim=EMBED_DIM, num_heads=1, dropout=ATTN_DROPOUT, batch_first=True
+            embed_dim=EMBED_DIM, num_heads=4, dropout=ATTN_DROPOUT, batch_first=True
         )
         self.right_from_left_attn = nn.MultiheadAttention(
-            embed_dim=EMBED_DIM, num_heads=1, dropout=ATTN_DROPOUT, batch_first=True
+            embed_dim=EMBED_DIM, num_heads=4, dropout=ATTN_DROPOUT, batch_first=True
         )
-        self.gamma = nn.Parameter(torch.tensor(0.001))
 
-        # ── Fuse (B,T,32) -> (B,16,T) for compressed MS-TCN ────────────────
+        # ── 3. 语义融合层 (Fusion Layer) ───────────────────────────────────
         self.fusion = nn.Conv1d(EMBED_DIM * 2, EMBED_DIM, kernel_size=1)
         self.fusion_drop = nn.Dropout(dropout)
+        self.fusion_ln = nn.LayerNorm(EMBED_DIM)
 
-        # ── Compressed MS-TCN (<=2 stages, 32 channels) ────────────────────
-        tcn_hidden = min(hidden_size, 32)
+        # ── 4. 全局手术阶段分割主网络 (Global MS-TCN) ────────────────────────
+        tcn_hidden = min(hidden_size, 64)  
         self.stages = nn.ModuleList()
         for s in range(self.num_stages):
             in_dim = EMBED_DIM if s == 0 else num_classes
@@ -199,88 +210,91 @@ class TeCNO(nn.Module):
         base[invalid] = float("-inf")
         return base
 
-    def _physical_bias(self, x):
-        # x: (B,T,16), left xyz in [:, :, :3], right xyz in [:, :, 8:11]
-        left_xyz = x[:, :, :3]
-        right_xyz = x[:, :, 8:11]
-        d_lr = torch.cdist(left_xyz, right_xyz, p=2)  # (B,T,T)
-        d_rl = torch.cdist(right_xyz, left_xyz, p=2)  # (B,T,T)
-        gamma = F.softplus(self.gamma)
-        return -gamma * (d_lr ** 2), -gamma * (d_rl ** 2)
-
-    def _cross_attend(self, q, kv, key_padding_mask, attn_additive_bias, attn_module, return_attn=False):
+    def _cross_attend(self, q, kv, key_padding_mask, attn_module, return_attn=False):
             B, T, _ = q.shape
-            base = self._base_local_causal_mask(T, q.device).unsqueeze(0).expand(B, -1, -1)
-            attn_mask = base + attn_additive_bias
+            num_heads = attn_module.num_heads  # 动态获取当前的头数 (这里是 4)
+            
+            # 1. 基础局部因果掩码
+            attn_mask = self._base_local_causal_mask(T, q.device).unsqueeze(0).expand(B, -1, -1)
+            
+            # 2. 遮盖无效的 padding 帧
             attn_mask = attn_mask.masked_fill(key_padding_mask[:, None, :], float("-inf"))
 
+            # 3. 防 NaN 机制
             all_inf = torch.isinf(attn_mask) & (attn_mask < 0)       
             row_all_inf = all_inf.all(dim=-1, keepdim=True)           
             safe = torch.zeros_like(attn_mask)
             safe[:, :, 0] = 0.0                                      
             attn_mask = torch.where(row_all_inf.expand_as(attn_mask), safe, attn_mask)
 
-            # 【修改这里】：告诉 PyTorch 返回注意力权重
-            out, attn_weights = attn_module(q, kv, kv, attn_mask=attn_mask, need_weights=return_attn)
-            
-            return out, attn_weights
+            # 4. 【核心修复】：为每个 Attention Head 复制一份 Mask！
+            # 形状从 (B, T, T) 变为 (B * num_heads, T, T)
+            attn_mask = attn_mask.repeat_interleave(num_heads, dim=0)
 
+            # 5. 送入模块计算
+            out, attn_weights = attn_module(q, kv, kv, attn_mask=attn_mask, need_weights=return_attn)
+            return out, attn_weights
 
     def _encode(self, x, lengths=None, return_attn=False):
         B, T, C = x.shape
         if C != 16:
             raise ValueError(f"Expected input feature dim 16, got {C}.")
+        
         lens = self._lengths_to_tensor(lengths, B, T, x.device)
         valid = torch.arange(T, device=x.device)[None, :] < lens[:, None]  # (B,T)
         key_padding_mask = ~valid
 
-        # split: left / right 8-dim streams
-        left = x[:, :, :8].transpose(1, 2)   # (B,8,T)
-        right = x[:, :, 8:].transpose(1, 2)   # (B,8,T)
-        left = self.left_ln(self.left_proj(left).transpose(1, 2))   # (B,T,16)
-        right = self.right_ln(self.right_proj(right).transpose(1, 2))  # (B,T,16)
+        # 1. 局部时序特征编码 (Local Temporal Encoding)
+        left_raw = x[:, :, :8].transpose(1, 2)   # (B, 8, T)
+        right_raw = x[:, :, 8:].transpose(1, 2)  # (B, 8, T)
+        
+        left_enc = self.left_encoder(left_raw).transpose(1, 2)   # (B, T, EMBED_DIM)
+        right_enc = self.right_encoder(right_raw).transpose(1, 2) # (B, T, EMBED_DIM)
 
-        bias_lr, bias_rl = self._physical_bias(x)
-        # 【修改这里】：接收返回的 weights
-        left_ctx, left_attn = self._cross_attend(left, right, key_padding_mask, bias_lr, self.left_from_right_attn, return_attn)
-        right_ctx, right_attn = self._cross_attend(right, left, key_padding_mask, bias_rl, self.right_from_left_attn, return_attn)
+        # 2. 纯语义交叉注意力交互 (取消了 bias_lr, bias_rl 传参)
+        left_ctx, left_attn = self._cross_attend(left_enc, right_enc, key_padding_mask, self.left_from_right_attn, return_attn)
+        right_ctx, right_attn = self._cross_attend(right_enc, left_enc, key_padding_mask, self.right_from_left_attn, return_attn)
 
+        # 遮罩越界区域
         q_mask = valid.unsqueeze(-1).to(left_ctx.dtype)
         left_ctx = left_ctx * q_mask
         right_ctx = right_ctx * q_mask
 
-        # 【核心修改】：加上之前遗漏的残差连接！
-        fused = torch.cat([left_ctx, right_ctx], dim=-1)      
-        fused = self.fusion_drop(self.fusion(fused.transpose(1, 2)))  
-        fused = x.permute(0, 2, 1) + fused  # <- 残差连接！
+        # 3. 特征融合与残差连接
+        fused = torch.cat([left_ctx, right_ctx], dim=-1)             # (B, T, 2*EMBED_DIM)
+        fused = self.fusion_drop(self.fusion(fused.transpose(1, 2))) # (B, EMBED_DIM, T)
+        
+        # 将自身独立的局部时序特征与交互后的融合特征相加
+        indep_res = left_enc.transpose(1, 2) + right_enc.transpose(1, 2) # (B, EMBED_DIM, T)
+        
+        # 加和后执行 LayerNorm
+        out_fused = self.fusion_ln((fused + indep_res).transpose(1, 2)).transpose(1, 2) # (B, EMBED_DIM, T)
 
-        # 【修改这里】：如果是可视化模式，把权重一起扔出去
         if return_attn:
-            return fused, left_attn, right_attn
-        return fused
+            return out_fused, left_attn, right_attn
+        return out_fused
 
     def forward(self, x, lengths=None, return_attn=False):
-            if return_attn:
-                h, left_attn, right_attn = self._encode(x, lengths, return_attn=True)
-            else:
-                h = self._encode(x, lengths)
+        if return_attn:
+            h, left_attn, right_attn = self._encode(x, lengths, return_attn=True)
+        else:
+            h = self._encode(x, lengths)
+            
+        for i, stage in enumerate(self.stages):
+            h = stage(h)
+            if i < self.num_stages - 1:
+                h = F.softmax(h, dim=1)           
                 
-            for i, stage in enumerate(self.stages):
-                h = stage(h)
-                if i < self.num_stages - 1:
-                    h = F.softmax(h, dim=1)           
-                    
-            if return_attn:
-                return h.permute(0, 2, 1), left_attn, right_attn
-            return h.permute(0, 2, 1)
+        if return_attn:
+            return h.permute(0, 2, 1), left_attn, right_attn
+        return h.permute(0, 2, 1)
 
     def forward_all_stages(self, x, lengths=None):
-        """Returns logits from ALL stages for multi-stage training loss."""
         h = self._encode(x, lengths)
         outputs = []
         for i, stage in enumerate(self.stages):
             h = stage(h)
-            outputs.append(h.permute(0, 2, 1))    # (B, T, C)
+            outputs.append(h.permute(0, 2, 1))    
             if i < self.num_stages - 1:
                 h = F.softmax(h, dim=1)
         return outputs
@@ -540,5 +554,5 @@ if __name__ == "__main__":
     dir_path = os.path.dirname(__file__)
     save_dir = os.path.join(dir_path, "TeCNO_model")
     os.makedirs(save_dir, exist_ok=True)
-    model_save_path = os.path.join(save_dir, "tecno_sequence_model.pth")
+    model_save_path = os.path.join(save_dir, "tecno_attention_sequence_model.pth")
     save_model(model, model_save_path)
