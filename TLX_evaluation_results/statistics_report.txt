@@ -3,284 +3,249 @@
   0. RAW DATA PREVIEW (raw + per-participant normalized scores)
 ========================================================================
  demo_id participant          group  subjective_score  subjective_score_norm  objective_total  objective_total_norm  total_score  total_score_norm
-       0         ljs          fixed             31.29                   0.50            27.82                  0.00        29.55              0.00
-       1         ljs          fixed             31.95                   1.51            30.07                  5.67        31.01              2.83
-       2         ljs          fixed             30.96                   0.00            38.76                 27.50        34.86             10.31
-       3         ljs          fixed             35.30                   6.63            39.52                 29.43        37.41             15.27
-       4         ljs          fixed             33.58                   4.00            39.38                 29.08        36.48             13.46
-       5         ljs          fixed             31.85                   1.36            37.58                 24.55        34.72             10.03
-       6         ljs          fixed             34.84                   5.93            35.89                 20.29        35.36             11.29
-       7         ljs          fixed             34.03                   4.69            38.96                 28.01        36.49             13.49
-       8         ljs          fixed             31.51                   0.84            37.12                 23.38        34.31              9.25
-       9         ljs          fixed             33.68                   4.16            38.30                 26.35        35.99             12.51
-      10         ljs          fixed             92.28                  93.72            64.83                 93.07        78.56             95.25
-      11         ljs phase adaptive             92.85                  94.59            64.40                 91.97        78.62             95.38
-      12         ljs phase adaptive             94.41                  96.97            67.59                100.00        81.00            100.00
-      13         ljs phase adaptive             93.90                  96.19            63.70                 90.21        78.80             95.72
-      14         ljs phase adaptive             96.39                 100.00            65.10                 93.75        80.75             99.51
-      15         zts          fixed             29.29                   0.00            21.86                 38.05        25.58             13.29
-      16         zts          fixed             32.86                   5.19            24.00                 42.31        28.43             18.25
-      17         zts          fixed             33.08                   5.52             2.78                  0.00        17.93              0.00
-      18         zts          fixed             41.97                  18.45            18.89                 32.13        30.43             21.73
-      19         zts          fixed             51.68                  32.58            11.95                 18.29        31.81             24.13
-      20         zts       adaptive             62.97                  49.01            44.98                 84.14        53.98             62.64
-      21         zts       adaptive             67.90                  56.18            41.25                 76.71        54.58             63.69
-      22         zts       adaptive             71.23                  61.03             6.77                  7.96        39.00             36.62
-      23         zts       adaptive             76.37                  68.51            36.02                 66.27        56.19             66.50
-      24         zts       adaptive             79.63                  73.25            39.41                 73.02        59.52             72.27
-      25         ljs       adaptive             82.63                  78.97            63.44                 89.56        73.04             84.52
-      25         zts phase adaptive             81.78                  76.38            22.91                 40.13        52.34             59.81
-      26         ljs       adaptive             84.53                  81.87            67.28                 99.22        75.91             90.10
-      26         zts phase adaptive             91.31                  90.25            28.65                 51.59        59.98             73.08
-      27         ljs       adaptive             84.26                  81.46            67.01                 98.53        75.63             89.57
-      27         zts phase adaptive             95.97                  97.03            32.81                 59.88        64.39             80.74
-      28         ljs       adaptive             85.49                  83.34            67.26                 99.16        76.37             91.00
-      29         ljs       adaptive             83.30                  79.99            53.93                 65.65        68.61             75.92
-      29         zts phase adaptive             98.01                 100.00            52.94                100.00        75.47            100.00
-      40         zms          fixed             50.00                   7.15            25.15                 57.14        37.58             28.80
-      41         zms          fixed             48.23                   0.00            14.00                 28.63        31.11              3.22
-      42         zms          fixed             54.31                  24.55            26.18                 59.77        40.24             39.36
-      43         zms          fixed             58.60                  41.87            26.84                 61.47        42.72             49.18
-      44         zms          fixed             57.80                  38.64             2.80                  0.00        30.30              0.00
-      45         zms       adaptive             62.20                  56.40            32.94                 77.06        47.57             68.37
-      46         zms       adaptive             61.60                  53.98            28.37                 65.37        44.98             58.13
-      47         zms       adaptive             65.81                  70.97            39.42                 93.62        52.61             88.34
-      48         zms       adaptive             67.37                  77.27            41.91                100.00        54.64             96.36
-      49         zms       adaptive             67.07                  76.06            25.89                 59.03        46.48             64.05
-      50         zms phase adaptive             68.40                  81.43            39.65                 94.21        54.02             93.92
-      51         zms phase adaptive             69.44                  85.63            31.67                 73.81        50.55             80.18
-      52         zms phase adaptive             67.03                  75.90             8.78                 15.28        37.90             30.10
-      53         zms phase adaptive             68.70                  82.64            25.16                 57.17        46.93             65.84
-      54         zms phase adaptive             69.70                  86.68            23.11                 51.93        46.41             63.76
-      55         zms phase adaptive             73.00                 100.00            38.12                 90.30        55.56            100.00
+      71         zym          fixed             33.50                   5.41            49.18                 32.82        41.34             13.15
+      72         zym          fixed             35.40                   9.89            47.26                 25.95        41.33             13.12
+      73         zym          fixed             33.36                   5.08            51.70                 41.84        42.53             16.70
+      74         zym          fixed             31.21                   0.00            44.65                 16.62        37.93              2.99
+      75         zym          fixed             33.85                   6.23            40.01                  0.00        36.93              0.00
+      76         zym       adaptive             66.23                  82.69            65.89                 92.60        66.06             86.84
+      77         zym       adaptive             65.71                  81.46            67.72                 99.18        66.72             88.80
+      78         zym       adaptive             68.68                  88.48            67.95                100.00        68.32             93.57
+      79         zym       adaptive             66.02                  82.20            56.38                 58.57        61.20             72.35
+      80         zym       adaptive             63.29                  75.75            56.14                 57.74        59.72             67.94
+      81         zym phase adaptive             66.37                  83.02            67.39                 97.98        66.88             89.29
+      82         zym phase adaptive             69.01                  89.26            63.03                 82.39        66.02             86.73
+      83         zym phase adaptive             68.44                  87.91            59.56                 69.96        64.00             80.70
+      84         zym phase adaptive             69.82                  91.17            60.71                 74.07        65.26             84.47
+      85         zym phase adaptive             73.56                 100.00            67.38                 97.97        70.47            100.00
 
 ========================================================================
   1. DESCRIPTIVE STATISTICS BY GROUP
 ========================================================================
 
   ── subjective_score_norm ──
-                  mean     std     min      max  median   n
-group                                                      
-fixed          14.1566 22.4416  0.0000  93.7185  5.1950  21
-phase adaptive 90.2639  8.7648 75.8983 100.0000 92.4200  14
-adaptive       69.8872 11.6111 49.0105  83.3410 73.2538  15
+                  mean    std     min      max  median  n
+group                                                    
+fixed           5.3223 3.5399  0.0000   9.8937  5.4073  5
+adaptive       82.1157 4.5209 75.7497  88.4770 82.1960  5
+phase adaptive 90.2715 6.2170 83.0224 100.0000 89.2562  5
 
   ── objective_total_norm ──
-                  mean     std     min      max  median   n
-group                                                      
-fixed          30.7193 22.8306  0.0000  93.0675 28.0094  21
-phase adaptive 72.1592 26.3427 15.2827 100.0000 82.0083  14
-adaptive       77.0202 23.8259  7.9594 100.0000 77.0582  15
+                  mean     std     min      max  median  n
+group                                                     
+fixed          23.4463 16.0376  0.0000  41.8427 25.9530  5
+adaptive       81.6190 21.6102 57.7407 100.0000 92.6033  5
+phase adaptive 84.4720 13.1112 69.9599  97.9771 82.3878  5
 
   ── total_score_norm ──
-                  mean     std     min      max  median   n
-group                                                      
-fixed          18.6503 21.5877  0.0000  95.2501 13.2912  21
-phase adaptive 81.2885 20.8381 30.1037 100.0000 87.3319  14
-adaptive       73.8716 16.2242 36.6166  96.3630 72.2732  15
+                  mean     std     min      max  median  n
+group                                                     
+fixed           9.1911  7.2530  0.0000  16.6990 13.1211  5
+adaptive       81.9010 11.1184 67.9359  93.5733 86.8401  5
+phase adaptive 88.2381  7.2920 80.7026 100.0000 86.7289  5
 
   ── physical_demand ──
-                 mean    std    min    max  median   n
-group                                                 
-fixed          6.8667 2.3478 0.8000 9.3000  6.8000  21
-phase adaptive 1.6000 1.3301 0.1000 3.2000  1.1500  14
-adaptive       2.5333 1.0554 1.2000 3.9000  2.9000  15
+                 mean    std    min    max  median  n
+group                                                
+fixed          6.5800 0.2168 6.3000 6.8000  6.5000  5
+adaptive       3.4600 0.4450 3.0000 4.2000  3.4000  5
+phase adaptive 2.7400 0.3507 2.2000 3.1000  2.9000  5
 
   ── temporal_demand ──
-                 mean    std    min    max  median   n
-group                                                 
-fixed          6.9048 2.3680 0.6000 9.4000  7.1000  21
-phase adaptive 1.6571 1.2960 0.1000 3.2000  1.4500  14
-adaptive       2.5933 0.9838 1.3000 3.8000  3.0000  15
+                 mean    std    min    max  median  n
+group                                                
+fixed          6.7600 0.4336 6.0000 7.0000  7.0000  5
+adaptive       2.9000 0.3674 2.5000 3.4000  2.9000  5
+phase adaptive 3.2800 0.4764 2.7000 3.9000  3.2000  5
 
   ── controllability ──
-                 mean    std    min    max  median   n
-group                                                 
-fixed          3.2524 2.3004 1.1000 7.3000  1.6000  21
-phase adaptive 1.8071 1.2450 0.2000 3.4000  1.4500  14
-adaptive       2.7667 0.8130 1.6000 3.9000  2.8000  15
+                 mean    std    min    max  median  n
+group                                                
+fixed          6.8400 0.1949 6.5000 7.0000  6.9000  5
+adaptive       3.2200 0.2588 2.9000 3.6000  3.2000  5
+phase adaptive 3.2200 0.1643 3.0000 3.4000  3.3000  5
 
   ── performance ──
-                 mean    std    min    max  median   n
-group                                                 
-fixed          6.9476 2.5127 0.6000 9.5000  7.0000  21
-phase adaptive 1.7000 1.3074 0.3000 3.3000  1.5000  14
-adaptive       2.6000 0.9569 1.2000 3.8000  2.9000  15
+                 mean    std    min    max  median  n
+group                                                
+fixed          6.3200 0.2490 6.0000 6.7000  6.3000  5
+adaptive       3.6400 0.1517 3.5000 3.8000  3.6000  5
+phase adaptive 2.9600 0.2966 2.5000 3.3000  3.0000  5
 
   ── mental_demand ──
-                 mean    std    min    max  median   n
-group                                                 
-fixed          6.9857 2.4826 0.4000 9.6000  7.1000  21
-phase adaptive 1.6643 1.2834 0.1000 3.2000  1.3000  14
-adaptive       2.7200 0.9104 1.5000 3.9000  3.0000  15
+                 mean    std    min    max  median  n
+group                                                
+fixed          7.3600 0.4561 6.8000 8.0000  7.2000  5
+adaptive       3.2800 0.2049 3.1000 3.6000  3.3000  5
+phase adaptive 2.7400 0.1140 2.6000 2.9000  2.7000  5
 
   ── effort ──
-                 mean    std    min    max  median   n
-group                                                 
-fixed          6.7905 2.2965 0.8000 9.3000  6.5000  21
-phase adaptive 1.7571 1.1972 0.4000 3.3000  1.4500  14
-adaptive       2.6733 0.8746 1.7000 3.9000  2.8000  15
+                 mean    std    min    max  median  n
+group                                                
+fixed          7.0600 0.3209 6.8000 7.5000  6.9000  5
+adaptive       4.0200 0.4147 3.5000 4.6000  4.0000  5
+phase adaptive 3.2000 0.5339 2.6000 3.8000  3.1000  5
 
   ── frustration ──
-                 mean    std    min    max  median   n
-group                                                 
-fixed          6.8714 2.4251 0.4000 9.3000  7.2000  21
-phase adaptive 1.6143 1.3108 0.1000 3.3000  1.2000  14
-adaptive       2.7533 0.7864 1.8000 4.0000  2.7000  15
+                 mean    std    min    max  median  n
+group                                                
+fixed          6.8000 0.4848 6.3000 7.4000  6.7000  5
+adaptive       4.2600 0.6025 3.5000 5.0000  4.2000  5
+phase adaptive 3.0200 0.3271 2.5000 3.3000  3.0000  5
 
   ── gracefulness ──
-                 mean    std    min    max  median   n
-group                                                 
-fixed          3.2009 0.1341 3.0522 3.4469  3.1417  21
-phase adaptive 3.1181 0.1279 2.8779 3.3387  3.0990  14
-adaptive       3.0801 0.1726 2.8748 3.4657  3.0659  15
+                 mean    std    min    max  median  n
+group                                                
+fixed          2.9536 0.0941 2.8560 3.0865  2.9379  5
+adaptive       2.7573 0.1050 2.6955 2.9439  2.7106  5
+phase adaptive 2.8828 0.1223 2.7823 3.0426  2.8095  5
 
   ── smoothness ──
-                 mean    std    min    max  median   n
-group                                                 
-fixed          6.2997 0.9254 5.1622 9.2249  6.0638  21
-phase adaptive 5.8979 0.7538 4.8568 7.3692  5.9490  14
-adaptive       5.6321 0.6879 4.6748 7.2295  5.6888  15
+                 mean    std    min    max  median  n
+group                                                
+fixed          5.8348 0.0818 5.7678 5.9729  5.8226  5
+adaptive       4.9541 0.4259 4.4726 5.4236  4.7891  5
+phase adaptive 4.8090 0.2143 4.4639 5.0567  4.8417  5
 
   ── clutch_times_L ──
-                 mean    std    min    max  median   n
-group                                                 
-fixed          2.0952 0.7684 0.0000 4.0000  2.0000  21
-phase adaptive 0.6429 0.9288 0.0000 3.0000  0.0000  14
-adaptive       0.5333 1.3020 0.0000 5.0000  0.0000  15
+                 mean    std    min    max  median  n
+group                                                
+fixed          1.2000 0.4472 1.0000 2.0000  1.0000  5
+adaptive       0.0000 0.0000 0.0000 0.0000  0.0000  5
+phase adaptive 0.0000 0.0000 0.0000 0.0000  0.0000  5
 
   ── clutch_times_R ──
-                 mean    std    min    max  median   n
-group                                                 
-fixed          2.0952 1.7001 0.0000 8.0000  2.0000  21
-phase adaptive 1.7857 1.8472 0.0000 7.0000  2.0000  14
-adaptive       1.3333 1.1751 0.0000 3.0000  1.0000  15
+                 mean    std    min    max  median  n
+group                                                
+fixed          1.6000 0.5477 1.0000 2.0000  2.0000  5
+adaptive       0.4000 0.5477 0.0000 1.0000  0.0000  5
+phase adaptive 0.4000 0.5477 0.0000 1.0000  0.0000  5
 
   ── total_distance ──
-                 mean    std    min    max  median   n
-group                                                 
-fixed          0.2906 0.0964 0.2233 0.6343  0.2512  21
-phase adaptive 0.2786 0.0528 0.2038 0.3720  0.2750  14
-adaptive       0.2920 0.0597 0.2122 0.4278  0.2953  15
+                 mean    std    min    max  median  n
+group                                                
+fixed          0.2438 0.0102 0.2295 0.2535  0.2481  5
+adaptive       0.2410 0.0221 0.2142 0.2652  0.2412  5
+phase adaptive 0.2345 0.0182 0.2201 0.2556  0.2229  5
 
   ── total_time ──
-                  mean     std     min     max  median   n
-group                                                     
-fixed          30.0222 14.3144 17.7420 81.3080 25.6183  21
-phase adaptive 25.9969  8.0620 16.3538 43.1903 24.9508  14
-adaptive       22.6242  5.9975 15.3861 39.4724 22.9884  15
+                  mean    std     min     max  median  n
+group                                                   
+fixed          21.6876 0.7325 20.8333 22.5789 21.3644  5
+adaptive       15.3280 2.1523 13.3357 17.8575 14.7632  5
+phase adaptive 14.8925 1.5120 13.6438 17.0518 14.1132  5
 
   ── gracefulness_score ──
-                 mean    std    min    max  median   n
-group                                                 
-fixed          2.9985 0.2236 2.5885 3.2463  3.0972  21
-phase adaptive 3.1365 0.2132 2.7688 3.5369  3.1683  14
-adaptive       3.1999 0.2876 2.5572 3.5420  3.2235  15
+                 mean    std    min    max  median  n
+group                                                
+fixed          3.4107 0.1568 3.1891 3.5734  3.4368  5
+adaptive       3.7379 0.1751 3.4268 3.8408  3.8156  5
+phase adaptive 3.5286 0.2039 3.2623 3.6962  3.6508  5
 
   ── smoothness_score ──
-                 mean    std    min    max  median   n
-group                                                 
-fixed          0.2024 0.2859 0.0000 1.0472  0.0000  21
-phase adaptive 0.4455 0.5666 0.0000 1.4290  0.0638  14
-adaptive       0.5890 0.6480 0.0000 1.6565  0.3889  15
+                 mean    std    min    max  median  n
+group                                                
+fixed          0.2065 0.1022 0.0338 0.2902  0.2217  5
+adaptive       1.3073 0.5324 0.7205 1.9093  1.5137  5
+phase adaptive 1.4887 0.2679 1.1791 1.9202  1.4479  5
 
   ── clutch_times_score ──
-                  mean     std    min     max  median   n
-group                                                    
-fixed           4.6429  6.9050 0.0000 30.0000  0.0000  21
-phase adaptive 15.0000 11.3933 0.0000 30.0000 11.2500  14
-adaptive       18.0000  9.7376 0.0000 30.0000 15.0000  15
+                  mean    std     min     max  median  n
+group                                                   
+fixed          16.0000 4.1833 10.0000 20.0000 15.0000  5
+adaptive       28.0000 2.7386 25.0000 30.0000 30.0000  5
+phase adaptive 28.0000 2.7386 25.0000 30.0000 30.0000  5
 
   ── total_distance_score ──
-                  mean    std    min     max  median   n
+                  mean    std     min     max  median  n
 group                                                   
-fixed          12.2365 5.7699 0.0000 17.6676 14.8766  21
-phase adaptive 12.1442 5.2831 2.7960 19.6247 12.4961  14
-adaptive       10.9850 5.5410 0.0000 18.7840 10.4705  15
+fixed          15.6175 1.0231 14.6540 17.0532 15.1911  5
+adaptive       15.9016 2.2127 13.4837 18.5797 15.8752  5
+phase adaptive 16.5525 1.8191 14.4423 17.9921 17.7097  5
 
   ── total_time_score ──
-                  mean    std    min     max  median   n
+                  mean    std     min     max  median  n
 group                                                   
-fixed           8.6194 3.7367 0.0000 12.9032  9.7527  21
-phase adaptive  9.6012 3.2248 2.7239 13.4585 10.0197  14
-adaptive       10.9503 2.3990 4.2110 13.8456 10.8046  15
+fixed          11.3249 0.2930 10.9685 11.6667 11.4542  5
+adaptive       13.8688 0.8609 12.8570 14.6657 14.0947  5
+phase adaptive 14.0430 0.6048 13.1793 14.5425 14.3547  5
 
   ── objective_total ──
-                  mean     std    min     max  median   n
-group                                                    
-fixed          28.6997 14.2593 2.7757 64.8343 27.8198  21
-phase adaptive 40.3274 19.0950 8.7798 67.5914 35.4653  14
-adaptive       43.7242 17.4998 6.7682 67.2819 41.2529  15
+                  mean    std     min     max  median  n
+group                                                   
+fixed          46.5597 4.4816 40.0079 51.7005 47.2602  5
+adaptive       62.8156 6.0388 56.1430 67.9520 65.8850  5
+phase adaptive 63.6128 3.6638 59.5576 67.3867 63.0304  5
 
 ========================================================================
   2. STATISTICAL TESTS  (Kruskal-Wallis + pairwise Mann-Whitney U, Bonferroni)
 ========================================================================
 
-  ── subjective_score_norm   KW H=36.303  p=0.0000 *** ──
-       group_1        group_2    p_mwu    p_adj sig
-         fixed phase adaptive 0.000003 0.000008 ***
-         fixed       adaptive 0.000005 0.000016 ***
-phase adaptive       adaptive 0.000133 0.000399 ***
+  ── subjective_score_norm   KW H=11.580  p=0.0031 ** ──
+ group_1        group_2    p_mwu    p_adj sig
+   fixed       adaptive 0.007937 0.023810   *
+   fixed phase adaptive 0.007937 0.023810   *
+adaptive phase adaptive 0.031746 0.095238  ns
 
-  ── objective_total_norm   KW H=22.004  p=0.0000 *** ──
-       group_1        group_2    p_mwu    p_adj sig
-         fixed phase adaptive 0.000293 0.000880 ***
-         fixed       adaptive 0.000035 0.000104 ***
-phase adaptive       adaptive 0.646605 1.000000  ns
+  ── objective_total_norm   KW H=9.380  p=0.0092 ** ──
+ group_1        group_2    p_mwu   p_adj sig
+   fixed       adaptive 0.007937 0.02381   *
+   fixed phase adaptive 0.007937 0.02381   *
+adaptive phase adaptive 1.000000 1.00000  ns
 
-  ── total_score_norm   KW H=30.847  p=0.0000 *** ──
-       group_1        group_2    p_mwu    p_adj sig
-         fixed phase adaptive 0.000004 0.000013 ***
-         fixed       adaptive 0.000006 0.000018 ***
-phase adaptive       adaptive 0.143527 0.430582  ns
+  ── total_score_norm   KW H=9.500  p=0.0087 ** ──
+ group_1        group_2    p_mwu   p_adj sig
+   fixed       adaptive 0.007937 0.02381   *
+   fixed phase adaptive 0.007937 0.02381   *
+adaptive phase adaptive 0.690476 1.00000  ns
 
-  ── physical_demand   KW H=32.865  p=0.0000 *** ──
-       group_1        group_2    p_mwu    p_adj sig
-         fixed phase adaptive 0.000003 0.000008 ***
-         fixed       adaptive 0.000005 0.000015 ***
-phase adaptive       adaptive 0.024422 0.073267  ns
+  ── physical_demand   KW H=12.106  p=0.0024 ** ──
+ group_1        group_2    p_mwu    p_adj sig
+   fixed       adaptive 0.011412 0.034236   *
+   fixed phase adaptive 0.011412 0.034236   *
+adaptive phase adaptive 0.020784 0.062353  ns
 
-  ── temporal_demand   KW H=32.701  p=0.0000 *** ──
-       group_1        group_2    p_mwu    p_adj sig
-         fixed phase adaptive 0.000003 0.000009 ***
-         fixed       adaptive 0.000005 0.000015 ***
-phase adaptive       adaptive 0.021670 0.065010  ns
+  ── temporal_demand   KW H=10.294  p=0.0058 ** ──
+ group_1        group_2    p_mwu    p_adj sig
+   fixed       adaptive 0.011159 0.033478   *
+   fixed phase adaptive 0.011159 0.033478   *
+adaptive phase adaptive 0.222222 0.666667  ns
 
-  ── controllability   KW H=5.989  p=0.0501 ns ──
-       group_1        group_2    p_mwu    p_adj sig
-         fixed phase adaptive 0.039394 0.118183  ns
-         fixed       adaptive 0.834523 1.000000  ns
-phase adaptive       adaptive 0.027353 0.082058  ns
+  ── controllability   KW H=9.548  p=0.0084 ** ──
+ group_1        group_2    p_mwu    p_adj sig
+   fixed       adaptive 0.011159 0.033478   *
+   fixed phase adaptive 0.010909 0.032728   *
+adaptive phase adaptive 0.915530 1.000000  ns
 
-  ── performance   KW H=32.412  p=0.0000 *** ──
-       group_1        group_2    p_mwu    p_adj sig
-         fixed phase adaptive 0.000003 0.000010 ***
-         fixed       adaptive 0.000005 0.000016 ***
-phase adaptive       adaptive 0.027372 0.082115  ns
+  ── performance   KW H=12.635  p=0.0018 ** ──
+ group_1        group_2    p_mwu    p_adj sig
+   fixed       adaptive 0.010662 0.031987   *
+   fixed phase adaptive 0.011159 0.033478   *
+adaptive phase adaptive 0.011667 0.035002   *
 
-  ── mental_demand   KW H=31.746  p=0.0000 *** ──
-       group_1        group_2    p_mwu    p_adj sig
-         fixed phase adaptive 0.000006 0.000018 ***
-         fixed       adaptive 0.000005 0.000015 ***
-phase adaptive       adaptive 0.019307 0.057922  ns
+  ── mental_demand   KW H=12.590  p=0.0018 ** ──
+ group_1        group_2    p_mwu    p_adj sig
+   fixed       adaptive 0.011412 0.034236   *
+   fixed phase adaptive 0.011667 0.035002   *
+adaptive phase adaptive 0.011412 0.034236   *
 
-  ── effort   KW H=32.584  p=0.0000 *** ──
-       group_1        group_2    p_mwu    p_adj sig
-         fixed phase adaptive 0.000003 0.000010 ***
-         fixed       adaptive 0.000005 0.000015 ***
-phase adaptive       adaptive 0.021573 0.064719  ns
+  ── effort   KW H=11.416  p=0.0033 ** ──
+ group_1        group_2    p_mwu    p_adj sig
+   fixed       adaptive 0.011925 0.035776   *
+   fixed phase adaptive 0.011925 0.035776   *
+adaptive phase adaptive 0.046533 0.139599  ns
 
-  ── frustration   KW H=31.979  p=0.0000 *** ──
-       group_1        group_2    p_mwu    p_adj sig
-         fixed phase adaptive 0.000004 0.000013 ***
-         fixed       adaptive 0.000005 0.000015 ***
-phase adaptive       adaptive 0.026802 0.080406  ns
+  ── frustration   KW H=12.545  p=0.0019 ** ──
+ group_1        group_2    p_mwu    p_adj sig
+   fixed       adaptive 0.007937 0.023810   *
+   fixed phase adaptive 0.011667 0.035002   *
+adaptive phase adaptive 0.011667 0.035002   *
 
 ========================================================================
   3. GROUP RANKING (by mean normalized total_score, descending)
 ========================================================================
                 subj_norm  obj_norm  total_norm
 group                                          
-phase adaptive    90.2639   72.1592     81.2885
-adaptive          69.8872   77.0202     73.8716
-fixed             14.1566   30.7193     18.6503
+phase adaptive    90.2715   84.4720     88.2381
+adaptive          82.1157   81.6190     81.9010
+fixed              5.3223   23.4463      9.1911

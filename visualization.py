@@ -1294,5 +1294,11 @@ if __name__ == '__main__':
 	# 	print("\nFailed to generate visualization")
 	# 	sys.exit(1)
 	#visualize_output(data_dir='data/33_data_03-20')
-	visualize_demo_state()  # 可视化最新一条演示的运动学状态
+	# visualize_demo_state(data_dir='data/114_data_04-05')  # 可视化最新一条演示的运动学状态
+	# visualize_data(data_dir='data/114_data_04-05')
+	visualize_demo_state()
 	visualize_data()
+	# for i in range(76,81):
+	# 	visualize_data(data_dir=f'data/{i}_data_04-03')
+	# 	visualize_demo_state(data_dir=f'data/{i}_data_04-03')
+	# 	print(f'data/{i}_data_04-05')

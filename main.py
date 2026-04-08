@@ -1464,31 +1464,31 @@ class DataCollector:
 			prob_coarse = np.sum(_probs[coarse_classes])
 			if len(adaptive_scale_list) ==0:
 				adaptive_scale_list[0]= [np.clip(adaptive_L, 0.1, 25), np.clip(adaptive_R, 0.1, 25)]
-				scale_left = prob_coarse*np.clip(adaptive_L, 0.1, 25) + prob_fine * config.fixed_scale
-				scale_right = prob_coarse*np.clip(adaptive_R, 0.1, 25) + prob_fine * config.fixed_scale
+				scale_left = prob_coarse*np.clip(adaptive_L, 0.1, 25) + prob_fine * self.params['C_base']
+				scale_right = prob_coarse*np.clip(adaptive_R, 0.1, 25) + prob_fine * self.params['C_base']
 			elif len(adaptive_scale_list) == 1:
 				adaptive_scale_list[1]= [min(np.clip(adaptive_L, 0.1, 25)-adaptive_scale_list[0][0],-0.8), min(np.clip(adaptive_R, 0.1, 25)-adaptive_scale_list[0][1],-0.8)]
 				adaptive_scale_list[0]= [np.clip(adaptive_L, 0.1, 25), np.clip(adaptive_R, 0.1, 25)]
-				scale_left = prob_coarse*np.clip(adaptive_L, 0.1, 25) + prob_fine * config.fixed_scale
-				scale_right = prob_coarse*np.clip(adaptive_R, 0.1, 25) + prob_fine * config.fixed_scale
+				scale_left = prob_coarse*np.clip(adaptive_L, 0.1, 25) + prob_fine * self.params['C_base']
+				scale_right = prob_coarse*np.clip(adaptive_R, 0.1, 25) + prob_fine * self.params['C_base']
 				
 			elif prob_fine > prob_coarse:
 				if np.clip(adaptive_L, 0.1, 25) <= adaptive_scale_list[0][0]:
-					scale_left = max(np.clip(adaptive_L, 0.1, 25),config.fixed_scale)
+					scale_left = max(np.clip(adaptive_L, 0.1, 25),self.params['C_base'])
 				else:
-					scale_left = max(adaptive_scale_list[0][0]+adaptive_scale_list[1][0], config.fixed_scale)
+					scale_left = max(adaptive_scale_list[0][0]+adaptive_scale_list[1][0], self.params['C_base'])
 
 				if np.clip(adaptive_R, 0.1, 25) <= adaptive_scale_list[0][1]:
-					scale_right = max(np.clip(adaptive_R, 0.1, 25),config.fixed_scale)
+					scale_right = max(np.clip(adaptive_R, 0.1, 25),self.params['C_base'])
 				else:
-					scale_right = max(adaptive_scale_list[0][1]+adaptive_scale_list[1][1], config.fixed_scale)
+					scale_right = max(adaptive_scale_list[0][1]+adaptive_scale_list[1][1], self.params['C_base'])
 
 				adaptive_scale_list[1] = [min(scale_left-adaptive_scale_list[0][0],-0.8), min(scale_right-adaptive_scale_list[0][1],-0.8)]
 				adaptive_scale_list[0] = [scale_left, scale_right]
 
 			else:
-				scale_left = prob_coarse*np.clip(adaptive_L, 0.1, 25) + prob_fine * config.fixed_scale
-				scale_right = prob_coarse*np.clip(adaptive_R, 0.1, 25) + prob_fine * config.fixed_scale
+				scale_left = prob_coarse*np.clip(adaptive_L, 0.1, 25) + prob_fine * self.params['C_base']
+				scale_right = prob_coarse*np.clip(adaptive_R, 0.1, 25) + prob_fine * self.params['C_base']
 
 				adaptive_scale_list[1] = [min(scale_left-adaptive_scale_list[0][0],-0.8), min(scale_right-adaptive_scale_list[0][1],-0.8)]
 				adaptive_scale_list[0] = [scale_left, scale_right]
@@ -1496,8 +1496,8 @@ class DataCollector:
 
 		else:
 			prob_fine, prob_coarse = 0.0, 1.0   # 热身期尚无预测，默认按粗大操作处理0
-			scale_left = prob_coarse*np.clip(adaptive_L, 0.1, 25) + prob_fine * config.fixed_scale
-			scale_right = prob_coarse*np.clip(adaptive_R, 0.1, 25) + prob_fine * config.fixed_scale
+			scale_left = prob_coarse*np.clip(adaptive_L, 0.1, 25) + prob_fine * self.params['C_base']
+			scale_right = prob_coarse*np.clip(adaptive_R, 0.1, 25) + prob_fine * self.params['C_base']
 
 		
 		

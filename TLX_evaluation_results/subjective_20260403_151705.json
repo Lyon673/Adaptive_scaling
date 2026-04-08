@@ -1,0 +1,467 @@
+[
+    {
+        "timestamp": "2026-04-03T15:20:20",
+        "participant": "ljs",
+        "note": "fixed",
+        "ratings": {
+            "physical_demand": 8.9,
+            "temporal_demand": 9.0,
+            "controllability": 8.7,
+            "performance": 8.9,
+            "mental_demand": 9.3,
+            "effort": 8.8,
+            "frustration": 9.6
+        },
+        "subjective_score": 11.08,
+        "objective_metrics": {
+            "data_folder": "105_data_04-03",
+            "gracefulness": 2.896639705416404,
+            "smoothness": 5.992398716464827,
+            "clutch_times_L": 2.0,
+            "clutch_times_R": 2.0,
+            "total_distance": 0.2952295710032564,
+            "total_time": 25.43328547477722,
+            "gracefulness_score": 3.50560049097266,
+            "smoothness_score": 0.009501604418966636,
+            "clutch_times_score": 10.0,
+            "total_distance_score": 10.47704289967436,
+            "total_time_score": 9.82668581008911,
+            "objective_total": 33.8188308051551
+        },
+        "total_score": 27.4494
+    },
+    {
+        "timestamp": "2026-04-03T15:30:33",
+        "participant": "ljs",
+        "note": "fixed",
+        "ratings": {
+            "physical_demand": 8.9,
+            "temporal_demand": 9.0,
+            "controllability": 9.0,
+            "performance": 8.9,
+            "mental_demand": 8.7,
+            "effort": 8.9,
+            "frustration": 8.6
+        },
+        "subjective_score": 10.73,
+        "objective_metrics": {
+            "data_folder": "106_data_04-03",
+            "gracefulness": 3.129694586099835,
+            "smoothness": 5.626650372303336,
+            "clutch_times_L": 2.0,
+            "clutch_times_R": 3.0,
+            "total_distance": 0.24270367280680077,
+            "total_time": 20.087522506713867,
+            "gracefulness_score": 3.1171756898336085,
+            "smoothness_score": 0.4666870346208296,
+            "clutch_times_score": 5.0,
+            "total_distance_score": 15.729632719319923,
+            "total_time_score": 11.964990997314453,
+            "objective_total": 36.278486441088816
+        },
+        "total_score": 26.0042
+    },
+    {
+        "timestamp": "2026-04-03T15:23:04",
+        "participant": "ljs",
+        "note": "fixed",
+        "ratings": {
+            "physical_demand": 8.7,
+            "temporal_demand": 8.6,
+            "controllability": 8.5,
+            "performance": 8.7,
+            "mental_demand": 8.9,
+            "effort": 8.6,
+            "frustration": 9.7
+        },
+        "subjective_score": 13.32,
+        "objective_metrics": {
+            "data_folder": "107_data_04-03",
+            "gracefulness": 2.982157769167654,
+            "smoothness": 5.599483358266099,
+            "clutch_times_L": 2.0,
+            "clutch_times_R": 1.0,
+            "total_distance": 0.2583114379315128,
+            "total_time": 19.056849718093872,
+            "gracefulness_score": 3.3630703847205767,
+            "smoothness_score": 0.5006458021673765,
+            "clutch_times_score": 15.0,
+            "total_distance_score": 14.168856206848723,
+            "total_time_score": 12.377260112762452,
+            "objective_total": 45.40983250649913
+        },
+        "total_score": 36.8649
+    },
+    {
+        "timestamp": "2026-04-03T15:24:23",
+        "participant": "ljs",
+        "note": "fixed",
+        "ratings": {
+            "physical_demand": 7.8,
+            "temporal_demand": 7.7,
+            "controllability": 6.9,
+            "performance": 8.1,
+            "mental_demand": 8.2,
+            "effort": 8.0,
+            "frustration": 9.7
+        },
+        "subjective_score": 23.01,
+        "objective_metrics": {
+            "data_folder": "108_data_04-03",
+            "gracefulness": 3.379513449589973,
+            "smoothness": 6.22895442330128,
+            "clutch_times_L": 4.0,
+            "clutch_times_R": 2.0,
+            "total_distance": 0.24051338084435533,
+            "total_time": 25.089767694473267,
+            "gracefulness_score": 2.700810917350045,
+            "smoothness_score": 0.0,
+            "clutch_times_score": 0.0,
+            "total_distance_score": 15.948661915564468,
+            "total_time_score": 9.964092922210693,
+            "objective_total": 28.613565755125205
+        },
+        "total_score": 25.8118
+    },
+    {
+        "timestamp": "2026-04-03T15:25:37",
+        "participant": "ljs",
+        "note": "fixed",
+        "ratings": {
+            "physical_demand": 9.1,
+            "temporal_demand": 9.2,
+            "controllability": 9.3,
+            "performance": 9.4,
+            "mental_demand": 9.0,
+            "effort": 9.0,
+            "frustration": 9.7
+        },
+        "subjective_score": 7.17,
+        "objective_metrics": {
+            "data_folder": "109_data_04-03",
+            "gracefulness": 3.53818384970269,
+            "smoothness": 6.9786485980636295,
+            "clutch_times_L": 2.0,
+            "clutch_times_R": 3.0,
+            "total_distance": 0.2642384894298126,
+            "total_time": 32.55014896392822,
+            "gracefulness_score": 2.4363602504955164,
+            "smoothness_score": 0.0,
+            "clutch_times_score": 5.0,
+            "total_distance_score": 13.576151057018741,
+            "total_time_score": 6.979940414428711,
+            "objective_total": 27.99245172194297
+        },
+        "total_score": 20.0812
+    },
+    {
+        "timestamp": "2026-04-05T12:20:24",
+        "participant": "ljs",
+        "note": "adaptive",
+        "ratings": {
+            "physical_demand": 2.4,
+            "temporal_demand": 2.5,
+            "controllability": 3.1,
+            "performance": 2.8,
+            "mental_demand": 2.3,
+            "effort": 2.5,
+            "frustration": 2.4
+        },
+        "subjective_score": 72.55,
+        "objective_metrics": {
+            "data_folder": "110_data_04-05",
+            "gracefulness": 3.219411855427769,
+            "smoothness": 5.725255155911577,
+            "clutch_times_L": 0,
+            "clutch_times_R": 0,
+            "total_distance": 0.2608133624800326,
+            "total_time": 20.721755266189575,
+            "gracefulness_score": 2.967646907620385,
+            "smoothness_score": 0.34343105511052907,
+            "clutch_times_score": 30,
+            "total_distance_score": 13.91866375199674,
+            "total_time_score": 11.71129789352417,
+            "objective_total": 58.94103960825182
+        },
+        "total_score": 73.941
+    },
+    {
+        "timestamp": "2026-04-05T12:22:10",
+        "participant": "ljs",
+        "note": "adaptive",
+        "ratings": {
+            "physical_demand": 2.4,
+            "temporal_demand": 2.1,
+            "controllability": 3.3,
+            "performance": 2.9,
+            "mental_demand": 2.4,
+            "effort": 2.5,
+            "frustration": 2.4
+        },
+        "subjective_score": 72.22,
+        "objective_metrics": {
+            "data_folder": "111_data_04-05",
+            "gracefulness": 3.296120560319821,
+            "smoothness": 5.945610374009961,
+            "clutch_times_L": 0,
+            "clutch_times_R": 1.0,
+            "total_distance": 0.28876996954062323,
+            "total_time": 24.83702564239502,
+            "gracefulness_score": 2.839799066133632,
+            "smoothness_score": 0.06798703248754867,
+            "clutch_times_score": 25.0,
+            "total_distance_score": 11.12300304593768,
+            "total_time_score": 10.06518974304199,
+            "objective_total": 49.09597888760085
+        },
+        "total_score": 68.158
+    },
+    {
+        "timestamp": "2026-04-05T12:23:22",
+        "participant": "ljs",
+        "note": "adaptive",
+        "ratings": {
+            "physical_demand": 2.1,
+            "temporal_demand": 1.9,
+            "controllability": 2.6,
+            "performance": 2.4,
+            "mental_demand": 2.4,
+            "effort": 2.5,
+            "frustration": 2.4
+        },
+        "subjective_score": 76.57,
+        "objective_metrics": {
+            "data_folder": "112_data_04-05",
+            "gracefulness": 3.1019974792144414,
+            "smoothness": 5.453953990358848,
+            "clutch_times_L": 0,
+            "clutch_times_R": 0.0,
+            "total_distance": 0.26750445314948607,
+            "total_time": 20.863140106201172,
+            "gracefulness_score": 3.163337534642598,
+            "smoothness_score": 0.6825575120514404,
+            "clutch_times_score": 30.0,
+            "total_distance_score": 13.249554685051395,
+            "total_time_score": 11.654743957519532,
+            "objective_total": 58.75019368926496
+        },
+        "total_score": 77.6601
+    },
+    {
+        "timestamp": "2026-04-05T12:24:21",
+        "participant": "ljs",
+        "note": "adaptive",
+        "ratings": {
+            "physical_demand": 2.0,
+            "temporal_demand": 1.4,
+            "controllability": 3.2,
+            "performance": 2.6,
+            "mental_demand": 2.3,
+            "effort": 2.5,
+            "frustration": 2.4
+        },
+        "subjective_score": 75.1,
+        "objective_metrics": {
+            "data_folder": "113_data_04-05",
+            "gracefulness": 3.0165165657260444,
+            "smoothness": 5.362898378086611,
+            "clutch_times_L": 0,
+            "clutch_times_R": 0,
+            "total_distance": 0.29521212865680985,
+            "total_time": 20.251487255096436,
+            "gracefulness_score": 3.3058057237899257,
+            "smoothness_score": 0.7963770273917359,
+            "clutch_times_score": 30.0,
+            "total_distance_score": 10.478787134319017,
+            "total_time_score": 11.899405097961427,
+            "objective_total": 56.480374983462106
+        },
+        "total_score": 73.2902
+    },
+    {
+        "timestamp": "2026-04-05T12:48:23",
+        "participant": "ljs",
+        "note": "adaptive",
+        "ratings": {
+            "physical_demand": 3.2,
+            "temporal_demand": 3.5,
+            "controllability": 2.7,
+            "performance": 3.5,
+            "mental_demand": 3.4,
+            "effort": 2.9,
+            "frustration": 3.3
+        },
+        "subjective_score": 68.14,
+        "objective_metrics": {
+            "data_folder": "114_data_04-05",
+            "gracefulness": 3.1538327764484078,
+            "smoothness": 5.801097824904174,
+            "clutch_times_L": 0,
+            "clutch_times_R": 0,
+            "total_distance": 0.3038633784245241,
+            "total_time": 22.96954607963562,
+            "gracefulness_score": 3.0769453725859868,
+            "smoothness_score": 0.24862771886978274,
+            "clutch_times_score": 30.0,
+            "total_distance_score": 9.613662157547592,
+            "total_time_score": 10.812181568145752,
+            "objective_total": 58.751416817149114
+        },
+        "total_score": 68.7514
+    },
+    {
+        "timestamp": "2026-04-05T13:38:29",
+        "participant": "ljs",
+        "note": "phase adaptive",
+        "ratings": {
+            "physical_demand": 1.4,
+            "temporal_demand": 1.1,
+            "controllability": 1.7,
+            "performance": 1.4,
+            "mental_demand": 1.3,
+            "effort": 1.6,
+            "frustration": 1.9
+        },
+        "subjective_score": 85.32,
+        "objective_metrics": {
+            "data_folder": "115_data_04-05",
+            "gracefulness": 3.0478429183607916,
+            "smoothness": 4.339305009238892,
+            "clutch_times_L": 0.0,
+            "clutch_times_R": 0.0,
+            "total_distance": 0.2351276157284956,
+            "total_time": 13.151665687561035,
+            "gracefulness_score": 3.2535951360653477,
+            "smoothness_score": 2.075868738451385,
+            "clutch_times_score": 30.0,
+            "total_distance_score": 16.48723842715044,
+            "total_time_score": 14.739333724975586,
+            "objective_total": 66.55603602664276
+        },
+        "total_score": 75.938
+    },
+    {
+        "timestamp": "2026-04-05T13:41:06",
+        "participant": "ljs",
+        "note": "phase adaptive",
+        "ratings": {
+            "physical_demand": 1.0,
+            "temporal_demand": 0.8,
+            "controllability": 1.2,
+            "performance": 1.0,
+            "mental_demand": 0.9,
+            "effort": 1.1,
+            "frustration": 1.0
+        },
+        "subjective_score": 89.7,
+        "objective_metrics": {
+            "data_folder": "116_data_04-05",
+            "gracefulness": 2.944914846220655,
+            "smoothness": 4.122056130417514,
+            "clutch_times_L": 0.0,
+            "clutch_times_R": 0.0,
+            "total_distance": 0.225449609020432,
+            "total_time": 12.31083607673645,
+            "gracefulness_score": 3.425141922965575,
+            "smoothness_score": 2.3474298369781077,
+            "clutch_times_score": 30.0,
+            "total_distance_score": 17.4550390979568,
+            "total_time_score": 15.075665569305421,
+            "objective_total": 68.3032764272059
+        },
+        "total_score": 79.0016
+    },
+    {
+        "timestamp": "2026-04-05T14:03:09",
+        "participant": "ljs",
+        "note": "phase adaptive",
+        "ratings": {
+            "physical_demand": 1.3,
+            "temporal_demand": 1.4,
+            "controllability": 1.4,
+            "performance": 1.6,
+            "mental_demand": 1.2,
+            "effort": 1.6,
+            "frustration": 1.3
+        },
+        "subjective_score": 85.59,
+        "objective_metrics": {
+            "data_folder": "117_data_04-05",
+            "gracefulness": 2.9141430370447097,
+            "smoothness": 4.0447329935528025,
+            "clutch_times_L": 0.0,
+            "clutch_times_R": 0.0,
+            "total_distance": 0.23190887185971681,
+            "total_time": 12.613195419311523,
+            "gracefulness_score": 3.476428271592151,
+            "smoothness_score": 2.444083758058997,
+            "clutch_times_score": 30.0,
+            "total_distance_score": 16.80911281402832,
+            "total_time_score": 14.954721832275391,
+            "objective_total": 67.68434667595487
+        },
+        "total_score": 76.6372
+    },
+    {
+        "timestamp": "2026-04-05T13:45:44",
+        "participant": "ljs",
+        "note": "phase adaptive",
+        "ratings": {
+            "physical_demand": 0.9,
+            "temporal_demand": 0.9,
+            "controllability": 1.3,
+            "performance": 1.2,
+            "mental_demand": 0.9,
+            "effort": 1.1,
+            "frustration": 1.0
+        },
+        "subjective_score": 88.8,
+        "objective_metrics": {
+            "data_folder": "118_data_04-05",
+            "gracefulness": 2.989427305219488,
+            "smoothness": 4.244326904568047,
+            "clutch_times_L": 0.0,
+            "clutch_times_R": 0.0,
+            "total_distance": 0.22848821055627655,
+            "total_time": 11.740070819854736,
+            "gracefulness_score": 3.350954491300853,
+            "smoothness_score": 2.194591369289941,
+            "clutch_times_score": 30.0,
+            "total_distance_score": 17.151178944372347,
+            "total_time_score": 15.303971672058106,
+            "objective_total": 68.00069647702125
+        },
+        "total_score": 78.4003
+    },
+    {
+        "timestamp": "2026-04-05T13:46:44",
+        "participant": "ljs",
+        "note": "phase adaptive",
+        "ratings": {
+            "physical_demand": 0.4,
+            "temporal_demand": 0.4,
+            "controllability": 0.4,
+            "performance": 0.3,
+            "mental_demand": 0.4,
+            "effort": 0.7,
+            "frustration": 0.6
+        },
+        "subjective_score": 96.13,
+        "objective_metrics": {
+            "data_folder": "119_data_04-05",
+            "gracefulness": 3.0378540606788005,
+            "smoothness": 4.036909638849384,
+            "clutch_times_L": 0.0,
+            "clutch_times_R": 0.0,
+            "total_distance": 0.20680687545119264,
+            "total_time": 11.16340446472168,
+            "gracefulness_score": 3.270243232201999,
+            "smoothness_score": 2.4538629514382704,
+            "clutch_times_score": 30.0,
+            "total_distance_score": 19.319312454880738,
+            "total_time_score": 15.534638214111327,
+            "objective_total": 70.57805685263234
+        },
+        "total_score": 83.354
+    }
+]

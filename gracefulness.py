@@ -1,57 +1,107 @@
 import numpy as np
 import os
 
+# def calculate_gracefulness(data):
+#     # 计算λ(t)，即位置向量
+#     positions = data[:, :3]
+    
+#     # 计算速度向量 (一阶导数)
+#     velocities = np.gradient(positions, axis=0)
+    
+#     # 计算加速度向量 (二阶导数)
+#     accelerations = np.gradient(velocities, axis=0)
+    
+#     # 计算曲率 κ
+#     # κ = ||λ'(t) × λ''(t)|| / ||λ'(t)||^3
+#     cross_products = np.cross(velocities, accelerations)
+#     numerator = np.linalg.norm(cross_products, axis=1)
+#     denominator = np.power(np.linalg.norm(velocities, axis=1), 3)
+    
+#     # 避免除以0
+#     denominator = np.where(denominator == 0, np.inf, denominator)
+#     curvature = numerator / denominator
+    
+#     # 计算G值 (使用log10的中位数)
+#     # G = np.median(np.log10(curvature + 1e-10))  # 添加小量避免log(0)
+#     # 四分之一分数
+#     G = np.percentile(np.log10(curvature + 1e-10), 75)
+    
+#     return G
+
+# def calculate_smoothness(data):
+#     # 计算位置向量的三阶导数
+#     positions = data[:, :3]
+#     first_deriv = np.gradient(positions, axis=0)
+#     second_deriv = np.gradient(first_deriv, axis=0)
+#     third_deriv = np.gradient(second_deriv, axis=0)
+    
+#     # 计算三阶导数的平方范数
+#     jerk_squared = np.sum(np.square(third_deriv), axis=1)
+    
+#     # 计算时间间隔
+#     time = data[:, 3]
+#     dt = time[1] - time[0]
+    
+#     # 计算积分（使用simpson's rule积分法则）
+#     integral = np.trapz(jerk_squared, dx=dt)
+    
+#     # 根据公式中的参数计算
+#     duration = time[-1] - time[0]
+#     peak_velocity = np.max(np.linalg.norm(first_deriv, axis=1))
+    
+#     # 计算 φ
+#     phi = (np.power(duration, 5) / np.square(peak_velocity)) * integral
+    
+#     # 计算S值
+#     S = np.median(np.log10(phi + 1e-10))  # 添加小量避免log(0)
+    
+#     return S
+
 def calculate_gracefulness(data):
-    # 计算λ(t)，即位置向量
     positions = data[:, :3]
+    time = data[:, 3]
     
-    # 计算速度向量 (一阶导数)
-    velocities = np.gradient(positions, axis=0)
+    # 修正：将真实时间数组传入梯度计算，求取真实的物理导数
+    velocities = np.gradient(positions, time, axis=0)
+    accelerations = np.gradient(velocities, time, axis=0)
     
-    # 计算加速度向量 (二阶导数)
-    accelerations = np.gradient(velocities, axis=0)
-    
-    # 计算曲率 κ
-    # κ = ||λ'(t) × λ''(t)|| / ||λ'(t)||^3
     cross_products = np.cross(velocities, accelerations)
     numerator = np.linalg.norm(cross_products, axis=1)
     denominator = np.power(np.linalg.norm(velocities, axis=1), 3)
     
-    # 避免除以0
     denominator = np.where(denominator == 0, np.inf, denominator)
     curvature = numerator / denominator
     
-    # 计算G值 (使用log10的中位数)
-    G = np.median(np.log10(curvature + 1e-10))  # 添加小量避免log(0)
+    # 修正：严格遵从文献公式 (4) 使用中位数
+    G = np.median(np.log10(curvature + 1e-10))
     
     return G
 
 def calculate_smoothness(data):
-    # 计算位置向量的三阶导数
     positions = data[:, :3]
-    first_deriv = np.gradient(positions, axis=0)
-    second_deriv = np.gradient(first_deriv, axis=0)
-    third_deriv = np.gradient(second_deriv, axis=0)
+    time = data[:, 3]
     
-    # 计算三阶导数的平方范数
+    # 修正：计算真实的物理高阶导数
+    first_deriv = np.gradient(positions, time, axis=0)
+    second_deriv = np.gradient(first_deriv, time, axis=0)
+    third_deriv = np.gradient(second_deriv, time, axis=0)
+    
     jerk_squared = np.sum(np.square(third_deriv), axis=1)
     
-    # 计算时间间隔
-    time = data[:, 3]
-    dt = time[1] - time[0]
+    # 修正：使用时间序列作为 x 轴进行积分，这比假设固定 dt 的 dx=dt 更鲁棒
+    integral = np.trapz(jerk_squared, x=time)
     
-    # 计算积分（使用simpson's rule积分法则）
-    integral = np.trapz(jerk_squared, dx=dt)
-    
-    # 根据公式中的参数计算
     duration = time[-1] - time[0]
     peak_velocity = np.max(np.linalg.norm(first_deriv, axis=1))
     
-    # 计算 φ
+    # 避免静止状态除以0导致 NaN
+    if peak_velocity < 1e-10:
+        return np.median(np.log10(1e-10))
+        
     phi = (np.power(duration, 5) / np.square(peak_velocity)) * integral
     
-    # 计算S值
-    S = np.median(np.log10(phi + 1e-10))  # 添加小量避免log(0)
+    # 严格遵从文献公式 (6) 使用中位数
+    S = np.median(np.log10(phi + 1e-10))
     
     return S
 

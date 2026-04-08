@@ -1,0 +1,34 @@
+Kinematic & Spatial Metrics Comparison [Phase_5]
+=================================================================
+
+指标: Smoothness (S) (Per Segment)
+- 统计单位: 片段(Segment) (N_global=16, N_phased=11)
+- Global (Mean±SD): 4.4260 ± 1.3246
+- Phased (Mean±SD): 3.9474 ± 2.0148
+- Method: T-Test (Parametric) | p-value: 4.8039e-01 | Cohen's d: -0.2806
+--------------------------------------------------
+指标: Spectral Arc Length (SPARC) (Per Segment)
+- 统计单位: 片段(Segment) (N_global=16, N_phased=11)
+- Global (Mean±SD): -4.5130 ± 1.0618
+- Phased (Mean±SD): -4.6504 ± 1.7399
+- Method: Mann-Whitney U | p-value: 5.0530e-01 | Cohen's d: -0.0958
+--------------------------------------------------
+指标: Log10 95% Covariance Ellipsoid Vol (Per Segment)
+- 统计单位: 片段(Segment) (N_global=16, N_phased=11)
+- 离群点剔除 (1.5*IQR): Global_Adaptive: 0个, Phased_Adaptive: 0个
+- Global (Mean±SD): -7.2363 ± 0.9272
+- Phased (Mean±SD): -7.2763 ± 0.7993
+- Method: T-Test (Parametric) | p-value: 9.1190e-01 | Cohen's d: -0.0438
+--------------------------------------------------
+指标: Kinematic Sample Entropy (Per Segment)
+- 统计单位: 片段(Segment) (N_global=11, N_phased=7)
+- Global (Mean±SD): 0.8585 ± 0.4371
+- Phased (Mean±SD): 0.4971 ± 0.1286
+- Method: T-Test (Parametric) | p-value: 6.1850e-02 | Cohen's d: -0.9708
+--------------------------------------------------
+指标: Total Path Length (Per Sequence)
+- 统计单位: 序列(Demo) (N_global=16, N_phased=11)
+- Global (Mean±SD): 0.0185 ± 0.0131
+- Phased (Mean±SD): 0.0173 ± 0.0140
+- Method: Mann-Whitney U | p-value: 7.8608e-01 | Cohen's d: -0.0838
+--------------------------------------------------

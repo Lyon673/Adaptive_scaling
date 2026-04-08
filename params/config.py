@@ -4,8 +4,6 @@ resolution_y = 540
 
 #open_phase_segmentation = True
 
-
-
 # —— Adaptive formula settings ──────────────────────────────────────────────────
 
 fixed_scale = 10
@@ -41,8 +39,6 @@ ipa_window_length = 63
 ipa_polyorder = 3
 velocity_window_length = 9
 velocity_polyorder = 5
-
-
 
 # —— Comparison Experiments settings ──────────────────────────────────────────────────
 
@@ -87,17 +83,15 @@ scoreParams_bound = {
     'gracefulness_min': 2,
 	'smoothness_max': 6,
     'smoothness_min': 2,
-    'clutch_times_max': 4,
+    'clutch_times_max': 6,
     'total_distance_max': 0.4,
     'total_time_max': 50
 }
 
 
-
-
 # —— Screen recording settings ──────────────────────────────────────────────────
 
-enable_screen_recording = False # Set to False to disable screen recording
+enable_screen_recording = True # Set to False to disable screen recording
 
 screen_recording_params = {
     'x': 2560,                                   # Left-top corner X coordinate
@@ -108,13 +102,6 @@ screen_recording_params = {
     'output_scale': 0.375,                         # Output scale (0.5 → 1280x720)
     'output_dir': '/home/lambda/Videos/train',   # Video output directory
 }
-
-
-
-
-
-
-
 
 
 
@@ -151,6 +138,5 @@ gaze_filter_params = {
     'temporal_exponent_decay': 0.8,
 
 }
-
 
 
