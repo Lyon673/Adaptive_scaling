@@ -57,6 +57,6 @@ def visualize_crf_transitions(model_path):
 if __name__ == "__main__":
     # 根据你代码中的保存逻辑，构建正确的路径
     dir_path = os.path.dirname(os.path.abspath(__file__))
-    model_save_path = os.path.join(dir_path, "LSTM_model", "lstmcrf_sequence_model.pth")
+    model_save_path = os.path.join(dir_path, "LSTM_model", "attn_lstmcrf_sequence_model.pth")
     
     visualize_crf_transitions(model_save_path)

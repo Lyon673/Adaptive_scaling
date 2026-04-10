@@ -16,23 +16,31 @@ from gracefulness import calculate_smoothness  # 仅保留 smoothness
 # ==========================================
 # 1. 实验组划分与被试者配置
 # ==========================================
-# GLOBAL_ADAPTIVE_DEMOS = list(range(0,5))+list(range(10,15))+[22,23,25]+[31,32,33,34,35]
+# GLOBAL_ADAPTIVE_DEMOS = list(range(0,5))+[10,12,13,14]+[22,23,25]+[31,32,33,35]
 # PHASED_ADAPTIVE_DEMOS = list(range(5,10))+[15,20] +[26,27,29]+[36,37,38,40]
-GLOBAL_ADAPTIVE_DEMOS = list(range(0,5))+[10,12,13,14]+[22,23,25]+[31,32,33,35]
-PHASED_ADAPTIVE_DEMOS = list(range(5,10))+[15,20] +[26,27,29]+[36,37,38,40]
+GLOBAL_ADAPTIVE_DEMOS = list(range(0,5))+[10,12,13,14]+[22,23,25]+[31,32,33,35]+[41,42,43]+[47,48,49]+[53,54,55]+[59,60,61]
+PHASED_ADAPTIVE_DEMOS = list(range(5,10))+[15,20] +[26,27,29]+[36,37,38,40]+[44,45,46]+[50,51,52]+[56,57,58]+[62,63,64]
 
 PARTICIPANT_RANGES = {
     "P1": range(0, 10),
     "P2": range(10, 21),
     "P3": range(21, 31),
-    "P4": range(31, 41)
+    "P4": range(31, 41),
+    "P5": range(41, 47),
+    "P6": range(47, 53),
+    "P7": range(53, 59),
+    "P8": range(59, 65)
 }
 
 BASE_PALETTES = {
     "P1": "Blues",
     "P2": "Greens",
     "P3": "Reds",
-    "P4": "Purples"
+    "P4": "Purples",
+    "P5": "Oranges",
+    "P6": "Greys",
+    "P7": "Blues",
+    "P8": "Greens"
 }
 
 # ==========================================

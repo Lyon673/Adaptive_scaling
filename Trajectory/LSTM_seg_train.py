@@ -307,6 +307,25 @@ class SequenceLabelingLSTM_CRF(nn.Module):
         self.fc = nn.Linear(hidden_size, num_classes)
         self.crf = CRF(num_classes, batch_first=True)
 
+        with torch.no_grad():
+            # 1. 先将所有转移分数初始化为一个极小的负数 (例如 -100)
+            # 这意味着：除非我们特批，否则任何阶段之间的乱跳（包括倒退和越级跳）都极难发生
+            self.crf.transitions.fill_(0) 
+            
+            for i in range(num_classes):
+                # 2. 赋予最高分数：允许保持在当前阶段 (i -> i)
+                # 手术视频中绝大多数帧都是停留在当前阶段的
+                self.crf.transitions[i, i] = 2.0
+                
+                # 3. 赋予次高分数：允许正常步进到下一个阶段 (i -> i+1)
+                if i < num_classes - 1:
+                    self.crf.transitions[i, i+1] = 2.0
+                    
+                # (可选) 4. 如果您的数据允许偶尔的跳步(如 0->2)，可以给个略微负的分数
+                # if i < num_classes - 2:
+                #     self.crf.transitions[i, i+2] = -5.0
+        # ==============================================================
+
     def forward(self, x, lengths):
         """
         标准的前向传播：只负责提取特征，返回发射分数(Emissions)。
@@ -620,7 +639,7 @@ def train_LSTM_CRF():
     
     optimizer = torch.optim.Adam([
         {'params': base_params, 'lr': LEARNING_RATE}, # 例如 0.001
-        {'params': crf_params, 'lr': LEARNING_RATE * 10.0} # 给 CRF 更大的学习率 0.01
+        {'params': crf_params, 'lr': LEARNING_RATE * 5.0} # 给 CRF 更大的学习率 0.01
     ])
 
     
@@ -666,12 +685,12 @@ def train_LSTM_CRF():
 
 if __name__ == "__main__":
     # --- 4. 训练循环 (Training Loop) ---
-    model = train_LSTM()
+    model = train_LSTM_CRF()
 
     # save model
     dir_path = os.path.dirname(__file__)
     os.makedirs(os.path.join(dir_path, "LSTM_model"), exist_ok=True)
-    model_save_path = os.path.join(dir_path, "LSTM_model", "lstm_sequence_model.pth")
+    model_save_path = os.path.join(dir_path, "LSTM_model", "lstmcrfBAD_sequence_model.pth")
     save_model(model, model_save_path)
 
 

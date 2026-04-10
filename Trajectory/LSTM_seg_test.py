@@ -289,13 +289,6 @@ def visualize_report(all_labels, all_preds,
 def load_model(filepath, device='cpu'):
     """
     从文件加载训练好的模型
-
-    参数:
-    filepath: 模型文件路径
-    device: 设备 ('cpu' 或 'cuda')
-
-    返回:
-    model: 加载的模型
     """
     checkpoint = torch.load(filepath, map_location=device)
     model_config = checkpoint['model_config']
@@ -322,7 +315,6 @@ def load_model(filepath, device='cpu'):
     model.eval()
 
     print(f"model loaded from {filepath}")
-    print(f"model configuration: {model_config}")
     if 'training_info' in checkpoint:
         print(f"training information: {checkpoint['training_info']}")
 
@@ -336,8 +328,6 @@ class TestDataset(Dataset):
 
         demonstrations_state = load_test_state(without_quat=without_quat, resample=resample, demo_id_list=demo_id_list)
         demonstrations_label = load_test_label(resample=resample, demo_id_list=demo_id_list)
-        # demonstrations_state = load_specific_test_state(shuffle=False, without_quat=without_quat, resample=resample, demo_id_list=[76,78,79,118,119,120,121])
-        # demonstrations_label = load_specific_test_label(demo_id_list=[76,78,79,118,119,120,121])
 
         self.samples = []
         for state_seq, label_seq in zip(demonstrations_state, demonstrations_label):
@@ -356,7 +346,7 @@ class TestDataset(Dataset):
 
 # --- 评估函数 ---
 def evaluate_model(model, dataloader, device, save_path=None):
-    """在测试集上评估模型并生成可视化报告。"""
+    """在测试集上评估无CRF的标准模型并生成可视化报告。"""
     model.eval()
     all_preds, all_labels = [], []
 
@@ -366,6 +356,8 @@ def evaluate_model(model, dataloader, device, save_path=None):
             labels    = labels.to(device)
             outputs   = model(sequences, lengths)
             preds     = torch.argmax(outputs, dim=2)
+            
+            # 【重要过滤】：防止-1污染指标计算
             mask               = labels != -1
             preds_unpadded     = torch.masked_select(preds, mask)
             labels_unpadded    = torch.masked_select(labels, mask)
@@ -401,12 +393,19 @@ def evaluate_model_CRF(model, dataloader, device, save_path=None):
         for sequences, labels, lengths in dataloader:
             sequences       = sequences.to(device)
             labels          = labels.to(device)
+            
+            # 调用 decode (Viterbi) 寻找最佳路径
             predicted_paths = model.decode(sequences, lengths)
+            
             for i in range(len(lengths)):
                 true_len   = lengths[i]
-                true_labels = labels[i, :true_len].cpu().numpy()
-                all_labels.extend(true_labels)
-                all_preds.extend(predicted_paths[i])
+                true_labels_seq = labels[i, :true_len].cpu().numpy()
+                pred_labels_seq = np.array(predicted_paths[i])
+                
+                # 【重要修复】：清洗序列内部可能存在的非法标签（例如开头的 -1）
+                valid_mask = (true_labels_seq != -1)
+                all_labels.extend(true_labels_seq[valid_mask])
+                all_preds.extend(pred_labels_seq[valid_mask])
 
     if not all_labels:
         print("could not find any valid labels for evaluation")
@@ -439,28 +438,12 @@ def evaluate_segmental_metrics(
     """
     Compute advanced segmental metrics for every sequence in test_dataset
     and report per-sequence results plus dataset-level aggregates.
-
-    Metrics (all computed per sequence, then averaged):
-      • Boundary F1   – transition detection with tolerance window τ
-      • Edit Score    – workflow correctness via Levenshtein distance
-      • F1@k          – IoU-thresholded segment-level F1 (k = 0.10 / 0.25 / 0.50)
-      • Over-seg. Err – relative excess of predicted segments vs ground truth
-
-    Parameters
-    ----------
-    model        : trained LSTM or LSTM-CRF model
-    test_dataset : dataset whose __getitem__ returns (state_tensor, label_tensor)
-    device       : torch device
-    tau          : boundary tolerance in frames (default 15)
-    seg_thresholds : IoU thresholds for F1@k
-    save_path    : if given, save a summary table PNG to this path
     """
     is_crf = hasattr(model, 'crf')
     evaluator = SegmentationEvaluator()
     model.eval()
 
-    # Containers – one entry per sequence
-    seq_results = []           # list of EvaluationResult
+    seq_results = []
     demo_ids    = (test_dataset.demo_ids
                    if hasattr(test_dataset, 'demo_ids')
                    else list(range(len(test_dataset))))
@@ -485,7 +468,16 @@ def evaluate_segmental_metrics(
             true_np = true_np[:min_len]
             pred_np = pred_np[:min_len]
 
-            # skip sequences with no valid labels at all
+            # 【重要修复】：切除序列首尾可能的无效 padding (-1) 以保证分段计算的连续性
+            valid_idx = np.where(true_np != -1)[0]
+            if len(valid_idx) == 0:
+                continue
+            start_idx, end_idx = valid_idx[0], valid_idx[-1]
+            
+            true_np = true_np[start_idx:end_idx+1]
+            pred_np = pred_np[start_idx:end_idx+1]
+
+            # double check
             if np.all(true_np == -1):
                 continue
 
@@ -551,7 +543,6 @@ def evaluate_segmental_metrics(
           f"{np.std(oses):>7.3f}")
     print(f"{'═' * len(header)}\n")
 
-    # ── optional PNG summary table ────────────────────────────────────────────
     if save_path:
         _save_segmental_table(seq_results, k_list, save_path)
         print(f"Segmental metrics table saved to {save_path}")
@@ -630,23 +621,24 @@ def _save_segmental_table(
     real-time simulation
 """
 
-def get_prediction_for_current_step(model, history_data, device):
+def get_prediction_for_current_step(model, history_data, device, is_crf=False):
     """
     根据历史数据获取当前时刻的预测标签（实时推理核心逻辑）。
-
-    参数:
-    model (nn.Module): 训练好的模型。
-    history_data (torch.Tensor): 从开始到当前时刻的完整数据，形状 (current_seq_len, input_size)。
-    device: 'cuda' or 'cpu'
-
-    返回:
-    int: 预测的类别索引。
+    
+    【重要修复】：如果使用了 CRF，必须调用 decode 使用 Viterbi 解码获取正确时序路径，
+    否则单独对发射分数 argmax 会导致状态乱跳。
     """
     seq_len      = len(history_data)
     input_tensor = history_data.unsqueeze(0).to(device)
     lengths      = [seq_len]
-    all_logits   = model(input_tensor, lengths)
-    current_label = torch.argmax(all_logits[0, -1, :]).item()
+    
+    if is_crf:
+        paths = model.decode(input_tensor, lengths)
+        current_label = paths[0][-1]  # 获取最后一步的解码结果
+    else:
+        all_logits   = model(input_tensor, lengths)
+        current_label = torch.argmax(all_logits[0, -1, :]).item()
+        
     return current_label
 
 
@@ -655,6 +647,8 @@ def evaluate_model_real_time_simulation(model, test_dataset, device, save_path=N
     print("\n--- start real-time simulation ---")
     model.eval()
     all_preds, all_labels = [], []
+    
+    is_crf = hasattr(model, 'crf')
 
     with torch.no_grad():
         for state_seq, label_seq in tqdm(test_dataset, desc="real-time simulation"):
@@ -667,7 +661,10 @@ def evaluate_model_real_time_simulation(model, test_dataset, device, save_path=N
                     all_labels.append(true_label)
                     continue
                 history_data    = state_seq[:t + 1]
-                predicted_label = get_prediction_for_current_step(model, history_data, device)
+                
+                # 【重要修复】：传入 is_crf 标志以确保正确的解码方式
+                predicted_label = get_prediction_for_current_step(model, history_data, device, is_crf=is_crf)
+                
                 all_preds.append(predicted_label)
                 all_labels.append(true_label)
 
@@ -705,14 +702,28 @@ if __name__ == "__main__":
     print(f"Using device: {device}")
 
     dir_path       = os.path.dirname(__file__)
-    model_save_path = os.path.join(dir_path, "LSTM_model", "lstmcrf_sequence_model.pth")
-    model           = load_model(model_save_path, device)
+    
+    # 【重要修复】：修正了保存的模型文件名称，对应我们在 train 中的正确命名
+    model_save_path = os.path.join(dir_path, "LSTM_model", "lstm_sequence_model.pth")
+    
+    if not os.path.exists(model_save_path):
+        print(f"找不到模型文件: {model_save_path}")
+    else:
+        model = load_model(model_save_path, device)
 
-    evaluate_model(model, test_loader, device)
-    evaluate_segmental_metrics(
-        model, test_dataset, device,
-        tau=15,
-        seg_thresholds=(0.10, 0.25, 0.50),
-        save_path=os.path.join(dir_path, 'eval_results', 'segmental_metrics.png'),
-    )
-    # evaluate_model_real_time_simulation(model, test_dataset, device)
+        # 1. 常准评估 (使用 Viterbi 解码)
+        if hasattr(model, 'crf'):
+            evaluate_model_CRF(model, test_loader, device)
+        else:
+            evaluate_model(model, test_loader, device)
+            
+        # 2. 分段级别的高级指标评估
+        evaluate_segmental_metrics(
+            model, test_dataset, device,
+            tau=15,
+            seg_thresholds=(0.10, 0.25, 0.50),
+            save_path=os.path.join(dir_path, 'eval_results', 'segmental_metrics_lstm.png'),
+        )
+        
+        # 3. 实时推理模拟测试 (如果需要可以取消注释)
+        # evaluate_model_real_time_simulation(model, test_dataset, device)

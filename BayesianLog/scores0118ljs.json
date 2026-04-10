@@ -222,7 +222,7 @@
     },
     {
         "AFflag": 0.0,
-        "subscore": 88.84626865671642,
+        "subscore": 85.84626865671642,
         "gracefulness": 3.271280674450392,
         "smoothness": 3.7083432513094516,
         "Lclutch_times": 0.0,
@@ -234,7 +234,7 @@
         "clutch_times_score": 30.0,
         "total_distance_score": 18.705790592860076,
         "total_time_score": 13.753839778900145,
-        "total_score": 81.39871932601753,
+        "total_score": 78.39871932601753,
         "fixed_scale": null
     },
     {

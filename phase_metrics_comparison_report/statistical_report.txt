@@ -2,30 +2,30 @@ Eye Metrics Comparison (Global Adaptive vs Phased Adaptive)
 =================================================================
 
 指标: Pupil Variation Rate (Pupil_Variation_Rate)
-- 全局自适应  (Mean±SD): 0.0673 ± 0.0402  (N=16)
-- 分阶段自适应 (Mean±SD): 0.0882 ± 0.0684  (N=14)
-- 检验方法: Mann-Whitney U (Non-parametric) | p-value: 5.7466e-01
-- 效应量 (Cohen's d): 0.3666
--> 结论: 【无显著差异】 (p=0.575)
+- 全局自适应  (Mean±SD): 0.0558 ± 0.0299  (N=34)
+- 分阶段自适应 (Mean±SD): 0.0693 ± 0.0487  (N=32)
+- 检验方法: Mann-Whitney U (Non-parametric) | p-value: 5.3487e-02
+- 效应量 (Cohen's d): 0.3307
+-> 结论: 【无显著差异】 (p=0.053)
 --------------------------------------------------
 指标: Static Entropy (Static_Entropy)
-- 全局自适应  (Mean±SD): 4.5448 ± 0.4712  (N=16)
-- 分阶段自适应 (Mean±SD): 4.3926 ± 0.5456  (N=14)
-- 检验方法: T-Test (Parametric) | p-value: 4.3503e-01
-- 效应量 (Cohen's d): -0.2898
--> 结论: 【无显著差异】 (p=0.435)
+- 全局自适应  (Mean±SD): 4.3049 ± 0.4310  (N=34)
+- 分阶段自适应 (Mean±SD): 4.1452 ± 0.4624  (N=32)
+- 检验方法: Mann-Whitney U (Non-parametric) | p-value: 3.8256e-02
+- 效应量 (Cohen's d): -0.3523
+-> 结论: 【显著差异】 (p=0.038)
 --------------------------------------------------
 指标: Transition Entropy (Transition_Entropy)
-- 全局自适应  (Mean±SD): 0.3745 ± 0.0987  (N=16)
-- 分阶段自适应 (Mean±SD): 0.4061 ± 0.1335  (N=14)
-- 检验方法: T-Test (Parametric) | p-value: 4.7894e-01
-- 效应量 (Cohen's d): 0.2626
--> 结论: 【无显著差异】 (p=0.479)
+- 全局自适应  (Mean±SD): 0.3425 ± 0.0826  (N=34)
+- 分阶段自适应 (Mean±SD): 0.3614 ± 0.1051  (N=32)
+- 检验方法: Mann-Whitney U (Non-parametric) | p-value: 2.5617e-01
+- 效应量 (Cohen's d): 0.1975
+-> 结论: 【无显著差异】 (p=0.256)
 --------------------------------------------------
 指标: IPA Mean (IPA_Mean)
-- 全局自适应  (Mean±SD): 0.5928 ± 0.2009  (N=16)
-- 分阶段自适应 (Mean±SD): 0.5529 ± 0.2200  (N=14)
-- 检验方法: T-Test (Parametric) | p-value: 6.1975e-01
-- 效应量 (Cohen's d): -0.1836
--> 结论: 【无显著差异】 (p=0.620)
+- 全局自适应  (Mean±SD): 0.6488 ± 0.1645  (N=34)
+- 分阶段自适应 (Mean±SD): 0.6942 ± 0.2115  (N=32)
+- 检验方法: Mann-Whitney U (Non-parametric) | p-value: 1.1307e-01
+- 效应量 (Cohen's d): 0.2367
+-> 结论: 【无显著差异】 (p=0.113)
 --------------------------------------------------
