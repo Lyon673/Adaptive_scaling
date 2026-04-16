@@ -1,10 +1,14 @@
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import os
 import sys
 from sklearn.metrics import accuracy_score
+from torchcrf import CRF
 
 # 导入数据加载相关 (严格按照您指定 demo_id 的方式)
 from load_data import load_specific_test_state, load_specific_test_label
@@ -18,12 +22,122 @@ CLASS_NAMES = [
 CLASS_COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA15E', '#BA68C8']
 
 # =========================================================================
-# 1. 动态模型加载工厂 (Dynamic Model Loader)
+# 1. 自适应模型层 (Adaptive Architecture for Spatial Attention)
+# =========================================================================
+class AdaptiveBimanualSpatialAttention(nn.Module):
+    def __init__(self, input_dim=8, proj_dim=16, use_causal_conv=False):
+        super(AdaptiveBimanualSpatialAttention, self).__init__()
+        self.use_causal_conv = use_causal_conv
+        
+        if self.use_causal_conv:
+            self.shared_causal_conv = nn.Conv1d(in_channels=input_dim, out_channels=proj_dim, kernel_size=3)
+            self.layer_norm = nn.LayerNorm(16)
+        else:
+            self.shared_proj = nn.Linear(input_dim, proj_dim)
+            
+        self.dominance_mlp = nn.Sequential(
+            nn.Linear(proj_dim * 2, proj_dim),
+            nn.ReLU(),
+            nn.Linear(proj_dim, 2)
+        )
+
+    def forward(self, x):
+        X_L = x[:, :, :8]
+        X_R = x[:, :, 8:]
+
+        if self.use_causal_conv:
+            X_L_t = X_L.transpose(1, 2)
+            X_R_t = X_R.transpose(1, 2)
+            X_L_pad = F.pad(X_L_t, (2, 0))
+            X_R_pad = F.pad(X_R_t, (2, 0))
+            H_L = F.relu(self.shared_causal_conv(X_L_pad)).transpose(1, 2)
+            H_R = F.relu(self.shared_causal_conv(X_R_pad)).transpose(1, 2)
+        else:
+            H_L = F.relu(self.shared_proj(X_L))
+            H_R = F.relu(self.shared_proj(X_R))
+
+        H_cat = torch.cat([H_L, H_R], dim=-1)
+        alpha_logits = self.dominance_mlp(H_cat)
+        alphas = F.softmax(alpha_logits, dim=-1)
+
+        alpha_L = alphas[:, :, 0].unsqueeze(-1)
+        alpha_R = alphas[:, :, 1].unsqueeze(-1)
+
+        tilde_X_L = alpha_L * X_L
+        tilde_X_R = alpha_R * X_R
+        tilde_X = torch.cat([tilde_X_L, tilde_X_R], dim=-1)
+        
+        if self.use_causal_conv:
+            out_X = self.layer_norm(x + tilde_X)
+        else:
+            out_X = tilde_X
+            
+        return out_X, alphas
+
+class AdaptiveSequenceLabelingLSTM_CRF(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers, num_classes, proj_dim=16, use_causal_conv=False):
+        super(AdaptiveSequenceLabelingLSTM_CRF, self).__init__()
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.proj_dim = proj_dim
+        
+        self.spatial_attention = AdaptiveBimanualSpatialAttention(
+            input_dim=8, proj_dim=proj_dim, use_causal_conv=use_causal_conv
+        )
+        
+        self.lstm = nn.LSTM(
+            input_size=16, 
+            hidden_size=hidden_size, 
+            num_layers=num_layers, 
+            batch_first=True, 
+            bidirectional=False,
+            dropout=0.2 if num_layers > 1 else 0
+        )
+        
+        self.fc = nn.Linear(hidden_size, num_classes)
+        self.crf = CRF(num_classes, batch_first=True)
+
+        with torch.no_grad():
+            self.crf.transitions.fill_(0) 
+            for i in range(num_classes):
+                self.crf.transitions[i, i] = 2.0
+                if i < num_classes - 1:
+                    self.crf.transitions[i, i+1] = 2.0
+
+    def forward(self, x, lengths, return_alphas=False):
+        tilde_X, alphas = self.spatial_attention(x)
+        
+        packed_input = pack_padded_sequence(tilde_X, lengths, batch_first=True, enforce_sorted=False)
+        packed_output, (h_n, c_n) = self.lstm(packed_input)
+        lstm_out, _ = pad_packed_sequence(packed_output, batch_first=True)
+        
+        emissions = self.fc(lstm_out)
+        
+        if return_alphas:
+            return emissions, alphas
+        return emissions
+
+    def decode(self, x, lengths, return_alphas=False):
+        max_len = x.size(1)
+        mask = torch.arange(max_len, device=x.device)[None, :] < torch.tensor(lengths, device=x.device)[:, None]
+        
+        if return_alphas:
+            emissions, alphas = self.forward(x, lengths, return_alphas=True)
+            best_path = self.crf.decode(emissions, mask=mask)
+            return best_path, alphas
+        else:
+            emissions = self.forward(x, lengths)
+            best_path = self.crf.decode(emissions, mask=mask)
+            return best_path
+
+# =========================================================================
+# 2. 动态模型加载工厂 (Dynamic Model Loader)
 # =========================================================================
 def load_model_dynamically(filepath, device):
     """根据保存的 config 字典，自动推断并实例化正确的模型结构"""
     ckpt = torch.load(filepath, map_location=device)
     cfg = ckpt['model_config']
+    state_dict = ckpt['model_state_dict']
     
     model = None
     # 1. 检查是否是 TCN 模型
@@ -53,18 +167,21 @@ def load_model_dynamically(filepath, device):
             )
             
     # 3. 检查是否是 Spatial Attention-LSTM-CRF 模型
-    # 【核心修改】：通过检查 proj_dim 或 embed_dim 来加载带有双臂空间注意力机制的模型
+    # 【核心自适应修改】：利用内置的 AdaptiveSequenceLabelingLSTM_CRF 自动嗅探权重
     elif 'proj_dim' in cfg or 'embed_dim' in cfg:
-        from LSTM_atten_seg_train import SequenceLabelingLSTM_CRF as AttnLSTMCRF
-        # 兼容新版的 proj_dim 命名
+        # 嗅探权重字典，判断是否使用因果卷积
+        use_causal_conv = "spatial_attention.shared_causal_conv.weight" in state_dict.keys()
+        arch_type = "Causal-Conv" if use_causal_conv else "Linear"
+        print(f"   [Auto-Detect] 检测到空间注意力模型，采用架构: {arch_type}")
+        
         proj_dim = cfg.get('proj_dim', cfg.get('embed_dim', 16))
-        model = AttnLSTMCRF(
+        model = AdaptiveSequenceLabelingLSTM_CRF(
             cfg.get('input_size', 16), cfg.get('hidden_size', 256), cfg.get('num_layers', 3), cfg.get('num_classes', 7),
-            proj_dim=proj_dim
+            proj_dim=proj_dim, use_causal_conv=use_causal_conv
         )
         
     # 4. 检查是否是基础的 LSTM-CRF 或 LSTM 模型
-    elif any(k.startswith('crf.') for k in ckpt['model_state_dict'].keys()):
+    elif any(k.startswith('crf.') for k in state_dict.keys()):
         from LSTM_seg_train import SequenceLabelingLSTM_CRF
         model = SequenceLabelingLSTM_CRF(
             cfg.get('input_size', 16), cfg.get('hidden_size', 256), cfg.get('num_layers', 3), cfg.get('num_classes', 7)
@@ -76,13 +193,13 @@ def load_model_dynamically(filepath, device):
         )
 
     # 加载权重
-    model.load_state_dict(ckpt['model_state_dict'])
+    model.load_state_dict(state_dict)
     model.to(device)
     model.eval()
     return model
 
 # =========================================================================
-# 2. 推理辅助函数 (Inference Wrapper)
+# 3. 推理辅助函数 (Inference Wrapper)
 # =========================================================================
 def predict_sequence(model, sequence, device):
     """执行前向传播并返回一维 Numpy 数组预测结果"""
@@ -91,7 +208,7 @@ def predict_sequence(model, sequence, device):
         lengths = [sequence.shape[0]]
         
         if hasattr(model, 'crf'):
-            # 对于 CRF 模型，调用 decode，注意新版 decode 可能返回 (best_path, alphas)，我们只需 best_path
+            # 对于 CRF 模型，调用 decode，兼容返回 (best_path, alphas) 格式
             out = model.decode(x, lengths)
             if isinstance(out, tuple): 
                 preds = out[0][0]
@@ -120,7 +237,7 @@ def get_continuous_segments(labels):
     return segments
 
 # =========================================================================
-# 3. 主函数与可视化绘图 (Main Visualizer)
+# 4. 主函数与可视化绘图 (Main Visualizer)
 # =========================================================================
 def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -150,7 +267,6 @@ def main():
         ("LSTM Baseline",         os.path.join(dir_path, "LSTM_model", "lstm_sequence_model.pth")),
         ("TCN Baseline",          os.path.join(dir_path, "TCN_model",  "tcn_sequence_model.pth")),
         ("LSTM + CRF",            os.path.join(dir_path, "LSTM_model", "lstmcrf_sequence_model.pth")),
-        # 【核心修改】：替换为最新的双臂空间注意力模型及其名称
         ("Spatial Attn+LSTM+CRF", os.path.join(dir_path, "LSTM_model", "spatial_attn_lstmcrf_sequence_model.pth")),
         ("TeCNO Baseline",        os.path.join(dir_path, "TeCNO_model", "tecno_sequence_model.pth")),
         ("Attn + TeCNO",          os.path.join(dir_path, "TeCNO_model","tecno_attention_sequence_model.pth")),

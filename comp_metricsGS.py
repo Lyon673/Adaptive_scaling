@@ -18,8 +18,8 @@ from gracefulness import calculate_smoothness  # 仅保留 smoothness
 # ==========================================
 # GLOBAL_ADAPTIVE_DEMOS = list(range(0,5))+[10,12,13,14]+[22,23,25]+[31,32,33,35]
 # PHASED_ADAPTIVE_DEMOS = list(range(5,10))+[15,20] +[26,27,29]+[36,37,38,40]
-GLOBAL_ADAPTIVE_DEMOS = list(range(0,5))+[10,12,13,14]+[22,23,25]+[31,32,33,35]+[41,42,43]+[47,48,49]+[53,54,55]+[59,60,61]
-PHASED_ADAPTIVE_DEMOS = list(range(5,10))+[15,20] +[26,27,29]+[36,37,38,40]+[44,45,46]+[50,51,52]+[56,57,58]+[62,63,64]
+GLOBAL_ADAPTIVE_DEMOS = list(range(0,5))+[10,12,13,14]+[22,23,25]+[31,32,33,35]+[41,42,43]+[47,48,49]+[53,54,55]+[59,60,61]+[65,66,67,68,69,70]
+PHASED_ADAPTIVE_DEMOS = [5,6,9]+[15,20] +[26,27,29]+[37,38,40]+[44,45]+[50,51,52]+[56,57,58]+[62,63,64]+[74,75,76]
 
 PARTICIPANT_RANGES = {
     "P1": range(0, 10),
@@ -29,7 +29,8 @@ PARTICIPANT_RANGES = {
     "P5": range(41, 47),
     "P6": range(47, 53),
     "P7": range(53, 59),
-    "P8": range(59, 65)
+    "P8": range(59, 80)
+    
 }
 
 BASE_PALETTES = {
@@ -48,7 +49,7 @@ BASE_PALETTES = {
 # ==========================================
 DATA_ROOT  = os.path.join(_SCRIPT_DIR_EARLY, "data_Phase")
 OUTPUT_DIR = os.path.join(_SCRIPT_DIR_EARLY, "kinematic_spatial_metrics_report")
-FINE_PHASES = [1, 3, 5]
+FINE_PHASES = [5]
 
 if not os.path.exists(OUTPUT_DIR):
     os.makedirs(OUTPUT_DIR)
@@ -75,7 +76,7 @@ def calc_ellipsoid_volume(positions):
     volume = (4.0 / 3.0) * np.pi * (chi2_95_3d ** 1.5) * np.sqrt(det)
     return volume
 
-def calc_sample_entropy(positions, m=2, r_coeff=0.2):
+def calc_sample_entropy(positions, m=2, r_coeff=0.5):
     """
     计算运动学样本熵 (Kinematic Sample Entropy)。
     将三维坐标转化为偏离中心点的距离标量序列 d(t)，衡量操作空间轨迹的复杂度和无序性。

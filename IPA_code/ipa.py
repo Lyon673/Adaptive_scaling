@@ -37,7 +37,7 @@ def ipa_cal(d,threshold=None, flag=True, timestamp=None):
     cA2, cD2, cD1 = pywt.wavedec(pupil_data[:timestamp], 'sym16', 'per', level=2)
     cD2[:] = [x / math.sqrt(40) for x in cD2]
     cD2m= modmax(cD2)
-    threshold = np.std(cD2m) * math.sqrt(2.0 * np.log2(len(cD2m)))*0.7
+    threshold = np.std(cD2m) * math.sqrt(2.0 * np.log2(len(cD2m)))
 
     if timestamp is not None:
         pupil_data = pupil_data[timestamp-64:timestamp+64]
@@ -68,7 +68,7 @@ def ipa_cal(d,threshold=None, flag=True, timestamp=None):
     if flag:
         threshold = np.std(cD2m) * math.sqrt(2.0 * np.log2(len(cD2m)))*0.7
     cD2t = pywt.threshold(cD2m, threshold, mode="hard")
-    print(f"<LYON> threshold: {threshold}")
+    #print(f"<LYON> threshold: {threshold}")
     
     position = []
     # Compute IPA

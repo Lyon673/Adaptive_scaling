@@ -6,7 +6,7 @@ from torch.nn.utils.rnn import pad_sequence
 import numpy as np
 from load_data import (load_train_state, load_train_label,
                        load_demonstrations_state, _scale_demos,
-                       get_shuffled_demo_ids)
+                       get_shuffled_demo_ids,load_specific_test_state,load_specific_test_label)
 import os
 from torch.utils.tensorboard import SummaryWriter
 import datetime
@@ -88,7 +88,7 @@ class SmoothPhaseLoss(nn.Module):
         else:
             trans_loss = 0.0
             
-        total_loss = ce + self.transition_weight * trans_loss
+        total_loss = ce
         return total_loss, ce, trans_loss
 
 def collate_fn(batch):

@@ -2,7 +2,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 # 从 TCN 的训练文件中导入必要的组件
 from TCN_seg_train import SequenceLabelingTCN, NUM_CLASSES, BATCH_SIZE, collate_fn
-from load_data import load_test_state, load_test_label
+from load_data import load_test_state, load_test_label,load_specific_test_state,load_specific_test_label
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
 from tqdm import tqdm
 import os
@@ -222,11 +222,15 @@ def load_model(filepath, device='cpu'):
 
 class TestDataset(Dataset):
     def __init__(self):
-        demo_id_list = np.arange(148)
-        demo_id_list = np.delete(demo_id_list, [80, 81, 92, 109, 112, 117, 122, 144, 145])
+        # demo_id_list = np.arange(148)
+        # demo_id_list = np.delete(demo_id_list, [80, 81, 92, 109, 112, 117, 122, 144, 145])
 
-        demonstrations_state = load_test_state(without_quat=without_quat, resample=resample, demo_id_list=demo_id_list)
-        demonstrations_label = load_test_label(resample=resample, demo_id_list=demo_id_list)
+        # demonstrations_state = load_test_state(without_quat=without_quat, resample=resample, demo_id_list=demo_id_list)
+        # demonstrations_label = load_test_label(resample=resample, demo_id_list=demo_id_list)
+
+        demo_id_list = [35, 34, 65, 138, 4, 3, 71, 90, 131, 54, 140, 43, 80, 81, 92, 109, 112, 117, 122, 144, 145]
+        demonstrations_state = load_specific_test_state(shuffle=False, without_quat=without_quat, resample=resample, demo_id_list=demo_id_list)
+        demonstrations_label = load_specific_test_label(demo_id_list=demo_id_list)
 
         self.samples = []
         for state_seq, label_seq in zip(demonstrations_state, demonstrations_label):

@@ -5,16 +5,16 @@ Advanced segmental evaluation metrics for surgical phase segmentation.
 
 Metrics
 -------
-1. Boundary F1-Score  – transition-point detection with a tolerance window τ
-2. Edit Score         – workflow-level correctness via Levenshtein distance on
-                        the run-length-compressed label sequence
-3. Segmental F1@k     – IoU-thresholded segment-level TP/FP/FN for k ∈ {0.10, 0.25, 0.50}
-4. Over-segmentation Error – relative excess of predicted segments vs ground truth
+1. Relaxed Frame Acc  - Accuracy with tolerance tau (e.g., tau=7, 3, 0)
+2. Boundary F1-Score  – transition-point detection with a tolerance window τ
+3. Edit Score         – workflow-level correctness via Levenshtein distance
+4. Segmental F1@k     – IoU-thresholded segment-level TP/FP/FN for k (e.g., 0.70)
+5. Over-segmentation Error – relative excess of predicted segments vs ground truth
 
 Usage
 -----
     evaluator = SegmentationEvaluator()
-    results   = evaluator.evaluate(y_true, y_pred, tau=15)
+    results   = evaluator.evaluate(y_true, y_pred)
     evaluator.print_report(results)
 """
 
@@ -63,7 +63,9 @@ class EvaluationResult:
     edit_score:           EditScoreResult
     segmental_f1:         SegmentalF1Result
     oversegmentation_err: float
-    frame_accuracy:       float          # included for reference
+    frame_accuracy:       float          # tau=0 (Standard Accuracy, kept for backward compatibility)
+    frame_acc_tau3:       float          # tau=3
+    frame_acc_tau7:       float          # tau=7
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -74,10 +76,6 @@ class SegmentationEvaluator:
     """
     Compute advanced segmental metrics between a ground-truth and predicted
     label sequence for temporal action / surgical phase segmentation.
-
-    All public methods accept 1-D array-like inputs of integer labels.
-    Frames labelled -1 are treated as unlabelled and excluded from every
-    metric before any computation begins.
     """
 
     # ── public API ────────────────────────────────────────────────────────────
@@ -86,57 +84,61 @@ class SegmentationEvaluator:
         self,
         y_true: np.ndarray | list,
         y_pred: np.ndarray | list,
-        tau: int = 15,
-        segmental_thresholds: List[float] = (0.10, 0.25, 0.50),
+        tau: int = 7,                                # 修改默认容差为 7
+        segmental_thresholds: List[float] = (0.70,), # 修改默认阈值为 0.70
     ) -> EvaluationResult:
         """
-        Run all four metrics in one call.
-
-        Parameters
-        ----------
-        y_true : array-like of int
-            Ground-truth frame labels.
-        y_pred : array-like of int
-            Predicted frame labels.
-        tau : int
-            Tolerance window in frames for boundary matching (default 15).
-        segmental_thresholds : sequence of float
-            IoU thresholds for segmental F1 (default [0.10, 0.25, 0.50]).
-
-        Returns
-        -------
-        EvaluationResult
+        Run all metrics in one call.
         """
         y_true, y_pred = self._prepare(y_true, y_pred)
 
         return EvaluationResult(
             boundary_f1=self.boundary_f1(y_true, y_pred, tau=tau),
             edit_score=self.edit_score(y_true, y_pred),
-            segmental_f1=self.segmental_f1(y_true, y_pred,
-                                            thresholds=list(segmental_thresholds)),
+            segmental_f1=self.segmental_f1(y_true, y_pred, thresholds=list(segmental_thresholds)),
             oversegmentation_err=self.oversegmentation_error(y_true, y_pred),
-            frame_accuracy=float(np.mean(y_true == y_pred)),
+            frame_accuracy=self.relaxed_frame_accuracy(y_true, y_pred, tau=0),
+            frame_acc_tau3=self.relaxed_frame_accuracy(y_true, y_pred, tau=3),
+            frame_acc_tau7=self.relaxed_frame_accuracy(y_true, y_pred, tau=7),
         )
+
+    def relaxed_frame_accuracy(
+        self,
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        tau: int
+    ) -> float:
+        """
+        计算带有边界容差的帧准确率。
+        忽略真实边界前后 tau 帧内的所有预测，承认人类标注的边界模糊性。
+        """
+        y_true, y_pred = self._prepare(y_true, y_pred)
+        if tau == 0:
+            return float(np.mean(y_true == y_pred))
+            
+        gt_bounds = self._get_boundaries(y_true)
+        ignore_mask = np.zeros_like(y_true, dtype=bool)
+        
+        for b in gt_bounds:
+            start_idx = max(0, b - tau)
+            end_idx = min(len(y_true), b + tau)
+            ignore_mask[start_idx:end_idx] = True
+            
+        valid_mask = ~ignore_mask
+        
+        if np.sum(valid_mask) == 0:
+            return float(np.mean(y_true == y_pred))
+            
+        return float(np.mean(y_true[valid_mask] == y_pred[valid_mask]))
 
     def boundary_f1(
         self,
         y_true: np.ndarray,
         y_pred: np.ndarray,
-        tau: int = 15,
+        tau: int = 7,
     ) -> BoundaryF1Result:
         """
         Boundary F1-Score with tolerance window τ.
-
-        A predicted boundary is a True Positive (TP) when it lies within τ
-        frames of *any unmatched* ground-truth boundary.  Each ground-truth
-        boundary can only absorb one prediction (greedy nearest-first
-        matching), preventing one GT boundary from being counted multiple
-        times.
-
-        Parameters
-        ----------
-        tau : int
-            Maximum allowed frame distance for a match.
         """
         y_true, y_pred = self._prepare(y_true, y_pred)
 
@@ -148,7 +150,6 @@ class SegmentationEvaluator:
 
         matched_gt = set()
         tp = 0
-        # Sort pred boundaries; for each, find the closest unmatched GT boundary
         for pb in sorted(pred_bounds):
             best_dist, best_gt = float('inf'), None
             for gb in gt_bounds:
@@ -180,13 +181,6 @@ class SegmentationEvaluator:
     ) -> EditScoreResult:
         """
         Edit Score – workflow-level correctness.
-
-        Both sequences are first run-length compressed so that consecutive
-        identical labels merge into one symbol (e.g. [1,1,2,2,2,3] → [1,2,3]).
-        The normalised Levenshtein distance between the two compressed
-        sequences is then converted to a 0-100 score.
-
-        Score = (1 − edit_dist / max(|compressed_true|, |compressed_pred|)) × 100
         """
         y_true, y_pred = self._prepare(y_true, y_pred)
 
@@ -208,23 +202,10 @@ class SegmentationEvaluator:
         self,
         y_true: np.ndarray,
         y_pred: np.ndarray,
-        thresholds: List[float] = (0.10, 0.25, 0.50),
+        thresholds: List[float] = (0.70,),
     ) -> SegmentalF1Result:
         """
-        Segmental F1@k  (also written F1@{10,25,50}).
-
-        For each threshold k:
-          - Extract continuous segments from y_true and y_pred.
-          - A predicted segment is a TP if there exists an unmatched GT segment
-            of the *same label* whose IoU with the prediction is ≥ k.
-          - Precision = TP / len(pred_segments)
-          - Recall    = TP / len(gt_segments)
-          - F1        = harmonic mean
-
-        Parameters
-        ----------
-        thresholds : list of float
-            IoU thresholds, e.g. [0.10, 0.25, 0.50].
+        Segmental F1@k
         """
         y_true, y_pred = self._prepare(y_true, y_pred)
 
@@ -242,7 +223,7 @@ class SegmentationEvaluator:
                 for gi, gs in enumerate(gt_segs):
                     if gi in matched_gt:
                         continue
-                    if gs[2] != ps[2]:          # different label → skip
+                    if gs[2] != ps[2]:          
                         continue
                     iou = self._segment_iou(ps, gs)
                     if iou > best_iou:
@@ -274,14 +255,6 @@ class SegmentationEvaluator:
     ) -> float:
         """
         Over-segmentation Error.
-
-        Measures the relative difference in the total number of segments:
-
-            OSE = |n_segments(y_pred) − n_segments(y_true)| / n_segments(y_true)
-
-        Returns 0.0 when both have the same number of segments.
-        A value > 1 means the predictor produces more than twice as many
-        segments as the ground truth (severe chattering).
         """
         y_true, y_pred = self._prepare(y_true, y_pred)
         n_true = len(self._get_segments(y_true))
@@ -294,14 +267,18 @@ class SegmentationEvaluator:
 
     @staticmethod
     def print_report(result: EvaluationResult, title: str = "Segmentation Evaluation Report") -> None:
-        """Print a formatted summary of all metrics."""
+        """Print a formatted summary of all metrics in the specific requested order."""
         sep = "─" * 55
         print(f"\n{'═' * 55}")
         print(f"  {title}")
         print(f"{'═' * 55}")
 
-        print(f"\n  Frame Accuracy          : {result.frame_accuracy * 100:6.2f} %")
+        # 1-3. Accuracies
+        print(f"\n  Frame Acc (Relaxed τ=7) : {result.frame_acc_tau7 * 100:6.2f} %")
+        print(f"  Frame Acc (Relaxed τ=3) : {result.frame_acc_tau3 * 100:6.2f} %")
+        print(f"  Frame Acc (Standard τ=0): {result.frame_accuracy * 100:6.2f} %")
 
+        # 4. Boundary F1
         bf = result.boundary_f1
         print(f"\n  Boundary F1  (τ={bf.tau:>2d} frames)")
         print(f"  {sep}")
@@ -312,6 +289,7 @@ class SegmentationEvaluator:
         print(f"    Recall                : {bf.recall * 100:6.2f} %")
         print(f"    F1                    : {bf.f1 * 100:6.2f} %")
 
+        # 5. Edit Score
         es = result.edit_score
         print(f"\n  Edit Score")
         print(f"  {sep}")
@@ -320,6 +298,7 @@ class SegmentationEvaluator:
         print(f"    Levenshtein distance  : {es.levenshtein_dist}")
         print(f"    Edit Score            : {es.score:6.2f} / 100")
 
+        # 6. Segmental F1
         sf = result.segmental_f1
         print(f"\n  Segmental F1@k")
         print(f"  {sep}")
@@ -330,6 +309,7 @@ class SegmentationEvaluator:
                   f"{sf.recall_at_k[k] * 100:>7.2f}%  "
                   f"{sf.f1_at_k[k] * 100:>7.2f}%")
 
+        # 7. Oversegmentation Error
         print(f"\n  Over-segmentation Error : {result.oversegmentation_err:.4f}")
         print(f"{'═' * 55}\n")
 
@@ -340,7 +320,6 @@ class SegmentationEvaluator:
         y_true: np.ndarray | list,
         y_pred: np.ndarray | list,
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """Convert to numpy int arrays and remove unlabelled frames (label == -1)."""
         y_true = np.asarray(y_true, dtype=int)
         y_pred = np.asarray(y_pred, dtype=int)
         assert y_true.shape == y_pred.shape, (
@@ -351,10 +330,6 @@ class SegmentationEvaluator:
 
     @staticmethod
     def _get_boundaries(seq: np.ndarray) -> List[int]:
-        """
-        Return indices where the label changes.
-        Boundary at index i means seq[i] != seq[i-1].
-        """
         if len(seq) < 2:
             return []
         changes = np.where(seq[1:] != seq[:-1])[0] + 1
@@ -362,7 +337,6 @@ class SegmentationEvaluator:
 
     @staticmethod
     def _compress(seq: np.ndarray) -> List[int]:
-        """Run-length encode: keep only the first element of each run."""
         if len(seq) == 0:
             return []
         compressed = [seq[0]]
@@ -373,11 +347,6 @@ class SegmentationEvaluator:
 
     @staticmethod
     def _get_segments(seq: np.ndarray) -> List[Tuple[int, int, int]]:
-        """
-        Extract continuous segments as (start, end_inclusive, label) tuples.
-
-        Example: [0,0,1,1,1,2] → [(0,1,0), (2,4,1), (5,5,2)]
-        """
         if len(seq) == 0:
             return []
         segments = []
@@ -394,12 +363,6 @@ class SegmentationEvaluator:
         seg_a: Tuple[int, int, int],
         seg_b: Tuple[int, int, int],
     ) -> float:
-        """
-        Intersection over Union for two 1-D temporal segments.
-
-        Segments are represented as (start, end_inclusive, label).
-        Labels are assumed to match before calling this helper.
-        """
         inter_start = max(seg_a[0], seg_b[0])
         inter_end   = min(seg_a[1], seg_b[1])
         intersection = max(0, inter_end - inter_start + 1)
@@ -416,47 +379,41 @@ class SegmentationEvaluator:
 if __name__ == "__main__":
     np.random.seed(42)
 
-    # ── synthetic ground truth: clean 6-phase surgical procedure ──────────────
     y_true = np.array(
-        [0] * 60 +    # P0 Right Move
-        [1] * 40 +    # P1 Pick Needle
-        [2] * 55 +    # P2 Right Move2
-        [3] * 35 +    # P3 Pass Needle
-        [4] * 50 +    # P4 Left Move
-        [5] * 30      # P5 Left Pick
+        [0] * 60 +    
+        [1] * 40 +    
+        [2] * 55 +    
+        [3] * 35 +    
+        [4] * 50 +    
+        [5] * 30      
     )
 
-    # ── imperfect prediction: correct phases but with boundary offsets,
-    #    some chattering, and one over-segmented region ─────────────────────────
-    # Total must equal len(y_true) = 270
     y_pred = np.array(
-        [0] * 55 + [1] * 5 +              # P0 region (60):  ends 5 frames early
-        [1] * 38 + [2] * 2 +              # P1 region (40):  ends 2 frames early
-        [2] * 10 + [3] * 5 + [2] * 40 +  # P2 region (55):  chattering burst
-        [3] * 33 + [4] * 2 +              # P3 region (35):  ends 2 frames early
-        [4] * 50 +                        # P4 region (50):  exact
-        [5] * 28 + [4] * 2               # P5 region (30):  ends 2 frames early
+        [0] * 55 + [1] * 5 +              
+        [1] * 38 + [2] * 2 +              
+        [2] * 10 + [3] * 5 + [2] * 40 +  
+        [3] * 33 + [4] * 2 +              
+        [4] * 50 +                        
+        [5] * 28 + [4] * 2               
     )
 
-    # small unlabelled region injected into ground truth
     y_true_with_unlabelled = y_true.copy().astype(int)
-    y_true_with_unlabelled[58:63] = -1   # boundary around P0→P1 transition
+    y_true_with_unlabelled[58:63] = -1   
 
     print("=" * 55)
     print("  Demo 1 – clean prediction (with boundary offsets)")
     print("=" * 55)
     evaluator = SegmentationEvaluator()
-    result = evaluator.evaluate(y_true_with_unlabelled, y_pred, tau=15)
+    # 采用新的默认参数进行测试
+    result = evaluator.evaluate(y_true_with_unlabelled, y_pred)
     evaluator.print_report(result)
 
-    # ── perfect prediction ────────────────────────────────────────────────────
     print("=" * 55)
     print("  Demo 2 – perfect prediction")
     print("=" * 55)
-    result_perfect = evaluator.evaluate(y_true, y_true.copy(), tau=15)
+    result_perfect = evaluator.evaluate(y_true, y_true.copy())
     evaluator.print_report(result_perfect, title="Perfect Prediction Baseline")
 
-    # ── highly over-segmented prediction (chattering) ─────────────────────────
     print("=" * 55)
     print("  Demo 3 – severe chattering")
     print("=" * 55)
@@ -464,5 +421,5 @@ if __name__ == "__main__":
     y_noisy = y_true.copy()
     flip_idx = rng.choice(len(y_noisy), size=40, replace=False)
     y_noisy[flip_idx] = rng.integers(0, 6, size=40)
-    result_noisy = evaluator.evaluate(y_true, y_noisy, tau=15)
+    result_noisy = evaluator.evaluate(y_true, y_noisy)
     evaluator.print_report(result_noisy, title="Chattering / Over-segmented")

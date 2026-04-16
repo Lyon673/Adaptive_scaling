@@ -1,6 +1,10 @@
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence, pad_packed_sequence
 from torch.utils.data import Dataset, DataLoader
-from LSTM_atten_seg_train import SequenceLabelingLSTM_CRF, NUM_CLASSES, BATCH_SIZE, collate_fn
+# 注意：我们移除了对 SequenceLabelingLSTM_CRF 的导入，解除强绑定
+from LSTM_atten_seg_train import NUM_CLASSES, BATCH_SIZE, collate_fn
 from load_data import load_test_state, load_test_label, load_specific_test_state, load_specific_test_label
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
 from tqdm import tqdm
@@ -16,7 +20,7 @@ from torchcrf import CRF
 from config import resample, without_quat
 from segmentation_metrics import SegmentationEvaluator
 
-# Surgical action class names — adjust to match your dataset's label mapping
+# Surgical action class names
 CLASS_NAMES = [
     '(P0)\nRight\nMove',
     '(P1)\nPick\nNeedle',
@@ -40,19 +44,14 @@ _SUBTEXT = '#718096'   # medium slate
 _GRID    = '#E8ECF0'   # very light grey
 _BORDER  = '#D1D9E0'   # light blue-grey
 
-
 def _metric_color(v: float) -> str:
     if v >= 0.80: return _GREEN
     if v >= 0.60: return _YELLOW
     return _RED
 
-
 def visualize_report(all_labels, all_preds,
                      title: str = "Model Evaluation Report",
                      save_path: Optional[str] = None) -> None:
-    """
-    Render a four-panel light-theme evaluation dashboard.
-    """
     target_names = [
         CLASS_NAMES[i] if i < len(CLASS_NAMES) else f'Class {i}'
         for i in range(NUM_CLASSES)
@@ -75,7 +74,6 @@ def visualize_report(all_labels, all_preds,
         'cm_soft', ['#EEF2F7', '#A8C4DC', '#5B8DB8'], N=256
     )
 
-    # ── figure ─────────────────────────────────────────────────────────────────
     fig = plt.figure(figsize=(26, 18), facecolor=_BG)
     fig.suptitle(title, fontsize=24, fontweight='bold', color=_TEXT, y=0.975)
 
@@ -85,7 +83,7 @@ def visualize_report(all_labels, all_preds,
         wspace=0.32, hspace=0.46,
     )
 
-    # ── Panel A: grouped bar chart ──────────────────────────────────────────────
+    # Panel A: grouped bar chart
     ax_bar = fig.add_subplot(outer[0, 0])
     ax_bar.set_facecolor(_PANEL)
     ax_bar.set_title('Per-Class Metrics', color=_TEXT, fontsize=14, pad=12, fontweight='bold')
@@ -123,7 +121,7 @@ def visualize_report(all_labels, all_preds,
     ax_bar.set_axisbelow(True)
     ax_bar.legend(loc='upper right', framealpha=0.9, facecolor='white', edgecolor=_BORDER, labelcolor=_TEXT, fontsize=9, frameon=True)
 
-    # ── Panel B: styled table ──────────────────────────────────────────────────
+    # Panel B: styled table
     ax_tbl = fig.add_subplot(outer[0, 1])
     ax_tbl.set_facecolor(_PANEL)
     ax_tbl.set_title('Classification Report', color=_TEXT, fontsize=14, pad=12, fontweight='bold')
@@ -176,7 +174,7 @@ def visualize_report(all_labels, all_preds,
                 except Exception:
                     pass
 
-    # ── Panel C: confusion matrix ──────────────────────────────────────────────
+    # Panel C: confusion matrix
     ax_cm = fig.add_subplot(outer[1, 0])
     ax_cm.set_facecolor(_PANEL)
     ax_cm.set_title('Confusion Matrix  (row-normalised)', color=_TEXT, fontsize=14, pad=12, fontweight='bold')
@@ -201,7 +199,7 @@ def visualize_report(all_labels, all_preds,
             txt_col = 'white' if v_norm > 0.55 else _TEXT
             ax_cm.text(j, i, f'{v_norm:.2f}\n({v_raw})', ha='center', va='center', fontsize=8, color=txt_col, fontweight='bold')
 
-    # ── Panel D: overall scorecard ─────────────────────────────────────────────
+    # Panel D: overall scorecard
     ax_sc = fig.add_subplot(outer[1, 1])
     ax_sc.set_facecolor(_PANEL)
     ax_sc.set_title('Overall Scorecard', color=_TEXT, fontsize=14, pad=12, fontweight='bold')
@@ -240,43 +238,167 @@ def visualize_report(all_labels, all_preds,
     plt.close(fig)
 
 
-# --- 模型加载功能 ---
+# =========================================================================
+# --- 自适应模型层：支持旧版 nn.Linear 和新版 因果卷积 ---
+# =========================================================================
+
+class AdaptiveBimanualSpatialAttention(nn.Module):
+    def __init__(self, input_dim=8, proj_dim=16, use_causal_conv=False):
+        super(AdaptiveBimanualSpatialAttention, self).__init__()
+        self.use_causal_conv = use_causal_conv
+        
+        if self.use_causal_conv:
+            self.shared_causal_conv = nn.Conv1d(in_channels=input_dim, out_channels=proj_dim, kernel_size=3)
+            self.layer_norm = nn.LayerNorm(16)
+        else:
+            self.shared_proj = nn.Linear(input_dim, proj_dim)
+            
+        self.dominance_mlp = nn.Sequential(
+            nn.Linear(proj_dim * 2, proj_dim),
+            nn.ReLU(),
+            nn.Linear(proj_dim, 2)
+        )
+
+    def forward(self, x):
+        X_L = x[:, :, :8]
+        X_R = x[:, :, 8:]
+
+        # 动态处理卷积与线性层
+        if self.use_causal_conv:
+            X_L_t = X_L.transpose(1, 2)
+            X_R_t = X_R.transpose(1, 2)
+            # 严格保护未来帧 (左侧 padding)
+            X_L_pad = F.pad(X_L_t, (2, 0))
+            X_R_pad = F.pad(X_R_t, (2, 0))
+            H_L = F.relu(self.shared_causal_conv(X_L_pad)).transpose(1, 2)
+            H_R = F.relu(self.shared_causal_conv(X_R_pad)).transpose(1, 2)
+        else:
+            H_L = F.relu(self.shared_proj(X_L))
+            H_R = F.relu(self.shared_proj(X_R))
+
+        H_cat = torch.cat([H_L, H_R], dim=-1)
+        alpha_logits = self.dominance_mlp(H_cat)
+        alphas = F.softmax(alpha_logits, dim=-1)
+
+        alpha_L = alphas[:, :, 0].unsqueeze(-1)
+        alpha_R = alphas[:, :, 1].unsqueeze(-1)
+
+        tilde_X_L = alpha_L * X_L
+        tilde_X_R = alpha_R * X_R
+        tilde_X = torch.cat([tilde_X_L, tilde_X_R], dim=-1)
+        
+        if self.use_causal_conv:
+            out_X = self.layer_norm(x + tilde_X)
+        else:
+            out_X = tilde_X
+            
+        return out_X, alphas
+
+class AdaptiveSequenceLabelingLSTM_CRF(nn.Module):
+    """
+    一个完全解耦的模型类，可以根据 use_causal_conv 参数动态调整网络结构。
+    """
+    def __init__(self, input_size, hidden_size, num_layers, num_classes, proj_dim=16, use_causal_conv=False):
+        super(AdaptiveSequenceLabelingLSTM_CRF, self).__init__()
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.proj_dim = proj_dim
+        
+        self.spatial_attention = AdaptiveBimanualSpatialAttention(
+            input_dim=8, proj_dim=proj_dim, use_causal_conv=use_causal_conv
+        )
+        
+        self.lstm = nn.LSTM(
+            input_size=16, 
+            hidden_size=hidden_size, 
+            num_layers=num_layers, 
+            batch_first=True, 
+            bidirectional=False,
+            dropout=0.2 if num_layers > 1 else 0
+        )
+        
+        self.fc = nn.Linear(hidden_size, num_classes)
+        self.crf = CRF(num_classes, batch_first=True)
+
+        with torch.no_grad():
+            self.crf.transitions.fill_(0) 
+            for i in range(num_classes):
+                self.crf.transitions[i, i] = 2.0
+                if i < num_classes - 1:
+                    self.crf.transitions[i, i+1] = 2.0
+
+    def forward(self, x, lengths, return_alphas=False):
+        tilde_X, alphas = self.spatial_attention(x)
+        
+        packed_input = pack_padded_sequence(tilde_X, lengths, batch_first=True, enforce_sorted=False)
+        packed_output, (h_n, c_n) = self.lstm(packed_input)
+        lstm_out, _ = pad_packed_sequence(packed_output, batch_first=True)
+        
+        emissions = self.fc(lstm_out)
+        
+        if return_alphas:
+            return emissions, alphas
+        return emissions
+
+    def decode(self, x, lengths, return_alphas=False):
+        max_len = x.size(1)
+        mask = torch.arange(max_len, device=x.device)[None, :] < torch.tensor(lengths, device=x.device)[:, None]
+        
+        if return_alphas:
+            emissions, alphas = self.forward(x, lengths, return_alphas=True)
+            best_path = self.crf.decode(emissions, mask=mask)
+            return best_path, alphas
+        else:
+            emissions = self.forward(x, lengths)
+            best_path = self.crf.decode(emissions, mask=mask)
+            return best_path
+
+# =========================================================================
+# --- 模型加载与评估流程 ---
+# =========================================================================
+
 def load_model(filepath, device='cpu'):
     """
-    从文件加载训练好的 Spatial-Attention-LSTM-CRF 模型
+    通过对权重字典的键值进行嗅探，自动决定实例化新版或旧版模型。
     """
     checkpoint = torch.load(filepath, map_location=device)
-    model_config = checkpoint['model_config']
+    model_config = checkpoint.get('model_config', {})
+    state_dict = checkpoint['model_state_dict']
 
-    print("Loading Spatial-Attention-LSTM-CRF model...")
-    model = SequenceLabelingLSTM_CRF(
+    # 【核心逻辑】：嗅探权重中是否包含因果卷积的特征
+    use_causal_conv = "spatial_attention.shared_causal_conv.weight" in state_dict.keys()
+
+    arch_name = "Causal-Conv (New)" if use_causal_conv else "Linear (Old)"
+    print(f"Loading Adaptive-Spatial-Attention-LSTM-CRF model... [Auto-detected Architecture: {arch_name}]")
+    
+    model = AdaptiveSequenceLabelingLSTM_CRF(
         input_size=model_config.get('input_size', 16),
         hidden_size=model_config.get('hidden_size', 256),
         num_layers=model_config.get('num_layers', 3),
         num_classes=model_config.get('num_classes', 7),
-        # 【核心修改】：由于网络结构变更，这里读取 proj_dim 以初始化 BimanualSpatialAttention
-        proj_dim=model_config.get('proj_dim', 16) 
+        proj_dim=model_config.get('proj_dim', 16),
+        use_causal_conv=use_causal_conv
     )
 
-    model.load_state_dict(checkpoint['model_state_dict'])
+    model.load_state_dict(state_dict)
     model.to(device)
     model.eval()
 
-    print(f"model loaded from {filepath}")
-    if 'training_info' in checkpoint:
-        print(f"training information: {checkpoint['training_info']}")
-
+    print(f"Model loaded successfully from {filepath}")
     return model
 
 
 class TestDataset(Dataset):
     def __init__(self):
-        demo_id_list = np.arange(148)
-        demo_id_list = np.delete(demo_id_list, [80, 81, 92, 109, 112, 117, 122, 144, 145])
+        # demo_id_list = np.arange(148)
+        # demo_id_list = np.delete(demo_id_list, [80, 81, 92, 109, 112, 117, 122, 144, 145])
 
-        demonstrations_state = load_test_state(without_quat=without_quat, resample=resample, demo_id_list=demo_id_list)
-        demonstrations_label = load_test_label(resample=resample, demo_id_list=demo_id_list)
+        # demonstrations_state = load_test_state(without_quat=without_quat, resample=resample, demo_id_list=demo_id_list)
+        # demonstrations_label = load_test_label(resample=resample, demo_id_list=demo_id_list)
 
+        demo_id_list = [35, 34, 65, 138, 4, 3, 71, 90, 131, 54, 140, 43, 80, 81, 92, 109, 112, 117, 122, 144, 145, 200]
+        demonstrations_state = load_specific_test_state(shuffle=False, without_quat=without_quat, resample=resample, demo_id_list=demo_id_list)
+        demonstrations_label = load_specific_test_label(demo_id_list=demo_id_list)
         self.samples = []
         for state_seq, label_seq in zip(demonstrations_state, demonstrations_label):
             state_tensor = torch.tensor(state_seq, dtype=torch.float32)
@@ -291,10 +413,7 @@ class TestDataset(Dataset):
     def __getitem__(self, idx):
         return self.samples[idx]
 
-
-# --- 评估函数 ---
 def evaluate_model_CRF(model, dataloader, device, save_path=None):
-    """在测试集上评估 Spatial-Attention-LSTM-CRF 模型并生成可视化报告。"""
     model.eval()
     all_preds, all_labels = [], []
 
@@ -303,8 +422,6 @@ def evaluate_model_CRF(model, dataloader, device, save_path=None):
             sequences       = sequences.to(device)
             labels          = labels.to(device)
             
-            # 调用 decode (Viterbi) 寻找最佳路径
-            # 我们在新架构的 decode 函数中引入了 return_alphas，默认 False 即可兼容
             predicted_paths = model.decode(sequences, lengths)
             
             for i in range(len(lengths)):
@@ -312,7 +429,6 @@ def evaluate_model_CRF(model, dataloader, device, save_path=None):
                 true_labels_seq = labels[i, :true_len].cpu().numpy()
                 pred_labels_seq = np.array(predicted_paths[i])
                 
-                # 清洗序列内部可能存在的非法标签（例如开头的 -1）
                 valid_mask = (true_labels_seq != -1)
                 all_labels.extend(true_labels_seq[valid_mask])
                 all_preds.extend(pred_labels_seq[valid_mask])
@@ -336,10 +452,6 @@ def evaluate_segmental_metrics(
     model, test_dataset, device,
     tau: int = 15, seg_thresholds: tuple = (0.10, 0.25, 0.50), save_path: Optional[str] = None,
 ) -> None:
-    """
-    Compute advanced segmental metrics for every sequence in test_dataset
-    and report per-sequence results plus dataset-level aggregates.
-    """
     evaluator = SegmentationEvaluator()
     model.eval()
 
@@ -352,7 +464,6 @@ def evaluate_segmental_metrics(
             seq_tensor = sequence.to(device)
             lengths    = [seq_tensor.shape[0]]
 
-            # Decode using Viterbi
             paths = model.decode(seq_tensor.unsqueeze(0), lengths)
             pred_np = np.array(paths[0], dtype=int)
             true_np = true_labels.numpy()
@@ -361,7 +472,6 @@ def evaluate_segmental_metrics(
             true_np = true_np[:min_len]
             pred_np = pred_np[:min_len]
 
-            # 切除序列首尾可能的无效 padding (-1)
             valid_idx = np.where(true_np != -1)[0]
             if len(valid_idx) == 0:
                 continue
@@ -415,7 +525,6 @@ def evaluate_segmental_metrics(
         _save_segmental_table(seq_results, k_list, save_path)
         print(f"Segmental metrics table saved to {save_path}")
 
-
 def _save_segmental_table(seq_results: list, k_list: list, save_path: str) -> None:
     import matplotlib.pyplot as plt
     col_labels = (["demo_id", "Acc(%)", "BoundF1(%)", "EditScore"] + [f"F1@{k:.2f}(%)" for k in k_list] + ["OSE"])
@@ -465,21 +574,16 @@ def _save_segmental_table(seq_results: list, k_list: list, save_path: str) -> No
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
     plt.close()
 
-
 def get_prediction_for_current_step(model, history_data, device):
-    """根据历史数据获取当前时刻的预测标签（实时推理核心逻辑）。"""
     seq_len      = len(history_data)
     input_tensor = history_data.unsqueeze(0).to(device)
     lengths      = [seq_len]
     
-    # 强制 Viterbi 解码
     paths = model.decode(input_tensor, lengths)
     current_label = paths[0][-1] 
     return current_label
 
-
 def evaluate_model_real_time_simulation(model, test_dataset, device, save_path=None):
-    """在测试集上模拟实时数据流进行评估，并生成可视化报告。"""
     print("\n--- start real-time simulation ---")
     model.eval()
     all_preds, all_labels = [], []
@@ -512,7 +616,6 @@ def evaluate_model_real_time_simulation(model, test_dataset, device, save_path=N
         save_path = os.path.join(os.path.dirname(__file__), 'eval_results', 'eval_report_spatial_attn_realtime.png')
     visualize_report(all_labels, all_preds, title="Spatial-Attention-LSTM-CRF Real-Time Simulation Report", save_path=save_path)
 
-
 if __name__ == "__main__":
     test_dataset = TestDataset()
     test_loader  = DataLoader(
@@ -528,7 +631,6 @@ if __name__ == "__main__":
 
     dir_path = os.path.dirname(__file__)
     
-    # 【注意】：默认读取最新训练出的双臂空间注意力模型
     model_save_path = os.path.join(dir_path, "LSTM_model", "spatial_attn_lstmcrf_sequence_model.pth")
     
     if not os.path.exists(model_save_path):

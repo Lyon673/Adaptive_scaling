@@ -2,33 +2,33 @@ Mixed-Level Kinematic & Spatial Metrics Comparison
 =================================================================
 
 指标: Smoothness (S) (Per Segment)
-- 统计单位: 片段(Segment) (N_global=85, N_phased=68)
-- Global (Mean±SD): 4.7257e+00 ± 1.7991e+00
-- Phased (Mean±SD): 3.2935e+00 ± 2.2437e+00
-- Method: Mann-Whitney U | p-value: 8.0953e-05 | Cohen's d: -0.7083
+- 统计单位: 片段(Segment) (N_global=34, N_phased=18)
+- Global (Mean±SD): 4.3062e+00 ± 1.1430e+00
+- Phased (Mean±SD): 2.4964e+00 ± 2.2047e+00
+- Method: T-Test (Parametric) | p-value: 4.4424e-03 | Cohen's d: -1.1143
 --------------------------------------------------
 指标: Spectral Arc Length (SPARC) (Per Segment)
-- 统计单位: 片段(Segment) (N_global=85, N_phased=68)
-- Global (Mean±SD): -4.3771e+00 ± 8.4271e-01
-- Phased (Mean±SD): -4.3329e+00 ± 1.2787e+00
-- Method: Mann-Whitney U | p-value: 1.5587e-01 | Cohen's d: 0.0415
+- 统计单位: 片段(Segment) (N_global=34, N_phased=18)
+- Global (Mean±SD): -4.3883e+00 ± 8.4679e-01
+- Phased (Mean±SD): -4.4386e+00 ± 1.3776e+00
+- Method: Mann-Whitney U | p-value: 5.4459e-01 | Cohen's d: -0.0465
 --------------------------------------------------
 指标: 95% Covariance Ellipsoid Vol (Per Segment)
-- 统计单位: 片段(Segment) (N_global=79, N_phased=61)
-- 离群点剔除 (1.5*IQR): Global_Adaptive: 6个, Phased_Adaptive: 7个
-- Global (Mean±SD): 2.2146e-07 ± 2.9283e-07
-- Phased (Mean±SD): 6.8123e-08 ± 9.0807e-08
-- Method: Mann-Whitney U | p-value: 9.4586e-05 | Cohen's d: -0.6677
+- 统计单位: 片段(Segment) (N_global=31, N_phased=17)
+- 离群点剔除 (1.5*IQR): Global_Adaptive: 3个, Phased_Adaptive: 1个
+- Global (Mean±SD): 9.3029e-08 ± 1.0974e-07
+- Phased (Mean±SD): 3.3476e-08 ± 4.4442e-08
+- Method: Mann-Whitney U | p-value: 1.4853e-02 | Cohen's d: -0.6332
 --------------------------------------------------
 指标: Kinematic Sample Entropy (Per Segment)
-- 统计单位: 片段(Segment) (N_global=57, N_phased=34)
-- Global (Mean±SD): 7.9357e-01 ± 3.8863e-01
-- Phased (Mean±SD): 5.8137e-01 ± 2.3979e-01
-- Method: Mann-Whitney U | p-value: 7.4932e-03 | Cohen's d: -0.6159
+- 统计单位: 片段(Segment) (N_global=29, N_phased=11)
+- Global (Mean±SD): 7.3413e-01 ± 4.7607e-01
+- Phased (Mean±SD): 5.5423e-01 ± 3.0077e-01
+- Method: Mann-Whitney U | p-value: 3.7918e-01 | Cohen's d: -0.4031
 --------------------------------------------------
 指标: Total Path Length (Per Sequence)
-- 统计单位: 序列(Demo) (N_global=28, N_phased=26)
-- Global (Mean±SD): 6.9777e-02 ± 2.0335e-02
-- Phased (Mean±SD): 3.4093e-02 ± 1.9816e-02
-- Method: Mann-Whitney U | p-value: 8.4264e-07 | Cohen's d: -1.7433
+- 统计单位: 序列(Demo) (N_global=34, N_phased=18)
+- Global (Mean±SD): 1.8244e-02 ± 1.0641e-02
+- Phased (Mean±SD): 1.1231e-02 ± 1.1834e-02
+- Method: Mann-Whitney U | p-value: 3.1524e-03 | Cohen's d: -0.6213
 --------------------------------------------------

@@ -292,11 +292,11 @@ def run_statistical_analysis(df):
     fig.savefig(os.path.join(OUTPUT_DIR, "eye_metrics_comparison.png"), dpi=300)
     plt.close(fig)
 
-    report_path = os.path.join(OUTPUT_DIR, "statistical_report.txt")
-    with open(report_path, "w", encoding="utf-8") as f:
-        f.write(report_text)
+    # report_path = os.path.join(OUTPUT_DIR, "statistical_report.txt")
+    # with open(report_path, "w", encoding="utf-8") as f:
+    #     f.write(report_text)
 
-    df.to_csv(os.path.join(OUTPUT_DIR, "eye_metrics_raw.csv"), index=False)
+    # df.to_csv(os.path.join(OUTPUT_DIR, "eye_metrics_raw.csv"), index=False)
 
     print(report_text)
     print(f"\n>>> 统计完成！结果与图表已保存至: {OUTPUT_DIR}")
