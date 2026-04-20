@@ -171,7 +171,7 @@ def plot_single_demo_probability(probs, true_labels_np, demo_id, save_path=None)
 
     # 图例设置
     ax.legend([l_coarse, l_fine], ['P(Coarse)', 'P(Fine)'], loc='upper right', fontsize=11, framealpha=0.9)
-    fig.legend(band_handles, band_labels, loc='lower center', ncol=min(7, len(band_labels)), fontsize=10, title='Surgical Phase', bbox_to_anchor=(0.5, -0.05), framealpha=0.9)
+    fig.legend(band_handles, band_labels, loc='lower center', ncol=min(7, len(band_labels)), fontsize=12, title='Surgical Phase', title_fontsize=12, bbox_to_anchor=(0.5, -0.05), framealpha=0.9)
 
     plt.tight_layout(rect=[0, 0.08, 1, 1])
     
@@ -185,7 +185,7 @@ def plot_single_demo_probability(probs, true_labels_np, demo_id, save_path=None)
 # 4. 主函数逻辑
 # =========================================================================
 if __name__ == "__main__":
-    TARGET_DEMO_ID = 54  # 指定需要单独绘制的 demo_id
+    TARGET_DEMO_ID = 5  # 指定需要单独绘制的 demo_id
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"使用设备: {device}")
@@ -232,4 +232,4 @@ if __name__ == "__main__":
     save_path = os.path.join(save_dir, f"Sequence_Probability_Curve.png")
 
     print("正在生成高清图表...")
-    plot_single_demo_probability(probs[15:160], true_labels_np[15:160], demo_id=TARGET_DEMO_ID, save_path=save_path)
+    plot_single_demo_probability(probs[16:173], true_labels_np[16:173], demo_id=TARGET_DEMO_ID, save_path=save_path)

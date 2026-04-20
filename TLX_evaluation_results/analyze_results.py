@@ -149,7 +149,7 @@ def add_stat_annotation(ax, df, x_col, y_col, order, y_lim_max):
             elif p_val < 0.05: sig = '*'
             text = f"p={p_val:.3f} {sig}" if sig != '' else f"p={p_val:.3f} "
             
-        ax.text((x1+x2)/2, current_y+h*1.1, text, ha='center', va='bottom', color='#222222', fontsize=9.5, fontweight='bold')
+        ax.text((x1+x2)/2, current_y+h*1.1, text, ha='center', va='bottom', color='#222222', fontsize=12, fontweight='bold')
         
         current_y += step
 
@@ -188,10 +188,10 @@ def plot_2x2_boxplots_with_stats(df: pd.DataFrame, save_dir: str):
         ax.set_ylim(y_lim_min, y_lim_max)
         ax.set_yticks(y_ticks)
 
-        ax.set_title(title, fontsize=14, fontweight='bold', pad=15)
+        ax.set_title(title, fontsize=15, fontweight='bold', pad=15)
         ax.set_xlabel('')
         ax.set_ylabel('')
-        ax.set_xticklabels([GROUP_SHORT[g] for g in GROUP_ORDER], fontsize=12)
+        ax.set_xticklabels([GROUP_SHORT[g] for g in GROUP_ORDER], fontsize=13)
 
         ax.grid(axis='y', linestyle=':', linewidth=1.2, alpha=0.5, color='#A0A0A0')
         ax.spines['top'].set_visible(False)
@@ -218,8 +218,10 @@ def plot_radar_charts(df: pd.DataFrame, save_dir: str):
         ax.set_theta_offset(np.pi / 2)
         ax.set_theta_direction(-1)
         ax.set_xticks(angles[:-1])
-        ax.set_xticklabels(labels, fontsize=11)
-        
+        ax.set_xticklabels(labels, fontsize=15)
+        # ax.tick_params(axis='x', pad=25)
+        for label in ax.get_xticklabels()[1:]:
+            label.set_y(label.get_position()[1] - 0.12)
         for gname in GROUP_ORDER:
             vals = data_dict[gname].tolist()
             vals += vals[:1]
@@ -232,11 +234,11 @@ def plot_radar_charts(df: pd.DataFrame, save_dir: str):
                 raw_vals = raw_dict[gname]
                 for ang, nv, rv in zip(angles[:-1], vals[:-1], raw_vals):
                     ax.annotate(f'{rv:.1f}', xy=(ang, nv), xytext=(ang, nv + 0.1),
-                                fontsize=9, ha='center', va='center', color=color, weight='bold')
+                                fontsize=12, ha='center', va='center', color=color, weight='bold')
 
         ax.set_ylim(0, ymax)
         ax.set_yticks(yticks)
-        ax.set_yticklabels(yticklabels, color='grey', size=9)
+        ax.set_yticklabels(yticklabels, color='grey', size=12)
         ax.set_title(title, fontweight='bold', pad=30)
         ax.grid(True, linestyle='--', alpha=0.5)
 
@@ -244,7 +246,10 @@ def plot_radar_charts(df: pd.DataFrame, save_dir: str):
     ax1 = fig.add_subplot(gs[0, 0], polar=True)
     subj_angles = np.linspace(0, 2 * np.pi, len(SUBJECTIVE_ITEMS), endpoint=False).tolist()
     subj_angles += subj_angles[:1]
-    subj_labels = [it.replace('_', '\n').title() for it in SUBJECTIVE_ITEMS]
+    subj_labels = [
+    'Physical Demand', 'Temporal\nDemand', 'Controllability',
+    'Performance', 'Mental\nDemand', 'Effort', 'Frustration',
+    ]
     
     subj_data = {}
     for gname in GROUP_ORDER:
@@ -257,7 +262,7 @@ def plot_radar_charts(df: pd.DataFrame, save_dir: str):
     # 子图 (b): 客观指标雷达图
     ax2 = fig.add_subplot(gs[0, 1], polar=True)
     obj_items = [c for c in OBJECTIVE_SCORES if c != 'objective_total']
-    obj_labels = ['Log Curvature', 'Log Jerk', 'Clutch\nTimes', 'PSM Movement\nDistance', 'Total\nTime']
+    obj_labels = ['Log Curvature', 'Log Jerk', 'Clutch Times', 'PSM Movement\nDistance', 'Total Time']
     obj_angles = np.linspace(0, 2 * np.pi, len(obj_items), endpoint=False).tolist()
     obj_angles += obj_angles[:1]
     
@@ -275,7 +280,7 @@ def plot_radar_charts(df: pd.DataFrame, save_dir: str):
 
     handles, labels = ax1.get_legend_handles_labels()
     fig.legend(handles, labels, loc='lower center', bbox_to_anchor=(0.5, -0.02),
-               ncol=len(GROUP_ORDER), title="Motion Scaling Modes", frameon=False, fontsize=12)
+               ncol=len(GROUP_ORDER), title="Motion Scaling Modes", frameon=False, fontsize=13, title_fontsize=13)
 
     plt.tight_layout()
     path = os.path.join(save_dir, 'comprehensive_radar_charts.png')

@@ -7,7 +7,7 @@
 - [保留] 严格按照原始方式还原片段级散点数量，序列级自动去重
 - [保留] 同步 comp_metricsGS.py 的 Ellipsoid_Volume_95 组内离群点剔除逻辑
 - [极简版] 仅保留 Demo 级别的全局平均 (Overall) 可视化与统计检验，彻底杜绝伪重复
-- [新增] 运行结束后，输出各项核心指标最大/最小的前 5 个 Demo ID，用于极值溯源
+- [新增] 分组独立输出各项核心指标最大/最小的前 5 个 Demo ID，用于极值溯源
 """
 
 import os
@@ -30,11 +30,15 @@ except ImportError:
 # ==========================================
 # 1. 实验组划分与全局配置
 # ==========================================
-GLOBAL_ADAPTIVE_DEMOS1 = list(range(0,5))+[10,12,13,14]+[22,23,25]+[31,32,33,35]+[41,42,43]+[47,48,49]+[53,54,55]+[59,60,61]+[65,66,67,68,69,70]
-PHASED_ADAPTIVE_DEMOS1 = [5,6,9]+[15,20] +[26,27,29]+[37,38,40]+[44,45]+[50,51,52]+[56,57,58]+[62,63,64]+[74,75,76]
 
-GLOBAL_ADAPTIVE_DEMOS2 = list(range(0,5))+[10,12,13,14]+[22,23,25]+[31,32,33,35]+[41,42,43]+[47,48,49]
-PHASED_ADAPTIVE_DEMOS2 = list(range(5,10))+[15,20] +[26,27,29]+[36,37,38,40]+[44,45,46]+[50,51,52]
+# GLOBAL_ADAPTIVE_DEMOS1 = list(range(0,5))+[10,12,13,14]+[22,23,25]+[31,32,33,35]+[41,42,43]+[47,48,49]+[53,54,55]+[59,60,61]+[65,66,67,68,69,70]
+# PHASED_ADAPTIVE_DEMOS1 = [5,6,9]+[15,20] +[26,27,29]+[37,38,40]+[44,45]+[50,51,52]+[56,57,58]+[62,63,64]+[74,75,76]
+GLOBAL_ADAPTIVE_DEMOS1 = list(range(0,5))+[10,12,13,14]+[22,23,25]+[31,32,33,35]+[41,42,43]+[47,48,49]+[53,54,55]+[59,60,61]+[65,66,67,68,69,70]
+PHASED_ADAPTIVE_DEMOS1 = list(range(5,10))+[15,20] +[26,27,29]+[37,40]+[44,45,46]+[50,51,52]+[56,57,58]+[62,63,64]+[71,72,74,75,76]
+
+
+GLOBAL_ADAPTIVE_DEMOS2 = list(range(0,5))+[10,12,13,14]+[22,23,25]+[32,35]+[41,42,43]+[47,48,49]
+PHASED_ADAPTIVE_DEMOS2 = list(range(5,10))+[15,20] +[26,27,29]+[36,37,38,40]+[44,45,46]+[51,52]
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_ROOT  = os.path.join(SCRIPT_DIR, "data_Phase")
@@ -390,10 +394,10 @@ def draw_styled_boxplot(ax, df, x_col, y_col, title, is_seq_level=False, has_sca
             else:
                 p_str = f"{p_val:.3f}"
             
-            if p_val < 0.05:
+            if p_val < 0.1:
                 sig_text = f"p={p_str} {sig}"
             else:
-                sig_text = f"p>.05"
+                sig_text = f"p>0.05"
         
         y_max = df[y_col].max()
         y_min = df[y_col].min()
@@ -407,11 +411,11 @@ def draw_styled_boxplot(ax, df, x_col, y_col, title, is_seq_level=False, has_sca
                     lw=1.2, color='#333333')
             
             ax.text(0.5, y_bracket_top + h * 0.2, sig_text, ha='center', va='bottom', 
-                    color='#222222', fontsize=10, fontweight='bold')
+                    color='#222222', fontsize=12, fontweight='bold')
         
             ax.set_ylim(y_min - y_range * 0.1, y_bracket_top + h * 2.0)
 
-    ax.set_title(title, fontsize=14, fontweight='bold', pad=12, color='#222222')
+    ax.set_title(title, fontsize=15, fontweight='bold', pad=12, color='#222222')
     ax.set_xlabel('')
     ax.set_ylabel('')
     ax.spines['top'].set_visible(False)
@@ -421,7 +425,7 @@ def draw_styled_boxplot(ax, df, x_col, y_col, title, is_seq_level=False, has_sca
     ax.grid(axis='y', linestyle=':', linewidth=1, alpha=0.5, color='#CCCCCC')
     
     ax.set_xticks([0, 1])
-    ax.set_xticklabels([label_g1, label_g2], fontsize=10.5)
+    ax.set_xticklabels([label_g1, label_g2], fontsize=12)
     
     if df[y_col].max() > 1000:
         ax.ticklabel_format(axis='y', style='sci', scilimits=(0,0))
@@ -433,14 +437,14 @@ def plot_overall_figures(df1, df2):
     """
     fig, axes = plt.subplots(3, 2, figsize=(12, 14))
     
-    draw_styled_boxplot(axes[0, 0], df1, 'Group', 'Smoothness', 'Overall Median Log Jerk↓', is_seq_level=False)
-    draw_styled_boxplot(axes[0, 1], df1, 'Group', 'Kinematic_SampEn', 'Overall Kinematic Sample Entropy↓', is_seq_level=False)
+    draw_styled_boxplot(axes[0, 0], df1, 'Group', 'Smoothness', 'Median Log Jerk↓', is_seq_level=False)
+    draw_styled_boxplot(axes[0, 1], df1, 'Group', 'Kinematic_SampEn', 'Kinematic Sample Entropy↓', is_seq_level=False)
     
-    draw_styled_boxplot(axes[1, 0], df1, 'Group', 'Path_Length', 'Overall Total Path Length↓', is_seq_level=False)
-    draw_styled_boxplot(axes[1, 1], df1, 'Group', 'Ellipsoid_Volume_95', 'Overall 95% Confidence Ellipsoid Vol↓', is_seq_level=False)
+    draw_styled_boxplot(axes[1, 0], df1, 'Group', 'Path_Length', 'Total Path Length↓', is_seq_level=False)
+    draw_styled_boxplot(axes[1, 1], df1, 'Group', 'Ellipsoid_Volume_95', '95% Confidence Ellipsoid Vol↓', is_seq_level=False)
     
-    draw_styled_boxplot(axes[2, 0], df1, 'Group', 'SPARC', 'Overall SPARC↑', is_seq_level=False)
-    draw_styled_boxplot(axes[2, 1], df2, 'Group', 'IPA', 'Overall Index of Pupillary Activity↓', is_seq_level=False)
+    draw_styled_boxplot(axes[2, 0], df1, 'Group', 'SPARC', 'SPARC of PSM Speed↑', is_seq_level=False)
+    draw_styled_boxplot(axes[2, 1], df2, 'Group', 'IPA', 'Index of Pupillary Activity↓', is_seq_level=False)
     
     plt.tight_layout(pad=2.0)
     
@@ -451,26 +455,30 @@ def plot_overall_figures(df1, df2):
 
 
 # ==========================================
-# 6. 极值输出模块 (溯源与排查)
+# 6. 分组极值输出模块 (独立输出各组的Top5和Bottom5)
 # ==========================================
 def print_extreme_demos(df, metric_col, n=5):
-    """提取并在控制台输出指定指标的最大与最小的 5 个样本"""
+    """提取并在控制台分组输出指定指标的最大与最小的 5 个样本"""
     if metric_col not in df.columns: return
     df_clean = df.dropna(subset=[metric_col])
     if df_clean.empty: return
     
-    sorted_df = df_clean.sort_values(by=metric_col, ascending=True)
-    
     print(f"\n[ 核心指标: {metric_col} ]")
-    print(f"  ▼ 数值最小的 {n} 个 Demo (Bottom {n}):")
-    for _, row in sorted_df.head(n).iterrows():
-        grp_abbr = "Global" if "Global" in row['Group'] else "Phased"
-        print(f"    - Demo {int(row['Demo_ID']):>3d} [{grp_abbr}]: {row[metric_col]:.4e}")
+    
+    for group_name in ['Global Adaptive', 'Phased Adaptive']:
+        df_grp = df_clean[df_clean['Group'] == group_name]
+        if df_grp.empty: continue
         
-    print(f"  ▲ 数值最大的 {n} 个 Demo (Top {n}):")
-    for _, row in sorted_df.tail(n)[::-1].iterrows():
-        grp_abbr = "Global" if "Global" in row['Group'] else "Phased"
-        print(f"    - Demo {int(row['Demo_ID']):>3d} [{grp_abbr}]: {row[metric_col]:.4e}")
+        sorted_df = df_grp.sort_values(by=metric_col, ascending=True)
+        
+        print(f"\n  ■ {group_name}")
+        print(f"    ▼ 数值最小的 {n} 个 Demo (Bottom {n}):")
+        for _, row in sorted_df.head(n).iterrows():
+            print(f"      - Demo {int(row['Demo_ID']):>3d}: {row[metric_col]:.4e}")
+            
+        print(f"    ▲ 数值最大的 {n} 个 Demo (Top {n}):")
+        for _, row in sorted_df.tail(n)[::-1].iterrows():
+            print(f"      - Demo {int(row['Demo_ID']):>3d}: {row[metric_col]:.4e}")
 
 
 if __name__ == "__main__":
@@ -495,7 +503,7 @@ if __name__ == "__main__":
     plot_overall_figures(df1_avg, df2_avg)
     
     print("\n" + "="*50)
-    print(">>>> 执行极值分析: 提取各项指标 Top 5 与 Bottom 5")
+    print(">>>> 执行极值分析: 分组独立提取各项指标 Top 5 与 Bottom 5")
     print("="*50)
     
     metrics_to_check_df1 = ['Smoothness', 'Kinematic_SampEn', 'Path_Length', 'Ellipsoid_Volume_95', 'SPARC']

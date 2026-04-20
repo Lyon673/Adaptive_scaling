@@ -163,7 +163,7 @@ def plot_single_demo_alphas(model, sequence, true_labels_np, demo_id, device, sa
 
     # 下层图例：手术阶段颜色
     bg_patches = [patches.Patch(color=STAGE_COLORS[i], label=CLASS_NAMES[i]) for i in range(7)]
-    fig.legend(handles=bg_patches, loc='lower center', bbox_to_anchor=(0.5, -0.05), ncol=7, frameon=False, fontsize=10)
+    fig.legend(handles=bg_patches, loc='lower center', bbox_to_anchor=(0.5, -0.05), ncol=7, frameon=False, fontsize=12)
 
     plt.tight_layout(rect=[0, 0.08, 1, 1])
     
@@ -180,7 +180,7 @@ def plot_single_demo_alphas(model, sequence, true_labels_np, demo_id, device, sa
 # 3. 主函数执行流
 # =========================================================================
 if __name__ == "__main__":
-    TARGET_DEMO_ID = 65
+    TARGET_DEMO_ID = 5
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"使用设备: {device}")
@@ -215,4 +215,5 @@ if __name__ == "__main__":
     save_path = os.path.join(dir_path, os.pardir, "Essay_image_results", f"Bimanual_Weight_Alpha.png")
     
     print("正在计算 Attention Alpha 权重并渲染图表...")
-    plot_single_demo_alphas(model, sequence[20:155], true_labels_np[20:155], TARGET_DEMO_ID, device, save_path=save_path)
+    plot_single_demo_alphas(model, sequence[16:173], true_labels_np[16:173], TARGET_DEMO_ID, device, save_path=save_path)
+    # plot_single_demo_alphas(model, sequence, true_labels_np, TARGET_DEMO_ID, device, save_path=save_path)

@@ -325,7 +325,7 @@ def main():
                            color='white', linewidth=0.6, alpha=0.5)
 
     ax.set_yticks(y_positions)
-    ax.set_yticklabels(y_labels, fontsize=11, fontweight='bold')
+    ax.set_yticklabels(y_labels, fontsize=14, weight='bold')
     ax.invert_yaxis() 
     
     ax.set_xlabel('Frame', fontsize=12)
@@ -339,11 +339,11 @@ def main():
     legend_patches = [patches.Patch(color=CLASS_COLORS[i], label=CLASS_NAMES[i]) for i in range(7)]
     legend_patches.append(patches.Patch(color='#E0E0E0', label='Invalid Phase'))
     
-    ax.legend(handles=legend_patches, loc='lower center', bbox_to_anchor=(0.5, -0.25),
-              ncol=8, fontsize=10, frameon=False, title="Surgical Phases")
+    ax.legend(handles=legend_patches, loc='lower center', bbox_to_anchor=(0.5, -0.15),
+              ncol=8, fontsize=12, frameon=False, title="Surgical Phases", title_fontsize=12)
 
     plt.title(f"Networks Phase Prediction Results Comparison", 
-              fontsize=16, fontweight='bold', pad=20)
+              fontsize=17, fontweight='bold', pad=20)
     
     # ----- F. 保存并展示 -----
     plt.tight_layout()

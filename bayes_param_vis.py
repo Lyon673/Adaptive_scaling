@@ -54,11 +54,13 @@ def visualize_optimal_parameters(optimal_data, output_path="Optimal_Parameters_D
     subjects = df.index.tolist()
     params = df.columns.tolist()
     
+    
     # ==========================================
     # 2. 数据标准化 (Z-score Standardization)
     # ==========================================
     scaler = StandardScaler()
     df_normalized = pd.DataFrame(scaler.fit_transform(df), columns=params, index=subjects)
+    
     
     # ==========================================
     # 3. 组合画布布局 (1行2列)
@@ -68,6 +70,16 @@ def visualize_optimal_parameters(optimal_data, output_path="Optimal_Parameters_D
     
     ax_heatmap = fig.add_subplot(gs[0, 0])
     ax_parallel = fig.add_subplot(gs[0, 1])
+
+    # 统一提取 LaTeX 格式的标签
+    latex_labels = [
+        r'$C_{\mathrm{base}}$',
+        r'$K_g$',
+        r'$A_{\mathrm{gp}}$',
+        r'$A_{\theta}$',
+        r'$A_v$',
+        r'$B_{\mathrm{safety}}$'
+    ]
     
     # ---------------------------------------------------------
     # 图 (a): Z-score 标准化参数指纹热力图 (使用原始数值标注)
@@ -82,6 +94,9 @@ def visualize_optimal_parameters(optimal_data, output_path="Optimal_Parameters_D
     ax_heatmap.set_title('(a) Optimal Parameter Matrix', fontweight='bold', pad=15)
     ax_heatmap.set_ylabel('Subjects')
     ax_heatmap.set_xlabel('Hyperparameters')
+    
+    # 将热力图的 X 轴标签替换为 LaTeX 格式
+    ax_heatmap.set_xticklabels(latex_labels)
     ax_heatmap.tick_params(axis='x', rotation=25)
     
     # ---------------------------------------------------------
@@ -101,7 +116,7 @@ def visualize_optimal_parameters(optimal_data, output_path="Optimal_Parameters_D
         
     # 装饰平行坐标图
     ax_parallel.set_title('(b) Smooth Parallel Coordinates of Z-score Hyperparameters', fontweight='bold', pad=15)
-    ax_parallel.set_ylabel('Z-score (0 = Population Mean)')
+    ax_parallel.set_ylabel('Z-score')
     
     # 弱化水平网格线
     ax_parallel.grid(axis='y', linestyle=':', alpha=0.3)
@@ -113,9 +128,9 @@ def visualize_optimal_parameters(optimal_data, output_path="Optimal_Parameters_D
     for x_pos in x_positions:
         ax_parallel.axvline(x_pos, color='#95a5a6', linestyle='-', alpha=0.3, linewidth=1.0, zorder=0)
         
-    # 设定 X 轴刻度和标签
+    # 设定 X 轴刻度和 LaTeX 标签
     ax_parallel.set_xticks(x_positions)
-    ax_parallel.set_xticklabels(params)
+    ax_parallel.set_xticklabels(latex_labels)
     
     # 去除外边框
     ax_parallel.spines['top'].set_visible(False)
@@ -132,7 +147,7 @@ def visualize_optimal_parameters(optimal_data, output_path="Optimal_Parameters_D
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
     plt.close()
-    print(f"清爽版参数差异可视化图表已生成并保存至: {output_path}")
+    print(f"params fig saved to: {output_path}")
 
 if __name__ == "__main__":
     # ==========================================

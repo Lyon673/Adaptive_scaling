@@ -35,7 +35,7 @@ def load_trajectory_from_npy(file_path):
 
 def plot_3d_trajectories(traj_data_dict, save_path="3D_Trajectories_Comparison.png"):
     """
-    绘制 1x3 的三维轨迹子图，强制统一坐标轴刻度，并优化 Z 轴和整体布局。
+    绘制 1x3 的三维散点轨迹子图，强制统一坐标轴刻度，并通过散点密度直观体现运动速度。
     """
     modes = ['Fixed Mode', 'Adaptive Mode', 'Phased Adaptive Mode']
     
@@ -71,8 +71,12 @@ def plot_3d_trajectories(traj_data_dict, save_path="3D_Trajectories_Comparison.p
     else:
         global_xlim = global_ylim = global_zlim = None
 
-    # 【布局优化 1】：稍微缩短画幅宽度，让 1x3 布局更加紧凑
     fig = plt.figure(figsize=(16, 6))
+    
+    # 【核心参数】：降采样步长。由于系统采样频率固定，跳帧抽取后，点间距自然代表了速度大小。
+    # 间距越大 -> 速度越快；点越密集 -> 速度越慢或发生停滞。
+    # 请根据您的实际数据帧数（采样率）在此微调此值以获得最佳视觉效果。
+    downsample_step = 2
     
     for i, mode_name in enumerate(modes):
         if mode_name not in traj_data_dict:
@@ -81,26 +85,41 @@ def plot_3d_trajectories(traj_data_dict, save_path="3D_Trajectories_Comparison.p
         left_traj, right_traj = traj_data_dict[mode_name]
         ax = fig.add_subplot(1, 3, i + 1, projection='3d')
         
-        # 【布局优化 2】：调整 3D 框的比例，微微压缩 Z 轴高度，给标签腾出空间
         ax.set_box_aspect([1, 1, 0.8])
         
         # 1. 绘制左臂轨迹
         if left_traj is not None and len(left_traj) > 0:
+            left_ds = left_traj[::downsample_step] # 执行降采样
+            
+            # 画极浅的底层连线，保持整体轨迹结构感，不至于让散点显得支离破碎
             ax.plot(left_traj[:, 0], left_traj[:, 1], left_traj[:, 2], 
-                    color=COLOR_LEFT, linewidth=3, alpha=0.85, label='Left Arm')
+                    color=COLOR_LEFT, linewidth=2.0, alpha=0.3)
+            
+            # 叠加降采样散点，体现速度
+            ax.scatter(left_ds[:, 0], left_ds[:, 1], left_ds[:, 2], 
+                       color=COLOR_LEFT, s=50, alpha=0.85, edgecolors='white', linewidths=0.3, label='Left PSM')
+                       
+            # 强调起点(圆)和终点(方)
             ax.scatter(left_traj[0, 0], left_traj[0, 1], left_traj[0, 2], 
-                       color=COLOR_LEFT, s=40, marker='o', edgecolor='black', linewidth=0.6, zorder=5)
-            ax.scatter(left_traj[-1, 0], left_traj[-1, 1], left_traj[-1, 2], 
-                       color=COLOR_LEFT, s=40, marker='s', edgecolor='black', linewidth=0.6, zorder=5)
+                       color=COLOR_LEFT, s=50, marker='s', edgecolor='black', linewidth=0.8, zorder=5)
+
 
         # 2. 绘制右臂轨迹
         if right_traj is not None and len(right_traj) > 0:
+            right_ds = right_traj[::downsample_step] # 执行降采样
+            
+            # 底层连线
             ax.plot(right_traj[:, 0], right_traj[:, 1], right_traj[:, 2], 
-                    color=COLOR_RIGHT, linewidth=3, alpha=0.85, label='Right Arm')
+                    color=COLOR_RIGHT, linewidth=2.0, alpha=0.3)
+            
+            # 叠加散点
+            ax.scatter(right_ds[:, 0], right_ds[:, 1], right_ds[:, 2], 
+                       color=COLOR_RIGHT, s=50, alpha=0.85, edgecolors='white', linewidths=0.3, label='Right PSM')
+                       
+            # 强调起点(圆)和终点(方)
             ax.scatter(right_traj[0, 0], right_traj[0, 1], right_traj[0, 2], 
-                       color=COLOR_RIGHT, s=40, marker='o', edgecolor='black', linewidth=0.6, zorder=5)
-            ax.scatter(right_traj[-1, 0], right_traj[-1, 1], right_traj[-1, 2], 
-                       color=COLOR_RIGHT, s=40, marker='s', edgecolor='black', linewidth=0.6, zorder=5)
+                       color=COLOR_RIGHT, s=50, marker='s', edgecolor='black', linewidth=0.8, zorder=5)
+
 
         # 应用统一坐标轴限制
         if global_xlim and global_ylim and global_zlim:
@@ -110,14 +129,6 @@ def plot_3d_trajectories(traj_data_dict, save_path="3D_Trajectories_Comparison.p
 
         # 3. 装饰与美化
         ax.set_title(mode_name, fontweight='bold', pad=15)
-        
-        # # 【布局优化 3】：坐标轴标签间距与旋转控制
-        # ax.set_xlabel('X axis', labelpad=10)
-        # ax.set_ylabel('Y axis', labelpad=10)
-        
-        # 强制 Z 轴标签垂直显示，并拉开与数字的距离
-        # ax.zaxis.set_rotate_label(False) 
-        # ax.set_zlabel('Z axis', labelpad=15, rotation=90)
         ax.tick_params(axis='z', pad=5)
         
         # 透明化背景面板
@@ -128,27 +139,27 @@ def plot_3d_trajectories(traj_data_dict, save_path="3D_Trajectories_Comparison.p
         ax.yaxis._axinfo["grid"].update({'linestyle': '--', 'color': '#CCCCCC'})
         ax.zaxis._axinfo["grid"].update({'linestyle': '--', 'color': '#CCCCCC'})
 
-        # 视角设置：azim=135 时，Z 轴通常显示在右侧。若想显示在左侧，可改为 azim=-45 或 45
+        # 视角设置
         ax.view_init(elev=25, azim=135)
         
         # 仅在第一个子图显示图例
         if i == 0:
             ax.legend(loc='upper left', frameon=False, bbox_to_anchor=(0.0, 1.05))
 
-    # 【布局优化 4】：使用 precise 的间距调整代替 tight_layout，拉近子图距离
+    # 拉近子图距离
     plt.subplots_adjust(left=0.05, right=0.95, bottom=0.1, top=0.9, wspace=0.08)
 
     # 保存文件
     os.makedirs(os.path.dirname(save_path) if os.path.dirname(save_path) else '.', exist_ok=True)
     plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
     plt.close()
-    print(f"🎉 3D 轨迹对比图（排版优化版）已成功生成并保存至: {save_path}")
+    print(f"🎉 3D 散点轨迹对比图（速度体现实装版）已成功生成并保存至: {save_path}")
 
 if __name__ == "__main__":
     base_dir = os.path.join(os.path.dirname(__file__), "data")
 
     fixed_demo_path = os.path.join(base_dir, "106_data_04-03")
-    adaptive_demo_path = os.path.join(base_dir, "184_data_04-09") 
+    adaptive_demo_path = os.path.join(base_dir, "179_data_04-09") 
     phased_adaptive_demo_path = os.path.join(base_dir, "165_data_04-09") 
     
     file_paths = {
@@ -173,10 +184,5 @@ if __name__ == "__main__":
         trajectory_dataset[mode] = (left_data, right_data)
     
     file_path = os.path.join(os.path.dirname(__file__))
-    output_filepath = os.path.join(file_path, "Essay_image_results", "3D_Trajectories_Comparison.png")
+    output_filepath = os.path.join(file_path, "Essay_image_results", "3D_Trajectories_Comparison_Scatter.png")
     plot_3d_trajectories(trajectory_dataset, save_path=output_filepath)
-
-
-
-
-
