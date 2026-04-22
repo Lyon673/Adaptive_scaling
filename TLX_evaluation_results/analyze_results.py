@@ -162,10 +162,10 @@ def plot_2x2_boxplots_with_stats(df: pd.DataFrame, save_dir: str):
     # 【核心逻辑重构】：解耦可视范围(y_lim)和刻度显示(y_ticks)
     # 格式: (字段名, 标题, 标签显示范围, 留白下限, 留白上限)
     metrics_to_plot = [
-        ('clutch_times',     'Total Clutch Times',  [0, 2, 4, 6, 8, 10],      -0.5, 12.5),
-        ('total_time',       'Total Completion Time (s)', [0, 10, 20, 30, 40, 50, 60],  -3.0, 75.0),
-        ('subjective_score', 'Subjective Score',          [0, 20, 40, 60, 80, 100], -5.0, 125.0),
-        ('total_score',      'Total Score',               [0, 20, 40, 60, 80, 100], -5.0, 125.0)
+        ('clutch_times',     'Total Clutch Times ↓',  [0, 2, 4, 6, 8, 10],      -0.5, 12.5),
+        ('total_time',       'Total Completion Time (s) ↓', [0, 10, 20, 30, 40, 50, 60],  -3.0, 75.0),
+        ('subjective_score', 'Subjective Score ↑',          [0, 20, 40, 60, 80, 100], -5.0, 125.0),
+        ('total_score',      'Total Score ↑',               [0, 20, 40, 60, 80, 100], -5.0, 125.0)
     ]
 
     for i, (col, title, y_ticks, y_lim_min, y_lim_max) in enumerate(metrics_to_plot):

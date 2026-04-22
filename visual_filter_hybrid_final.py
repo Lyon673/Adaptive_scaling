@@ -43,7 +43,7 @@ class Config:
         'grid_size': (540, 960),
         'quantile_threshold': 0.1,
         'sigma': 5,
-        'corridor_thickness': 80,  
+        'corridor_thickness': 50,  
         'min_cluster_size': 500
     }
     
@@ -198,36 +198,36 @@ def generate_evaluation_plot(data_path, save_path, subdir_name, spatial_model):
     # 画布与子图布局配置 (增加总体宽度，优化比例)
     # ---------------------------------------------------------
     fig = plt.figure(figsize=(20, 6))
-    # 赋予右侧图像略微更多的宽度权重，确保其拥有足够空间展示 16:9
     gs = fig.add_gridspec(2, 2, width_ratios=[1, 1.2], wspace=0.15, hspace=0.25)
     
     ax_x = fig.add_subplot(gs[0, 0])
     ax_y = fig.add_subplot(gs[1, 0])
     ax_2d = fig.add_subplot(gs[:, 1])
 
-    # 柔和色彩定义
-    COLOR_RAW = '#BDC3C7'      # 浅银灰色
-    COLOR_FILTERED = '#2C3E50' # 深石板蓝
-    COLOR_OUTLIER = '#E18283'  # 柔红色 (剔除点)
-    COLOR_VALID = '#5681B9'    # 柔蓝色 (有效点)
+    # =====================================================================
+    # 色彩定义更新：采用高对比度的醒目颜色组合
+    # =====================================================================
+    COLOR_RAW = '#FF3333'      # 浅银灰色 (左侧一维序列用)
+    COLOR_FILTERED = '#2C3E50' # 深石板蓝 (左侧一维序列用)
+    COLOR_OUTLIER = '#FF3333'  # 鲜艳红 (无效点，能在各种背景中凸显)
+    COLOR_VALID = '#0066CC'    # 亮天蓝 (有效点，与红色形成强烈对比)
 
     # 1. 绘制 X 轴时间序列
-    ax_x.plot(times, raw_x, color=COLOR_RAW, alpha=0.6, linewidth=1.5, label='Raw Gaze Signal')
-    ax_x.plot(times, out_x, color=COLOR_FILTERED, linewidth=2.0, label='Hybrid Filtered Signal')
-    ax_x.set_title(f"X-Axis Tracking - {subdir_name}", fontweight='bold', pad=10)
-    ax_x.set_ylabel("X Coordinate (Pixels)")
+    ax_x.plot(times, raw_x*2, color=COLOR_RAW, alpha=0.6, linewidth=1.5, label='Raw Gaze Point Coordinates')
+    ax_x.plot(times, out_x*2, color=COLOR_FILTERED, linewidth=2.0, label='Filtered Gaze Point Cooradinates')
+    ax_x.set_title(f"X/Y Coordinate-t Curves", fontweight='bold', pad=10)
+    # ax_x.set_yticks(np.linspace(0, config.resolution_x*2, 7)[1:])
+    ax_x.set_ylabel("X (Pixels)")
     ax_x.grid(axis='y', linestyle=':', alpha=0.6)
     
-    # 图例修饰
     legend_x = ax_x.legend(loc='upper right', framealpha=0.9, edgecolor='#CCCCCC')
     
     # 2. 绘制 Y 轴时间序列
-    ax_y.plot(times, raw_y, color=COLOR_RAW, alpha=0.6, linewidth=1.5)
-    ax_y.plot(times, out_y, color=COLOR_FILTERED, linewidth=2.0)
+    ax_y.plot(times, raw_y*2, color=COLOR_RAW, alpha=0.6, linewidth=1.5)
+    ax_y.plot(times, out_y*2, color=COLOR_FILTERED, linewidth=2.0)
     ax_y.invert_yaxis() # 图像坐标系 Y 轴向下
-    ax_y.set_title("Y-Axis Tracking", fontweight='bold', pad=10)
-    ax_y.set_xlabel("Time (Seconds)")
-    ax_y.set_ylabel("Y Coordinate (Pixels)")
+    ax_y.set_xlabel("Time (s)")
+    ax_y.set_ylabel("Y (Pixels)")
     ax_y.grid(axis='y', linestyle=':', alpha=0.6)
     
     for ax in [ax_x, ax_y]:
@@ -240,25 +240,35 @@ def generate_evaluation_plot(data_path, save_path, subdir_name, spatial_model):
     if os.path.exists(config.bg_image_path):
         bg_img = plt.imread(config.bg_image_path)
         # aspect='equal' 配合 960x540 的 extent，将在物理画布上强制锁定完美的 16:9 比例
-        ax_2d.imshow(bg_img, extent=[0, config.resolution_x, config.resolution_y, 0], 
+        ax_2d.imshow(bg_img, extent=[0, config.resolution_x*2, config.resolution_y*2, 0], 
                      aspect='equal', alpha=0.85)
     else:
         print(f"\n⚠️ 提示: 未找到背景图片 '{config.bg_image_path}'。已回退至空间遮罩显示。")
-        ax_2d.imshow(spatial_model.mask, extent=[0, config.resolution_x, config.resolution_y, 0], 
+        ax_2d.imshow(spatial_model.mask, extent=[0, config.resolution_x*2, config.resolution_y*2, 0], 
                      cmap='Blues', aspect='equal', alpha=0.1)
 
-    # 散点渲染优化
-    ax_2d.scatter(raw_x[~valid_mask][::2], 540-raw_y[~valid_mask][::2], c=COLOR_OUTLIER, s=15, alpha=0.5, 
-                 linewidths=0.2, label='Filtered Outliers')
-    ax_2d.scatter(out_x[::2], 540-out_y[::2], c=COLOR_VALID, s=15, alpha=0.5, 
-                  linewidths=0.2, label='Valid Gaze Path')
+    # =====================================================================
+    # 散点渲染更新：无效点使用明显叉号 (x)，有效点使用高对比度圆点 (o)
+    # =====================================================================
+    ax_2d.scatter(out_x[::20]*2, (540-out_y[::20])*2, 
+                  c=COLOR_VALID, marker='o', s=50, alpha=0.7, 
+                   label='Valid Gaze Points')
+
+    ax_2d.scatter(raw_x[~valid_mask][::2]*2, (540-raw_y[~valid_mask][::2])*2, 
+                  c=COLOR_OUTLIER, marker='x', s=50, alpha=0.7, 
+                  linewidths=2.5, label='Invalid Outliers')
+            
+                  
+    
     
     # 确保视窗边界完全贴合设定分辨率
-    ax_2d.set_xlim(0, config.resolution_x)
-    ax_2d.set_ylim(config.resolution_y, 0)
-    ax_2d.set_title("Gaze Path Overlay on Operational Field", fontweight='bold', pad=15)
-    ax_2d.set_xlabel("Screen Width (Pixels)")
-    ax_2d.set_ylabel("Screen Height (Pixels)")
+    ax_2d.set_xlim(0, config.resolution_x*2)
+    ax_2d.set_ylim(config.resolution_y*2, 0)
+    ax_2d.set_xticks(np.linspace(0, config.resolution_x*2, 7)[1:])  # 7个刻度
+    ax_2d.set_yticks(np.linspace(0, config.resolution_y*2, 5))
+    ax_2d.set_title("2d Gaze Point Trajectory", fontweight='bold', pad=15)
+    ax_2d.set_xlabel("X Coordinate (Pixels)")
+    ax_2d.set_ylabel("Y Coordinate (Pixels)")
     
     # 防止边框干扰背景图的美观
     ax_2d.spines['top'].set_color('#DDDDDD')
@@ -289,7 +299,7 @@ def process_data(start_idx, end_idx):
         path = os.path.join(data_base_dir, subdir)
         if os.path.exists(os.path.join(path, 'gazepoint_position_data.npy')):
             print(f"Processing -> {subdir}...")
-            save_file = os.path.join(output_dir, f"{subdir}_hybrid.png")
+            save_file = os.path.join(output_dir, f"GazePoint_Filtered_Results.png")
             generate_evaluation_plot(path, save_file, subdir, spatial_model)
 
 if __name__ == "__main__":
