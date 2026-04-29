@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import fsolve
+import os
+
 
 # 模拟 config.feature_bound
 class Config:
@@ -9,10 +11,10 @@ class Config:
 config = Config()
 
 # 参数设置
-k = 2 * 1e-4
+k = 2 * 1e-2
 K_g = 10
 C_base = 14
-alpha = 3
+alpha = 2
 beta = 2
 
 def get_fixed_point_function(v, v_m):
@@ -24,7 +26,7 @@ def get_fixed_point_function(v, v_m):
     
     # 2. expFunc & s_t
     f_val = 1 - np.exp(-(alpha**2) * (N_v**beta))
-    s_t = K_g * (1 + f_val) + C_base
+    s_t = K_g * (0.3 + f_val) + C_base
     
     # 3. G(v)
     return k * v_m * s_t
@@ -39,16 +41,18 @@ def solve_fixed_point(v_m):
 
 if __name__ == "__main__":
     # 定义 v_m 的范围
-    v_m_range = np.linspace(1, 40,80) # 从 1 到 100 扫描 v_m
+    v_m_range = np.linspace(1, 20, 80)*0.01 # 从 1 到 30 扫描 v_m
     fixed_points = [solve_fixed_point(vm) for vm in v_m_range]
 
     # 绘图
     plt.figure(figsize=(10, 6))
-    plt.plot(v_m_range, fixed_points, label='Fixed Point $v^*$', color='black', linewidth=2)
+    plt.plot(v_m_range, fixed_points, color='black', linewidth=2)
     
-    plt.title('Relationship between $v_m$ and Fixed Point $v^*$', fontsize=12)
-    plt.xlabel('Master Velocity $v_m$', fontsize=10)
-    plt.ylabel('Steady State Slave Velocity $v^*$', fontsize=10)
+    plt.title('Relationship between $v_m$ and Fixed Point $v^*$', fontsize=22)
+    plt.xlabel('MTM Velocity $v_m$', fontsize=18)
+    plt.ylabel('Steady State PSM Velocity $v^*$', fontsize=18)
     plt.grid(True, linestyle='--', alpha=0.7)
-    plt.legend()
-    plt.show()
+
+    OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Essay_image_results")
+    save_path = os.path.join(OUTPUT_DIR, f"velocity_stability.pdf")
+    plt.savefig(save_path, format="pdf", dpi=300, bbox_inches='tight', facecolor='white')

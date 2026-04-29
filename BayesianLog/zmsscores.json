@@ -149,7 +149,24 @@
         "clutch_times_score": 30,
         "total_distance_score": 13.742380744850824,
         "total_time_score": 9.092925643920898,
-        "total_score": 85.56008638295057,
+        "total_score": 78.56008638295057,
+        "fixed_scale": null
+    },
+    {
+        "AFflag": 0.0,
+        "subscore": 64.96,
+        "gracefulness": 3.0050801737223427,
+        "smoothness": 6.178939928226523,
+        "Lclutch_times": 0.0,
+        "Rclutch_times": 5.0,
+        "total_distance": 0.2625761925514918,
+        "total_time": 27.267685890197754,
+        "gracefulness_score": 3.324866377129429,
+        "smoothness_score": 0.0,
+        "clutch_times_score": 30,
+        "total_distance_score": 13.742380744850824,
+        "total_time_score": 9.092925643920898,
+        "total_score": 81.56008638295057,
         "fixed_scale": null
     }
 ]

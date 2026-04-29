@@ -121,7 +121,25 @@ def load_spatial_attn_lstmcrf_model(filepath, device='cpu'):
     return model
 
 # =========================================================================
-# 3. 单个 Demo 绘图逻辑
+# 3. 辅助函数：通过 demo_id 查找 data 目录以获取 npy 文件
+# =========================================================================
+def get_data_dir_by_demo_id(base_dir, demo_id):
+    if not os.path.exists(base_dir): 
+        return None
+    subdirs = [d for d in os.listdir(base_dir) if os.path.isdir(os.path.join(base_dir, d))]
+    
+    target_dirs = []
+    for d in subdirs:
+        if d.startswith(f"{demo_id}_"):
+            target_dirs.append(os.path.join(base_dir, d))
+            
+    if target_dirs:
+        target_dirs.sort()  # 返回最新的文件夹
+        return target_dirs[-1]
+    return None
+
+# =========================================================================
+# 4. 单个 Demo 绘图逻辑
 # =========================================================================
 def plot_single_demo_probability(probs, true_labels_np, demo_id, save_path=None):
     CLASS_NAMES = ['P0 Right Hand\nMove', 'P1 Pick\nNeedle', 'P2 Right Hand\nMove', 'P3 Pass\nNeedle', 'P4 Left Hand\nMove',  'P5 Left Hand\nPick', 'P6 Pull\nThread']
@@ -132,6 +150,9 @@ def plot_single_demo_probability(probs, true_labels_np, demo_id, save_path=None)
     
     seq_len = probs.shape[0]
     time_steps = np.arange(seq_len)
+    
+    # 【安全保护】：取较小的值防止标签与概率数据长度不匹配
+    T_labels = min(seq_len, len(true_labels_np))
 
     coarse_prob = probs[:, coarse_classes].sum(axis=1)
     fine_prob   = probs[:, fine_classes  ].sum(axis=1)
@@ -139,23 +160,27 @@ def plot_single_demo_probability(probs, true_labels_np, demo_id, save_path=None)
     fig, ax = plt.subplots(figsize=(16, 5))
 
     # 1. 绘制真实阶段背景色带
-    prev_label, span_start, spans = true_labels_np[0], 0, []
-    for t in range(1, seq_len):
-        if true_labels_np[t] != prev_label:
-            spans.append((span_start, t - 1, prev_label))
-            span_start, prev_label = t, true_labels_np[t]
-    spans.append((span_start, seq_len - 1, prev_label))
-
     drawn_labels = set()
     band_handles, band_labels = [], []
-    for (s, e, lbl) in spans:
-        color = STAGE_COLORS.get(int(lbl), '#DDDDDD')
-        lbl_name = CLASS_NAMES[int(lbl)] if 0 <= lbl < len(CLASS_NAMES) else 'Unlabeled'
-        patch = ax.axvspan(s - 0.5, e + 0.5, alpha=0.45, color=color, linewidth=0)
-        if lbl not in drawn_labels:
-            band_handles.append(patch)
-            band_labels.append(lbl_name.replace('\n', ' '))
-            drawn_labels.add(lbl)
+    
+    if T_labels > 0:
+        prev_label, span_start, spans = true_labels_np[0], 0, []
+        for t in range(1, T_labels):
+            if true_labels_np[t] != prev_label:
+                spans.append((span_start, t - 1, prev_label))
+                span_start, prev_label = t, true_labels_np[t]
+        spans.append((span_start, T_labels - 1, prev_label))
+
+        for (s, e, lbl) in spans:
+            color = STAGE_COLORS.get(int(lbl), '#DDDDDD')
+            lbl_name = CLASS_NAMES[int(lbl)] if 0 <= lbl < len(CLASS_NAMES) else 'Unlabeled'
+            patch = ax.axvspan(s - 0.5, e + 0.5, alpha=0.45, color=color, linewidth=0)
+            
+            # 【修改点】：增加判定，只要标签大于等于0且在定义的有效类范围内，才将其添加入图例
+            if lbl not in drawn_labels and 0 <= int(lbl) < len(CLASS_NAMES):
+                band_handles.append(patch)
+                band_labels.append(lbl_name.replace('\n', ' '))
+                drawn_labels.add(lbl)
 
     # 2. 绘制概率曲线
     l_coarse, = ax.plot(time_steps, coarse_prob, color='#1A6FA8', linewidth=2.5, linestyle='--', label='P(Coarse)', zorder=3)
@@ -171,21 +196,22 @@ def plot_single_demo_probability(probs, true_labels_np, demo_id, save_path=None)
 
     # 图例设置
     ax.legend([l_coarse, l_fine], ['P(Coarse)', 'P(Fine)'], loc='upper right', fontsize=11, framealpha=0.9)
-    fig.legend(band_handles, band_labels, loc='lower center', ncol=min(7, len(band_labels)), fontsize=12, title='Surgical Phase', title_fontsize=12, bbox_to_anchor=(0.5, -0.05), framealpha=0.9)
+    if band_handles:
+        fig.legend(band_handles, band_labels, loc='lower center', ncol=min(7, len(band_labels)), fontsize=12, title='Surgical Phase', title_fontsize=12, bbox_to_anchor=(0.5, -0.05), framealpha=0.9)
 
     plt.tight_layout(rect=[0, 0.08, 1, 1])
     
     if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.savefig(save_path, format="pdf", dpi=300, bbox_inches='tight')
         print(f"✅ Demo {demo_id} 概率曲线已保存至: {save_path}")
     plt.show()
     plt.close(fig)
 
 # =========================================================================
-# 4. 主函数逻辑
+# 5. 主函数逻辑
 # =========================================================================
 if __name__ == "__main__":
-    TARGET_DEMO_ID = 5  # 指定需要单独绘制的 demo_id
+    TARGET_DEMO_ID = 184 
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"使用设备: {device}")
@@ -201,13 +227,50 @@ if __name__ == "__main__":
     print("正在加载模型...")
     model = load_spatial_attn_lstmcrf_model(model_path, device)
 
-    # 2. 单独加载 Demo 9 的数据
-    print(f"正在加载 Demo ID {TARGET_DEMO_ID} 的数据...")
-    states = load_specific_test_state(shuffle=False, without_quat=without_quat, resample=resample, demo_id_list=[TARGET_DEMO_ID])
-    labels = load_specific_test_label(demo_id_list=[TARGET_DEMO_ID])
-    
+    # 2. 单独加载 Demo 的状态数据 (附带异常隔离机制)
+    print(f"正在加载 Demo ID {TARGET_DEMO_ID} 的特征状态数据...")
+    states = []
+    try:
+        states = load_specific_test_state(shuffle=False, without_quat=without_quat, resample=resample, demo_id_list=[TARGET_DEMO_ID])
+    except FileNotFoundError as e:
+        print(f"\n❌ [致命错误] 无法找到运动学状态文件: {e}")
+        print(f"💡 必须依赖 `Dataset/state/{TARGET_DEMO_ID}.txt` 文件来生成网络所需的 16 维输入张量！")
+        exit()
+    except Exception as e:
+        print(f"\n❌ 解析特征文件时发生未知错误: {e}")
+        exit()
+
+    # 3. 加载 Demo 标签数据 (附带 npy Fallback 机制)
+    print(f"正在尝试抓取 Demo ID {TARGET_DEMO_ID} 的标签数据...")
+    labels = []
+    try:
+        labels = load_specific_test_label(demo_id_list=[TARGET_DEMO_ID])
+    except Exception as e:
+        print(f"⚠️ 从 json 读取标签异常: {e}")
+
+    # 如果 json 加载失败或返回空值，执行回退：从 data 文件夹中的 npy 加载
+    if not labels or len(labels) == 0:
+        print("⚠️ 未能从 json 获取标签数据，尝试从 data/dataPre 文件夹中的 npy 文件读取...")
+        data_base_dirs = [os.path.join(dir_path, os.pardir, "data"), os.path.join(dir_path, "dataPre")]
+        found_dir = None
+        for d in data_base_dirs:
+            found_dir = get_data_dir_by_demo_id(d, TARGET_DEMO_ID)
+            if found_dir:
+                break
+        
+        if found_dir:
+            npy_label_path = os.path.join(found_dir, 'phase_labels.npy')
+            if os.path.exists(npy_label_path):
+                # 成功加载 npy 标签并包装成与 json 输出相同的列表格式
+                labels = [np.load(npy_label_path)]
+                print(f"✅ 成功从 {npy_label_path} 回退加载阶段标签数据！")
+            else:
+                print(f"❌ 找到了数据目录 {found_dir}，但缺失 phase_labels.npy！")
+        else:
+            print(f"❌ 在 data 和 dataPre 目录中均未能找到 Demo {TARGET_DEMO_ID} 的文件夹！")
+
     if len(states) == 0 or len(labels) == 0:
-        print(f"❌ 未找到 Demo {TARGET_DEMO_ID} 的数据！")
+        print(f"❌ 无法组装完整的 Demo {TARGET_DEMO_ID} (状态或标签缺失)！程序退出。")
         exit()
 
     sequence = torch.tensor(states[0], dtype=torch.float32).to(device)
@@ -215,7 +278,7 @@ if __name__ == "__main__":
     if sequence.dim() == 1:
         sequence = sequence.unsqueeze(1)
 
-    # 3. 模型推理与因果滤波概率计算
+    # 4. 模型推理与因果滤波概率计算
     print("正在推演实时概率...")
     with torch.no_grad():
         logits = model(sequence.unsqueeze(0), [sequence.shape[0]])
@@ -226,10 +289,12 @@ if __name__ == "__main__":
         else:
             probs = torch.softmax(logits_squeeze, dim=1).cpu().numpy()
 
-    # 4. 绘制并保存结果
+    # 5. 绘制并保存结果
     save_dir = os.path.join(dir_path, os.pardir, "Essay_image_results")
     os.makedirs(save_dir, exist_ok=True)
-    save_path = os.path.join(save_dir, f"Sequence_Probability_Curve.png")
+    save_path = os.path.join(save_dir, f"Sequence_Probability_Curve.pdf")
 
     print("正在生成高清图表...")
-    plot_single_demo_probability(probs[16:173], true_labels_np[16:173], demo_id=TARGET_DEMO_ID, save_path=save_path)
+    
+    # 截取区间绘制示例 (根据您的序列实际长度可能需要调整)
+    plot_single_demo_probability(probs, true_labels_np, demo_id=TARGET_DEMO_ID, save_path=save_path)

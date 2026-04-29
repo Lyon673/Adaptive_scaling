@@ -137,7 +137,7 @@ def visualize_bo_unified_smooth(json_files, output_path="BO_Unified_Results_Smoo
     ax.legend(bbox_to_anchor=(1.02, 1), loc='upper left', frameon=False, fontsize=10)
 
     plt.tight_layout()
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.savefig(output_path, format="pdf", dpi=300, bbox_inches='tight')
     plt.close()
     
     print(f"一体化平滑优化图表已成功生成并保存至: {output_path}")
@@ -153,5 +153,5 @@ if __name__ == "__main__":
         "scores1201.json",
         "scores.json"
     ]
-    output_path = os.path.join(os.path.dirname(__file__), "Essay_image_results", "BO_Unified_Results_Smooth.png")
+    output_path = os.path.join(os.path.dirname(__file__), "Essay_image_results", "BO_Unified_Results_Smooth.pdf")
     visualize_bo_unified_smooth(json_files_list, output_path=output_path)

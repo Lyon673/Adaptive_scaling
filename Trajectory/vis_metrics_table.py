@@ -277,7 +277,7 @@ def plot_comparison_table(results_data, columns, save_path):
                 
     plt.tight_layout(pad=0.1)
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
-    plt.savefig(save_path, dpi=400, bbox_inches='tight', facecolor='white')
+    plt.savefig(save_path, format="pdf", dpi=400, bbox_inches='tight', facecolor='white')
     plt.close()
     print(f"\n📊 标准学术三线表已生成并保存至: {save_path}")
 
@@ -347,5 +347,5 @@ if __name__ == "__main__":
         print("❌ 未捕获有效评估数据，请核对 MODELS_ZOO 权重路径配置。")
         exit()
 
-    save_path = os.path.join(dir_path, os.pardir, "Essay_image_results", "Metrics_Comparison_Table.png")
+    save_path = os.path.join(dir_path, os.pardir, "Essay_image_results", "Metrics_Comparison_Table.pdf")
     plot_comparison_table(aggregated_results, columns, save_path)

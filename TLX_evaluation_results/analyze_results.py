@@ -203,8 +203,8 @@ def plot_2x2_boxplots_with_stats(df: pd.DataFrame, save_dir: str):
         ax.tick_params(colors='#222222', width=1.2)
 
     plt.tight_layout(pad=2.0)
-    path = os.path.join(save_dir, 'statistical_boxplots_2x2.png')
-    plt.savefig(path, dpi=300, bbox_inches='tight', facecolor='white')
+    path = os.path.join(save_dir, 'statistical_boxplots_2x2.pdf')
+    plt.savefig(path, format="pdf", dpi=300, bbox_inches='tight', facecolor='white')
     plt.close()
     print(f'  → 图 1 已生成: {path}')
 
@@ -283,8 +283,8 @@ def plot_radar_charts(df: pd.DataFrame, save_dir: str):
                ncol=len(GROUP_ORDER), title="Motion Scaling Modes", frameon=False, fontsize=13, title_fontsize=13)
 
     plt.tight_layout()
-    path = os.path.join(save_dir, 'comprehensive_radar_charts.png')
-    plt.savefig(path, dpi=300, bbox_inches='tight', facecolor='white')
+    path = os.path.join(save_dir, 'comprehensive_radar_charts.pdf')
+    plt.savefig(path, format="pdf", dpi=300, bbox_inches='tight', facecolor='white')
     plt.close()
     print(f'  → 图 2 已生成: {path}')
 

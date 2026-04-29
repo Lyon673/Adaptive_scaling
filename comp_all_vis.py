@@ -448,8 +448,8 @@ def plot_overall_figures(df1, df2):
     
     plt.tight_layout(pad=2.0)
     
-    save_path = os.path.join(OUTPUT_DIR, f"Kinematics&Eyes_Overall_Boxplots.png")
-    plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
+    save_path = os.path.join(OUTPUT_DIR, f"Kinematics&Eyes_Overall_Boxplots.pdf")
+    plt.savefig(save_path, format="pdf", dpi=300, bbox_inches='tight', facecolor='white')
     plt.close()
     print(f"✅ 全局平均对比图 (Overall) 已保存至: {save_path}")
 

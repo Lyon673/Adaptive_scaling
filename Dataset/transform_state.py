@@ -58,7 +58,7 @@ class RealTimeVelocityFilter:
 def transform_state():
     current_dir = os.path.dirname(__file__) 
     state_path = os.path.join(current_dir, os.pardir, 'data')
-    for demo_id in os.listdir(state_path):
+    for demo_id in [f'{i}_data_04-09' for i in range(180,190)]:
         demo_dir = os.path.join(state_path, demo_id)
         left_pose = np.load(os.path.join(demo_dir, 'Lpsm_pose.npy'))
         right_pose = np.load(os.path.join(demo_dir, 'Rpsm_pose.npy'))

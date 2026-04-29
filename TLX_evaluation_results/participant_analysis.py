@@ -195,8 +195,8 @@ def plot_participant_grouped_bars(df: pd.DataFrame, save_dir: str):
     plt.tight_layout(pad=3.5)
     plt.subplots_adjust(bottom=0.15) 
 
-    path = os.path.join(save_dir, 'Participant_Grouped_Bars_2x2.png')
-    plt.savefig(path, dpi=300, bbox_inches='tight', facecolor='white')
+    path = os.path.join(save_dir, 'Participant_Grouped_Bars_2x2.pdf')
+    plt.savefig(path, format="pdf", dpi=300, bbox_inches='tight', facecolor='white')
     plt.close()
     print(f'  → 图表已生成: {path}')
 

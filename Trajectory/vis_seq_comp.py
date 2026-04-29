@@ -347,8 +347,8 @@ def main():
     
     # ----- F. 保存并展示 -----
     plt.tight_layout()
-    save_path = os.path.join(dir_path, os.pardir, "Essay_image_results", f"Sequence_Networks_comparison.png")
-    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    save_path = os.path.join(dir_path, os.pardir, "Essay_image_results", f"Sequence_Networks_comparison.pdf")
+    plt.savefig(save_path, format="pdf", dpi=300, bbox_inches='tight')
     print(f"\n🎉 图表已生成并保存至: {save_path}")
     plt.close()
 

@@ -151,7 +151,7 @@ def plot_3d_trajectories(traj_data_dict, save_path="3D_Trajectories_Comparison.p
 
     # 保存文件
     os.makedirs(os.path.dirname(save_path) if os.path.dirname(save_path) else '.', exist_ok=True)
-    plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
+    plt.savefig(save_path, dpi=300, format="pdf",bbox_inches='tight', facecolor='white')
     plt.close()
     print(f"🎉 3D 散点轨迹对比图（速度体现实装版）已成功生成并保存至: {save_path}")
 
@@ -184,5 +184,5 @@ if __name__ == "__main__":
         trajectory_dataset[mode] = (left_data, right_data)
     
     file_path = os.path.join(os.path.dirname(__file__))
-    output_filepath = os.path.join(file_path, "Essay_image_results", "3D_Trajectories_Comparison_Scatter.png")
+    output_filepath = os.path.join(file_path, "Essay_image_results", "3D_Trajectories_Comparison_Scatter.pdf")
     plot_3d_trajectories(trajectory_dataset, save_path=output_filepath)

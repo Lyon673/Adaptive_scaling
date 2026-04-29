@@ -280,7 +280,7 @@ def generate_evaluation_plot(data_path, save_path, subdir_name, spatial_model):
     legend_2d = ax_2d.legend(loc='upper right', framealpha=0.95, facecolor='white', edgecolor='#CCCCCC')
 
     plt.tight_layout()
-    plt.savefig(save_path, dpi=200, bbox_inches='tight', facecolor='white')
+    plt.savefig(save_path, format="pdf", dpi=200, bbox_inches='tight', facecolor='white')
     plt.close()
 
 def process_data(start_idx, end_idx):
@@ -299,7 +299,7 @@ def process_data(start_idx, end_idx):
         path = os.path.join(data_base_dir, subdir)
         if os.path.exists(os.path.join(path, 'gazepoint_position_data.npy')):
             print(f"Processing -> {subdir}...")
-            save_file = os.path.join(output_dir, f"GazePoint_Filtered_Results.png")
+            save_file = os.path.join(output_dir, f"GazePoint_Filtered_Results.pdf")
             generate_evaluation_plot(path, save_file, subdir, spatial_model)
 
 if __name__ == "__main__":
